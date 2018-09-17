@@ -14,10 +14,9 @@ import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import {expectTask} from 'rescape-helpers';
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
 
-let mock = true;
-//mock = false;
-//jest.unmock('query-overpass');
-jest.mock('query-overpass');
+let mock = false;
+jest.unmock('query-overpass');
+//jest.mock('query-overpass');
 
 // requires are used below since the jest includes aren't available at compile time
 describe('overpassHelpersUnmocked', () => {
@@ -26,24 +25,41 @@ describe('overpassHelpersUnmocked', () => {
   }
   const realBounds = [-118.24031352996826, 34.04298753935195, -118.21018695831297, 34.065209887879476];
 
-  test('unmockedFetchTransit', async () => {
+  test('unmockedFetchTransit', done => {
     expect.assertions(1);
     // Unmocked integration test
-    await expectTask(
-      // We expect over 500 results. I'll leave it fuzzy in case the source dataset changes
-      fetchTransit({realBounds}, realBounds).map(response => response.features.length > 500)
-    ).resolves.toBe(true);
+    // We expect over 500 results. I'll leave it fuzzy in case the source dataset changes
+    fetchTransit(
+      {testBounds: realBounds},
+      realBounds
+    ).run().listen(defaultRunConfig(
+      {
+        onResolved:
+          response => {
+            expect(response.features.length).toBeGreaterThan(500);
+            done();
+          }
+      }
+    ));
   }, 1000000);
 
-  test('unmockedFetchTransitCelled', async () => {
+  test('unmockedFetchTransitCelled', done => {
     expect.assertions(1);
     // Wrap the Task in a Promise for jest's sake
-    await expectTask(
-      fetchTransit({cellSize: 2, bounds: realBounds, sleepBetweenCalls: 1000}, realBounds).map(
-        // We expect over 500 results. I'll leave it fuzzy in case the source dataset changes
-        response => response.features.length > 500
-      )
-    ).resolves.toBe(true);
+    fetchTransit({
+      // 1 meter cells!
+      cellSize: 1,
+      testBounds: realBounds,
+      sleepBetweenCalls: 1000
+    }, realBounds).run().listen(defaultRunConfig(
+      {
+        onResolved:
+          response => {
+            expect(response.features.length).toBeGreaterThan(500);
+            done();
+          }
+      }
+    ));
   }, 1000000);
 });
 
@@ -60,21 +76,24 @@ describe('overpassHelpers', () => {
       {
         onResolved:
           response => {
-            expect(response).toEqual(LA_SAMPLE)
+            expect(response).toEqual(LA_SAMPLE);
             done();
           }
       })
-    )
+    );
   });
 
-  test('fetchTransit in cells', async () => {
+  test('fetchTransit in cells', done => {
     expect.assertions(1);
-    await expectTask(
-      fetchTransit({cellSize: 200, testBounds: bounds}, bounds).map(response => response.features)
-    ).resolves.toEqual(
-      // the sample can have duplicate ids
-      removeDuplicateObjectsByProp('id', LA_SAMPLE.features)
+    fetchTransit({cellSize: 200, testBounds: bounds}, bounds).run().listen(defaultRunConfig(
+      {
+        onResolved:
+          response => {
+            // the sample can have duplicate ids
+            expect(response.features).toEqual(removeDuplicateObjectsByProp('id', LA_SAMPLE.features));
+            done();
+          }
+      })
     );
   });
 });
-

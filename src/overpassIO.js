@@ -10,7 +10,7 @@
  */
 
 import queryOverpass from 'query-overpass';
-import {of} from 'folktale/concurrency/task';
+import {task, of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
 import {mergeAllWithKey, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import os from 'os';
@@ -27,17 +27,17 @@ import {concatFeatures} from 'rescape-helpers';
  * @returns {Object} Task to fetch the data
  */
 export const fetchTransit = R.curry((options, bounds) => {
-    if (options.cellSize) {
-        return fetchTransitCelled(options, bounds);
-    }
+  if (options.cellSize) {
+    return fetchTransitCelled(options, bounds);
+  }
 
-    const boundsAsString = R.pipe(
-        list=>R.concat(
-            R.reverse(R.slice(0, 2)(list)),
-            R.reverse(R.slice(2, 4)(list))),
-        R.join(',')
-    )(bounds);
-    const query = boundsString => `
+  const boundsAsString = R.pipe(
+    list => R.concat(
+      R.reverse(R.slice(0, 2)(list)),
+      R.reverse(R.slice(2, 4)(list))),
+    R.join(',')
+  )(bounds);
+  const query = boundsString => `
     [out:json];
     (
         ${R.pipe(R.map(type => `
@@ -47,7 +47,7 @@ export const fetchTransit = R.curry((options, bounds) => {
             ["service" != "spur"]
             (${boundsString});
         `),
-        R.join(os.EOL))(['node', 'way', 'rel'])}
+    R.join(os.EOL))(['node', 'way', 'rel'])}
     );
     // print results
     out meta;/*fixed by auto repair*/
@@ -55,20 +55,20 @@ export const fetchTransit = R.curry((options, bounds) => {
     out meta qt;/*fixed by auto repair*/
     `;
 
-    // Wrap overpass helper's execution and callback in a Task
-    return of(resolver => {
-        // Possibly delay each call to query_overpass to avoid request rate threshold
-        // Since we are executing calls sequentially, this will pause sleepBetweenCalls before each call
-        setTimeout(() =>
-            queryOverpass(query(boundsAsString), (error, data) => {
-                if (!error) {
-                    resolver.resolve(data);
-                } else {
-                    resolver.reject(error);
-                }
-            }, options),
-            options.sleepBetweenCalls || 0);
-    });
+  // Wrap overpass helper's execution and callback in a Task
+  return task(resolver => {
+    // Possibly delay each call to query_overpass to avoid request rate threshold
+    // Since we are executing calls sequentially, this will pause sleepBetweenCalls before each call
+    setTimeout(() =>
+        queryOverpass(query(boundsAsString), (error, data) => {
+          if (!error) {
+            resolver.resolve(data);
+          } else {
+            resolver.reject(error);
+          }
+        }, options),
+      options.sleepBetweenCalls || 0);
+  });
 });
 
 /**
@@ -85,38 +85,39 @@ export const fetchTransit = R.curry((options, bounds) => {
  * @returns {Object} Chained Tasks to fetch the data
  */
 const fetchTransitCelled = ({cellSize, sleepBetweenCalls, testBounds}, bounds) => {
-    const options = {units: 'kilometers'};
-    // Use turf's squareGrid function to break up the bbox by cellSize squares
-    const squares = R.map(
-        polygon => bbox(polygon),
-        squareGrid(bounds, cellSize, options).features);
+  const options = {units: 'kilometers'};
+  // Use turf's squareGrid function to break up the bbox by cellSize squares
+  const squares = R.map(
+    polygon => bbox(polygon),
+    squareGrid(bounds, cellSize, options).features);
 
-    // fetchTasks :: Array (Task Object)
-    const fetchTasks = R.map(fetchTransit({sleepBetweenCalls, testBounds}), squares);
-    // chainedTasks :: Array (Task Object) -> Task.chain(Task).chain(Task)...
-    // We want each request to overpass to run after the previous is finished,
-    // so as to not exceed the permitted request rate. Chain the tasks and reduce
-    // them using map to combine all previous Task results.
-    const chainedTasks = R.reduce(
-        (prevChainedTasks, fetchTask) => prevChainedTasks.chain(results =>
-            fetchTask.map(result =>
-                R.concat(results.length ? results : [results], [result])
-            )
-        ),
-        R.head(fetchTasks),
-        R.tail(fetchTasks));
+  // fetchTasks :: Array (Task Object)
+  const fetchTasks = R.map(fetchTransit({sleepBetweenCalls, testBounds}), squares);
+  // chainedTasks :: Array (Task Object) -> Task.chain(Task).chain(Task)...
+  // We want each request to overpass to run after the previous is finished,
+  // so as to not exceed the permitted request rate. Chain the tasks and reduce
+  // them using map to combine all previous Task results.
+  const chainedTasks = R.reduce(
+    (prevChainedTasks, fetchTask) => prevChainedTasks.chain(results =>
+      fetchTask.map(result =>
+        R.concat(results.length ? results : [results], [result])
+      )
+    ),
+    R.head(fetchTasks),
+    R.tail(fetchTasks));
 
 
-    // sequenced :: Task (Array Object)
-    // const sequenced = R.sequence(Task.of, fetchTasks);
-    return chainedTasks.chain(results =>
-        of(
-            R.pipe(
-                mergeAllWithKey(concatFeatures), // combine the results into one obj with concatinated features
-                R.over( // remove features with the same id
-                    R.lens(R.prop('features'), R.assoc('features')),
-                    removeDuplicateObjectsByProp('id'))
-            )(results)
-        )
-    );
+  // sequenced :: Task (Array Object)
+  // const sequenced = R.sequence(Task.of, fetchTasks);
+  return chainedTasks.map(results =>
+    R.compose(
+      // Lastly remove features with the same id
+      R.over(
+        R.lens(R.prop('features'), R.assoc('features')),
+        removeDuplicateObjectsByProp('id')
+      ),
+      // First combine the results into one obj with concatinated features
+      mergeAllWithKey(concatFeatures)
+    )(results)
+  );
 };

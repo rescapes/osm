@@ -9,14 +9,20 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {fetchTransit} from './overpassIO';
+import {fetchOsm, osmAlways, osmNotEqual} from './overpassIO';
 import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
-import {expectTask} from 'rescape-helpers';
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
 
-let mock = false;
-jest.unmock('query-overpass');
-//jest.mock('query-overpass');
+const mock = true;
+//jest.unmock('query-overpass');
+jest.mock('query-overpass');
+
+
+const conditions = [
+  osmAlways("railway"),
+  osmNotEqual("service", "siding"),
+  osmNotEqual("service", "spur")
+];
 
 // requires are used below since the jest includes aren't available at compile time
 describe('overpassHelpersUnmocked', () => {
@@ -29,8 +35,9 @@ describe('overpassHelpersUnmocked', () => {
     expect.assertions(1);
     // Unmocked integration test
     // We expect over 500 results. I'll leave it fuzzy in case the source dataset changes
-    fetchTransit(
+    fetchOsm(
       {testBounds: realBounds},
+      conditions,
       realBounds
     ).run().listen(defaultRunConfig(
       {
@@ -46,12 +53,15 @@ describe('overpassHelpersUnmocked', () => {
   test('unmockedFetchTransitCelled', done => {
     expect.assertions(1);
     // Wrap the Task in a Promise for jest's sake
-    fetchTransit({
-      // 1 meter cells!
-      cellSize: 1,
-      testBounds: realBounds,
-      sleepBetweenCalls: 1000
-    }, realBounds).run().listen(defaultRunConfig(
+    fetchOsm({
+        // 1 meter cells!
+        cellSize: 1,
+        testBounds: realBounds,
+        sleepBetweenCalls: 1000
+      },
+      conditions,
+      realBounds
+    ).run().listen(defaultRunConfig(
       {
         onResolved:
           response => {
@@ -69,10 +79,14 @@ describe('overpassHelpers', () => {
   }
 
   const bounds = LA_BOUNDS;
-  test('fetchTransit', done => {
+  test('fetchOsm', done => {
     expect.assertions(1);
     // Pass bounds in the options. Our mock query-overpass uses is to avoid parsing the query
-    fetchTransit({testBounds: bounds}, bounds).run().listen(defaultRunConfig(
+    fetchOsm(
+      {testBounds: bounds},
+      conditions,
+      bounds
+    ).run().listen(defaultRunConfig(
       {
         onResolved:
           response => {
@@ -83,9 +97,13 @@ describe('overpassHelpers', () => {
     );
   });
 
-  test('fetchTransit in cells', done => {
+  test('fetchOsm in cells', done => {
     expect.assertions(1);
-    fetchTransit({cellSize: 200, testBounds: bounds}, bounds).run().listen(defaultRunConfig(
+    fetchOsm(
+      {cellSize: 200, testBounds: bounds},
+      conditions,
+      bounds
+    ).run().listen(defaultRunConfig(
       {
         onResolved:
           response => {

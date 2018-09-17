@@ -8,19 +8,8 @@ const env = process.env.NODE_ENV;
 const config = {
   input: [
     'src/index.js',
-    'src/auth/login.js',
-    'src/client/client.js',
-    'src/helpers/categorizeHelpers.js',
-    'src/helpers/fetchHttpOrFile.js',
-    'src/helpers/queryHelpers.js',
-    'src/helpers/geojsonSelectors.js',
-    'src/helpers/mapboxSelectors.js',
-    'src/helpers/regionSelectors.js',
-    'src/helpers/settingsSelectors.js',
-    'src/helpers/storeSelectors.js',
-    'src/helpers/styleSelectors.js',
-    'src/helpers/userSelectors.js',
-    'src/schema/selectorResolvers.js'
+    'src/overpassIO.js',
+    'src/searchIO.js'
   ],
   plugins: [
     // Automatically exclude dependencies and peerDependencies from cjs and es builds, (and excludes

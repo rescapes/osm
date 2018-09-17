@@ -19,16 +19,49 @@ import bbox from '@turf/bbox';
 import {concatFeatures} from 'rescape-helpers';
 
 /**
+ * Translates to OSM condition that must be true
+ * @param {string} prop The feature property that must be true
+ * @return {string} '["prop"]'
+ */
+export const osmAlways = prop => `[${prop}]`;
+
+/**
+ * Translates to OSM not equal condition
+ * @param {string} prop The feature property that must not be euqal to the value
+ * @param {object} value Value that toStrings appropriately
+ * @return {string} '["prop" != "value"]'
+ */
+export const osmNotEqual = (prop, value) => osmCondition('!=', prop, value);
+
+/**
+ * Translates to OSM equals condition
+ * @param {string} prop The feature property that must not be euqal to the value
+ * @param {object} value Value that toStrings appropriately
+ * @return {string} '["prop" = "value"]'
+ */
+export const osmEquals = (prop, value) => osmCondition('=', prop, value);
+
+/**
+ * Translates to OSM (in)equality condition
+ * @param {string} operator Anything that osm supports '=', '!=', '>', '<', '>=', '<=', etc
+ * @param {string} prop The feature property that must not be euqal to the value
+ * @param {object} value Value that toStrings appropriately
+ * @return {string} '["prop" operator "value"]'
+ */
+export const osmCondition = (operator, prop, value) => `["${prop}" ${operator} "${value}"]`;
+
+/**
  * fetches transit data from OpenStreetMap using the Overpass API.
  * @param {Object} options Options to pass to query-overpass, plus the following:
  * @param {Object} options.testBounds Used only for testing
- * @param {Object} options.cellSize If specified delegates to fetchTransitCelled
+ * @param {Object} options.cellSize If specified delegates to fetchCelled
+ * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'
  * @param {Array} bounds [lat_min, lon_min, lat_max, lon_max]
- * @returns {Object} Task to fetch the data
+ * @returns {Object} Task to fetchOsm the data
  */
-export const fetchTransit = R.curry((options, bounds) => {
+export const fetchOsm = R.curry((options, conditions, bounds) => {
   if (options.cellSize) {
-    return fetchTransitCelled(options, bounds);
+    return fetchOsmCelled(options, conditions, bounds);
   }
 
   const boundsAsString = R.pipe(
@@ -40,14 +73,12 @@ export const fetchTransit = R.curry((options, bounds) => {
   const query = boundsString => `
     [out:json];
     (
-        ${R.pipe(R.map(type => `
-        ${type} 
-            ["railway"]
-            ["service" != "siding"]
-            ["service" != "spur"]
-            (${boundsString});
-        `),
-    R.join(os.EOL))(['node', 'way', 'rel'])}
+  ${R.compose(
+    R.join(os.EOL),
+    R.map(type => `${type} 
+${R.join(os.EOL, conditions)}
+(${boundsString});`)
+  )(['node', 'way', 'rel'])}
     );
     // print results
     out meta;/*fixed by auto repair*/
@@ -82,9 +113,11 @@ export const fetchTransit = R.curry((options, bounds) => {
  * @param {[Number]} bounds [lat_min, lon_min, lat_max, lon_max]
  * @param {Number} sleepBetweenCalls Pause this many milliseconds between calls to avoid the request rate limit
  * @param {Object} testBounds Used only for testing
- * @returns {Object} Chained Tasks to fetch the data
+ * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'
+ * @param {Array} bounds [lat_min, lon_min, lat_max, lon_max]
+ * @returns {Task} Chained Tasks to fetchOsm the data
  */
-const fetchTransitCelled = ({cellSize, sleepBetweenCalls, testBounds}, bounds) => {
+const fetchOsmCelled = ({cellSize, sleepBetweenCalls, testBounds}, conditions, bounds) => {
   const options = {units: 'kilometers'};
   // Use turf's squareGrid function to break up the bbox by cellSize squares
   const squares = R.map(
@@ -92,7 +125,7 @@ const fetchTransitCelled = ({cellSize, sleepBetweenCalls, testBounds}, bounds) =
     squareGrid(bounds, cellSize, options).features);
 
   // fetchTasks :: Array (Task Object)
-  const fetchTasks = R.map(fetchTransit({sleepBetweenCalls, testBounds}), squares);
+  const fetchTasks = R.map(fetchOsm({sleepBetweenCalls, testBounds}, conditions), squares);
   // chainedTasks :: Array (Task Object) -> Task.chain(Task).chain(Task)...
   // We want each request to overpass to run after the previous is finished,
   // so as to not exceed the permitted request rate. Chain the tasks and reduce

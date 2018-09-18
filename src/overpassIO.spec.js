@@ -13,15 +13,18 @@ import {fetchOsm, osmAlways, osmNotEqual} from './overpassIO';
 import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
 
-const mock = true;
-//jest.unmock('query-overpass');
-jest.mock('query-overpass');
+const mock = false;
+jest.unmock('query-overpass');
+//jest.mock('query-overpass');
 
 
 const conditions = [
   osmAlways("railway"),
   osmNotEqual("service", "siding"),
   osmNotEqual("service", "spur")
+];
+const types = [
+  'node', 'way', 'relation'
 ];
 
 // requires are used below since the jest includes aren't available at compile time
@@ -36,9 +39,9 @@ describe('overpassHelpersUnmocked', () => {
     // Unmocked integration test
     // We expect over 500 results. I'll leave it fuzzy in case the source dataset changes
     fetchOsm(
-      {testBounds: realBounds},
-      conditions,
-      realBounds
+      {},
+      {bounds: realBounds, filters: conditions},
+      types
     ).run().listen(defaultRunConfig(
       {
         onResolved:
@@ -56,11 +59,10 @@ describe('overpassHelpersUnmocked', () => {
     fetchOsm({
         // 1 meter cells!
         cellSize: 1,
-        testBounds: realBounds,
         sleepBetweenCalls: 1000
       },
-      conditions,
-      realBounds
+      {bounds: realBounds, filters: conditions},
+      types
     ).run().listen(defaultRunConfig(
       {
         onResolved:
@@ -83,9 +85,12 @@ describe('overpassHelpers', () => {
     expect.assertions(1);
     // Pass bounds in the options. Our mock query-overpass uses is to avoid parsing the query
     fetchOsm(
-      {testBounds: bounds},
-      conditions,
-      bounds
+      {
+        // Used by the mock
+        testBounds: bounds
+      },
+      {bounds, filters: conditions},
+      types
     ).run().listen(defaultRunConfig(
       {
         onResolved:
@@ -100,9 +105,12 @@ describe('overpassHelpers', () => {
   test('fetchOsm in cells', done => {
     expect.assertions(1);
     fetchOsm(
-      {cellSize: 200, testBounds: bounds},
-      conditions,
-      bounds
+      {cellSize: 200,
+        // Used by the mock
+        testBounds: bounds
+      },
+      {bounds, filters: conditions},
+      types
     ).run().listen(defaultRunConfig(
       {
         onResolved:
@@ -114,4 +122,43 @@ describe('overpassHelpers', () => {
       })
     );
   });
+
+  test('fetchOsmBlock', done => {
+    expect.asserts(1);
+    const query = `[bbox:{{bbox}}];
+way[highway][name="6th Avenue"][footway!="crossing"]->.w1;
+way[highway][name="West 23rd Street"][footway!="crossing"]->.w2;
+way[highway][name="5th Avenue"][footway!="crossing"]->.w3;
+way[highway][name="West 23rd Street"][footway!="crossing"]->.w4;
+/* Get the two intersection nodes */
+// node contained in w1 and w2
+(node(w.w1)(w.w2);
+ // node contained in w3 and w4
+ node(w.w3)(w.w4);
+)->.allnodes;
+
+/* Get all ways containing one or both nodes */
+way[highway](bn.allnodes)->.ways; 
+
+
+/* For each way. Only one of these ways should pass to the output stage */
+foreach .ways -> .singleway (
+  // Get all nodes of this way
+  node.allnodes(w.singleway);
+  // Filter the singleWay by whether the nodes it contains equal the count
+  // of allnodes. This tells us that the way represents both intersections
+  way.singleway(bn)(if:count(nodes) == allnodes.count(nodes))->.winnerWay;
+  // Get all nodes in singleway if singleway passed the test
+  // If it didn't pass this won't match anything
+  // This also returns that aren't intersection nodes
+  node(w.winnerWay)->.wayNodes;
+  // Get the intersection of the wayNodes with the allnodes
+  node.allnodes.wayNodes->.intersectionNodes;
+  // Combine the winnerWay with the two nodes representing each intersection
+  (.winnerWay; .intersectionNodes;)->.winnerUnion;
+  // Output the way and two nodes
+  .winnerUnion out geom;
+);`;
+    fetchOsm()
+  })
 });

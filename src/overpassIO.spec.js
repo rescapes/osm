@@ -9,9 +9,12 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {fetchOsm, osmAlways, osmNotEqual} from './overpassIO';
+import {fetchOsm, osmAlways, osmNotEqual, fetchOsmRaw} from './overpassIO';
 import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
+import {cityNominatim} from './searchIO';
+import {of} from 'folktale/concurrency/task';
+import * as R from 'ramda';
 
 const mock = false;
 jest.unmock('query-overpass');
@@ -73,59 +76,11 @@ describe('overpassHelpersUnmocked', () => {
       }
     ));
   }, 1000000);
-});
 
-describe('overpassHelpers', () => {
-  if (!mock) {
-    return;
-  }
-
-  const bounds = LA_BOUNDS;
-  test('fetchOsm', done => {
-    expect.assertions(1);
-    // Pass bounds in the options. Our mock query-overpass uses is to avoid parsing the query
-    fetchOsm(
-      {
-        // Used by the mock
-        testBounds: bounds
-      },
-      {bounds, filters: conditions},
-      types
-    ).run().listen(defaultRunConfig(
-      {
-        onResolved:
-          response => {
-            expect(response).toEqual(LA_SAMPLE);
-            done();
-          }
-      })
-    );
-  });
-
-  test('fetchOsm in cells', done => {
-    expect.assertions(1);
-    fetchOsm(
-      {cellSize: 200,
-        // Used by the mock
-        testBounds: bounds
-      },
-      {bounds, filters: conditions},
-      types
-    ).run().listen(defaultRunConfig(
-      {
-        onResolved:
-          response => {
-            // the sample can have duplicate ids
-            expect(response.features).toEqual(removeDuplicateObjectsByProp('id', LA_SAMPLE.features));
-            done();
-          }
-      })
-    );
-  });
 
   test('fetchOsmBlock', done => {
-    expect.asserts(1);
-    const query = `[bbox:{{bbox}}];
+    expect.assertions(1);
+    const query = `
 way[highway][name="6th Avenue"][footway!="crossing"]->.w1;
 way[highway][name="West 23rd Street"][footway!="crossing"]->.w2;
 way[highway][name="5th Avenue"][footway!="crossing"]->.w3;
@@ -159,6 +114,69 @@ foreach .ways -> .singleway (
   // Output the way and two nodes
   .winnerUnion out geom;
 );`;
-    fetchOsm()
-  })
+    R.composeK(
+      bounds => fetchOsmRaw({bounds},  query),
+      // bounding box comes as two lats, then two lon, so fix
+      result => of(R.map(str => parseFloat(str), R.props([0,2,1,3], result.boundingbox))),
+      location => cityNominatim(location)
+    )({country: 'USA', state: 'New York', city: 'New York City'}).run().listen(defaultRunConfig(
+      {
+        onResolved:
+          response => {
+            // the sample can have duplicate ids
+            expect(response.features).toEqual(removeDuplicateObjectsByProp('id', LA_SAMPLE.features));
+            done();
+          }
+      }));
+  }, 1000000);
+});
+
+describe('overpassHelpers', () => {
+  if (!mock) {
+    return;
+  }
+
+  const bounds = LA_BOUNDS;
+  test('fetchOsm', done => {
+    expect.assertions(1);
+    // Pass bounds in the options. Our mock query-overpass uses is to avoid parsing the query
+    fetchOsm(
+      {
+        // Used by the mock
+        testBounds: bounds
+      },
+      {bounds, filters: conditions},
+      types
+    ).run().listen(defaultRunConfig(
+      {
+        onResolved:
+          response => {
+            expect(response).toEqual(LA_SAMPLE);
+            done();
+          }
+      })
+    );
+  });
+
+  test('fetchOsm in cells', done => {
+    expect.assertions(1);
+    fetchOsm(
+      {
+        cellSize: 200,
+        // Used by the mock
+        testBounds: bounds
+      },
+      {bounds, filters: conditions},
+      types
+    ).run().listen(defaultRunConfig(
+      {
+        onResolved:
+          response => {
+            // the sample can have duplicate ids
+            expect(response.features).toEqual(removeDuplicateObjectsByProp('id', LA_SAMPLE.features));
+            done();
+          }
+      })
+    );
+  });
 });

@@ -11,6 +11,9 @@
 
 import xhr from 'xhr';
 import {task} from 'folktale/concurrency/task';
+import * as R from 'ramda';
+import {compact, promiseToTask} from 'rescape-ramda';
+import Nominatim from 'nominatim-geocoder';
 
 /**
  * Uses Mapbox to resolve locations based on a search string
@@ -22,17 +25,53 @@ import {task} from 'folktale/concurrency/task';
  * @returns {Object} A Task to query for the search results
  */
 export const searchLocation = (endpoint, source, accessToken, proximity, query) => dispatch => {
-    return task(({reject, resolve}) => {
-        const uri = `${endpoint}/geocoding/v5/${source}/${encodeURIComponent(query)}.json?access_token=${accessToken}${(proximity ? '&proximity=' + proximity : '')}`;
-        xhr({
-            uri: uri,
-            json: true
-        }, function (err, res, body) {
-            if (err) {
-                reject(err);
-            } else {
-                resolve(body);
-            }
-        });
+  return task(({reject, resolve}) => {
+    const uri = `${endpoint}/geocoding/v5/${source}/${encodeURIComponent(query)}.json?access_token=${accessToken}${(proximity ? '&proximity=' + proximity : '')}`;
+    xhr({
+      uri: uri,
+      json: true
+    }, function (err, res, body) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(body);
+      }
     });
+  });
+};
+
+
+/***
+ * Resolves a city's OSM boundary relation
+ * @param {Object} location. Contains location props
+ * @param {String} location.country Required country
+ * @param {String} location.state Optional. The state, province, canton, etc
+ * @param {String} location.city Required city
+ * @return {Task} A Task that resolves the relation id or errors
+ */
+export const cityNominatim = location => {
+  // Create a location string with the country, state (if exists), and city
+  // Note I tried to pass city, state, country to the API but it doesn't work, New York City returns York
+  // So leaving this as a query string which does work
+  const locationString = R.compose(
+    R.join(','),
+    compact,
+    R.props(['city', 'state', 'country'])
+  )(location);
+  const geocoder = new Nominatim({
+    secure: true, // enables ssl
+    host: 'nominatim.openstreetmap.org'
+  });
+  return task(({reject, resolve}) => {
+    return geocoder.search({q: locationString, addressDetails: 1}).then(
+      results => {
+        if (R.equals(1, R.length(results))) {
+          resolve(R.head(results));
+        }
+        else {
+          reject({error: "To many results", results});
+        }
+      }
+    ).catch(reject);
+  });
 };

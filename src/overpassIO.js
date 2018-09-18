@@ -60,19 +60,28 @@ export const osmCondition = (operator, prop, value) => `["${prop}" ${operator} "
 const filtersForType = R.curry((conditions, type) => `${type}${R.join('', conditions)};`);
 
 /**
+ * Given an array of bounds lat, lon, lat, lon, return themn as a string for osm
+ * @param {[Number]} bounds
+ * @return {*}
+ */
+const boundsAsString = bounds => {
+  return R.pipe(
+    list => R.concat(
+      R.reverse(R.slice(0, 2)(list)),
+      R.reverse(R.slice(2, 4)(list))),
+    R.join(','),
+    str => (`[bbox: ${str}`)
+  )(bounds)
+};
+
+
+/**
  * Builds simple queries that just consist of filters on the given types
  */
 const buildFilterQuery = R.curry((settings, conditions, types) => {
 
-  const boundsAsString = R.pipe(
-    list => R.concat(
-      R.reverse(R.slice(0, 2)(list)),
-      R.reverse(R.slice(2, 4)(list))),
-    R.join(',')
-  )(reqStrPathThrowing('bounds', conditions));
-
   // For now we always apply the bounds as a bbox in settings
-  const appliedSettings = `${R.join('', settings)}[bbox: ${boundsAsString}];`;
+  const appliedSettings = `${R.join('', settings)}${boundsAsString(reqStrPathThrowing('bounds', condtions))};`;
   const filters = reqStrPathThrowing('filters', conditions);
 
   return `
@@ -140,8 +149,8 @@ export const fetchOsm = R.curry((options, conditions, types) => {
   }
   // Build the query
   const query = buildFilterQuery(defaultOptions.settings, conditions, types);
-  // Create a Task to run the query
-  return taskQuery(options, query);
+  // Create a Task to run the query. Settings are already added to the query, so omit here
+  return taskQuery(R.omit(['settings'], options), query);
 });
 
 /**
@@ -153,13 +162,12 @@ export const fetchOsm = R.curry((options, conditions, types) => {
  * @param {String} query A complete OSM query, minus the settings
  * @returns {Task} A Task to run the query
  */
-export const featchOsmRaw = R.curry((options, query) => {
+export const fetchOsmRaw = R.curry((options, query) => {
   // Default settings
   const settings = options.settings || [`[out:json]`];
-  const defaultOptions = R.merge(options, {settings});
-
-  // Create a Task to run the query
-  return taskQuery(defaultOptions, query);
+  const appliedSettings = `${R.join('', settings)}${boundsAsString(reqStrPathThrowing('bounds', condtions))};`;
+  // Create a Task to run the query. Settings are already added to the query, so omit here
+  return taskQuery(options, `${appliedSettings}${query}`);
 });
 
 /**

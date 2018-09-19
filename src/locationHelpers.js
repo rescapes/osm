@@ -13,6 +13,7 @@ import {compactEmpty} from 'rescape-ramda'
 import {geojsonCenterOfBlockAddress, geocodeAddress, geocodeBlockAddresses} from 'sop-vml';
 import {turfPointToLocation, googleLocationToLocation, googleLocationToTurfLineString} from 'rescape-helpers';
 import * as Result from 'folktale/result';
+import * as R from 'ramda';
 
 /**
  * Creates an address string for geolocation resolution
@@ -53,19 +54,6 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
   );
 };
 
-/**
- * Given a location returns a pair of address strings representing both ends of the block
- * @param {Object} location The location object
- * @returns {[String]} Two address strings for the location
- */
-export const addressPair = location => {
-  const locationProps = R.pick(['country', 'state', 'city', 'neighborhood'], location);
-  // Create two address strings from the intersection pair
-  return R.map(
-    intersectionPair => addressString(R.merge(locationProps, {intersectionPair})),
-    intersectionsFromLocation(location)
-  );
-};
 
 /**
  * Resolves the geolocation of a Location

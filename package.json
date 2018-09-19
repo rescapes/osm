@@ -40,7 +40,11 @@
     "publish-minor": "yarn --new-version version minor && yarn publish"
   },
   "dependencies": {
+    "@google/maps": "^0.5.5",
     "@turf/bbox-polygon": "^6.0.1",
+    "@turf/center": "^6.0.1",
+    "@turf/helpers": "^6.1.4",
+    "@turf/rhumb-distance": "^6.0.1",
     "@turf/turf": "^5.1.6",
     "fetch": "^1.1.0",
     "folktale": "^2.3.0",

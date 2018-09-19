@@ -80,23 +80,65 @@ describe('overpassHelpersUnmocked', () => {
 
   test('fetchOsmBlock', done => {
     expect.assertions(1);
+    const query = ({country, state, city, intersections}) => {
+
+      // Fix all street endings. OSM needs full names: Avenue not Ave, Lane not Ln
+      R.compose()
+      const streetCount = R.reduce(
+        (accum, street) => R.over(
+          R.lensProp(street),
+          value => (value || 0) + 1,
+          accum
+        ),
+        {},
+        R.flatten(intersections)
+      );
+      if (!R.find(R.equals(2), R.values(streetCount))) {
+        throw `No common block in intersections: ${JSON.stringify(intersections)}`;
+      }
+      // Sort each intersection, putting the common block first
+      const modifiedIntersections = R.map(
+        intersection => R.reverse(R.sortBy(street => R.prop(street, streetCount), intersection)),
+        intersections
+      );
+      // List the 3 blocks: common block and then other two blocks
+      const orderedBlocks = [R.head(R.head(modifiedIntersections)), ...R.map(R.last, modifiedIntersections)];
+
+      return `
+    area[boundary='administrative']['is_in:country'='${country}']['is_in:state'='${state}'][name='${city}']->.area;
+    ${
+        R.join('\n',
+          R.addIndex(R.map)(
+            (block, i) => `way(area.area)[highway][name="${block}"][footway!="crossing"]->.w${i + 1};`,
+            orderedBlocks
+          )
+        )
+     }
+// Get the two intersection nodes 
+// node contained in w1 and w2
+(node(w.w1)(w.w2);
+// node contained in w1 and w3
+ node(w.w1)(w.w3);
+)->.allnodes;
+// Get all main ways containing one or both nodes
+way.w1[highway](bn.allnodes)->.ways; 
+(.ways; .allnodes;)->.outputSet;
+.outputSet out geom;
+`;
+    };
+
+    /*
     const query = `
 way[highway][name="6th Avenue"][footway!="crossing"]->.w1;
 way[highway][name="West 23rd Street"][footway!="crossing"]->.w2;
 way[highway][name="5th Avenue"][footway!="crossing"]->.w3;
 way[highway][name="West 23rd Street"][footway!="crossing"]->.w4;
-/* Get the two intersection nodes */
 // node contained in w1 and w2
 (node(w.w1)(w.w2);
  // node contained in w3 and w4
  node(w.w3)(w.w4);
 )->.allnodes;
-
-/* Get all ways containing one or both nodes */
-way[highway](bn.allnodes)->.ways; 
-
-
-/* For each way. Only one of these ways should pass to the output stage */
+way[highway](bn.allnodes)->.ways;
 foreach .ways -> .singleway (
   // Get all nodes of this way
   node.allnodes(w.singleway);
@@ -114,12 +156,21 @@ foreach .ways -> .singleway (
   // Output the way and two nodes
   .winnerUnion out geom;
 );`;
+*/
     R.composeK(
-      bounds => fetchOsmRaw({bounds},  query),
+      query => fetchOsmRaw({}, query),
+      location => of(query(location))
       // bounding box comes as two lats, then two lon, so fix
-      result => of(R.map(str => parseFloat(str), R.props([0,2,1,3], result.boundingbox))),
-      location => cityNominatim(location)
-    )({country: 'USA', state: 'New York', city: 'New York City'}).run().listen(defaultRunConfig(
+      //result => of(R.map(str => parseFloat(str), R.props([0, 2, 1, 3], result.boundingbox))),
+      //location => cityNominatim(R.pick(['country', 'state', 'city'], location))
+    )({
+      country: 'USA',
+      state: 'California',
+      city: 'Oakland',
+      // Intentionally put Grand Ave a different positions
+      intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']
+      ]
+    }).run().listen(defaultRunConfig(
       {
         onResolved:
           response => {

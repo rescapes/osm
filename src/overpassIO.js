@@ -81,7 +81,7 @@ const boundsAsString = bounds => {
 const buildFilterQuery = R.curry((settings, conditions, types) => {
 
   // For now we always apply the bounds as a bbox in settings
-  const appliedSettings = `${R.join('', settings)}${boundsAsString(reqStrPathThrowing('bounds', condtions))};`;
+  const appliedSettings = `${R.join('', settings)}${boundsAsString(reqStrPathThrowing('bounds', settings))};`;
   const filters = reqStrPathThrowing('filters', conditions);
 
   return `
@@ -165,7 +165,15 @@ export const fetchOsm = R.curry((options, conditions, types) => {
 export const fetchOsmRaw = R.curry((options, query) => {
   // Default settings
   const settings = options.settings || [`[out:json]`];
-  const appliedSettings = `${R.join('', settings)}${boundsAsString(reqStrPathThrowing('bounds', condtions))};`;
+  const appliedSettings = `${R.join('', settings)}${
+    R.ifElse(
+      R.prop('bounds'),
+      // If bounds add them
+      options => boundsAsString(reqStrPathThrowing('bounds', options)),
+      // Otherwise assume we bound by area or something else non-global
+      R.always('')
+    )(options)
+  };`;
   // Create a Task to run the query. Settings are already added to the query, so omit here
   return taskQuery(options, `${appliedSettings}${query}`);
 });

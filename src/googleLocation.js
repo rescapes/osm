@@ -13,12 +13,13 @@ import {task, of} from 'folktale/concurrency/task';
 import rhumbDistance from '@turf/rhumb-distance';
 import {featureCollection} from '@turf/helpers';
 import center from '@turf/center';
-import {traverseReduce} from 'rescape-ramda';
+import {reqStrPath, reqStrPathThrowing, traverseReduce} from 'rescape-ramda';
 import * as Result from 'folktale/result';
 import googleMapsClient from './googleMapsClient';
 import {
   googleLocationToTurfPoint, locationToTurfPoint, originDestinationToLatLngString
 } from 'rescape-helpers';
+import {addressPair, addressString} from './locationHelpers';
 
 // Make sure that the key here is enabled to convert addresses to geocode and to use streetview
 // https://console.developers.google.com/apis/api/geocoding_backend?project=_
@@ -266,3 +267,32 @@ export const initDirectionsService = () => {
  */
 export const routeFromOriginAndDestination = createRouteFromOriginAndDestination(initDirectionsService());
 
+
+/**
+ * Get the long names of the intersections of location
+ * @param location
+ * @return {[[String]]} Two arrays containing the long names of each intersection
+ */
+export const fullStreetNamesofLocationTask = location => {
+  return R.composeK(
+    // result is a Result.Ok/Error, so chain them if Result.Ok
+    results => of(
+      results.chain(
+        // Result has two values, each address
+        values => R.map(
+          R.compose(
+            // Split at &
+            longName => R.split(' & ', longName),
+            // Get the long name version
+            value => reqStrPathThrowing('address_components.0.long_name', value)
+          ),
+          values
+        )
+      )
+    ),
+    // Geocode the intersection
+    addresses => geocodeBlockAddresses(addresses),
+    // Create the intersection address string
+    location => of(addressPair(location))
+  )(location);
+};

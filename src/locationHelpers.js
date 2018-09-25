@@ -9,8 +9,8 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import {strPathOr, compact, reqStrPath} from 'rescape-ramda';
-import {compactEmpty} from 'rescape-ramda'
-import {geojsonCenterOfBlockAddress, geocodeAddress, geocodeBlockAddresses} from './googleLocation'
+import {compactEmpty} from 'rescape-ramda';
+import {geojsonCenterOfBlockAddress, geocodeAddress, geocodeBlockAddresses} from './googleLocation';
 import {turfPointToLocation, googleLocationToLocation, googleLocationToTurfLineString} from 'rescape-helpers';
 import * as Result from 'folktale/result';
 import * as R from 'ramda';
@@ -55,6 +55,26 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
   );
 };
 
+/**
+ * Just returns the street "address" e.g. Perkins Ave, Oakland, CA, USA
+ * @param {String} country Required, the country
+ * @param {String} state Optional depending on the country
+ * @param {String} city Required
+ * @param {String} blockname Required, the street to create the address for
+ * @return {String} blockname, city, [state], country
+ */
+export const streetAddressString = ({country, state, city, blockname}) => {
+  return R.compose(
+    R.join(', '),
+    // Remove nulls and empty strings
+    compactEmpty
+  )([
+    blockname,
+    city,
+    state,
+    country]
+  );
+};
 
 /**
  * Resolves the geolocation of a Location
@@ -64,7 +84,7 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
  * @param {String} location.city
  * @param {[[String]]} location.intersections Zero, one or two arrays of two-item intersections:
  * e.g. [['Main St', 'Chestnut St'], ['Main St', 'Elm St']] or 0 or 1 of theses
- * @return {Task<Result>} The resolved center latitude and longitude of the location in a Result
+ * @return {Task<Result<[Number, Number]>>} The resolved center latitude and longitude of the location in a Result
  * If nothing or too many results occur an Error is returned instead of a Result
  */
 export const resolveGeoLocationTask = location => {
@@ -81,7 +101,7 @@ export const resolveGeoLocationTask = location => {
     );
   }
   // Otherwise create the most precise address string tha is possible
-  else
+  else {
     return geocodeAddress(addressString(location)).map(responseResult => {
       // Chain the either to a new Result that resolves geometry.location
       return responseResult.chain(response =>
@@ -90,8 +110,9 @@ export const resolveGeoLocationTask = location => {
       ).map(
         // Map the Maybe value
         googleLocationToLocation
-      )
+      );
     });
+  }
 };
 
 
@@ -120,7 +141,7 @@ export const resolveGeojsonTask = location => {
         // Produces a Result of two locations
         R.traverse(Result.of, reqStrPath('geometry.location'))
         )(responses)
-      )
+      );
     }
   );
 };

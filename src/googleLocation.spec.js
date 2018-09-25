@@ -13,7 +13,7 @@ import {
   createRouteFromOriginAndDestination,
   geocodeBlockAddresses,
   geocodeAddress,
-  geojsonCenterOfBlockAddress
+  geojsonCenterOfBlockAddress, fullStreetNamesofLocationTask
 } from './googleLocation';
 import * as R from 'ramda';
 import {defaultRunConfig} from 'rescape-ramda';
@@ -37,6 +37,8 @@ describe('googleHelpers', () => {
             ).map(
               resultValue => {
                 expect(resultValue.formatted_address).toEqual('13th St NE & Monroe St NE, Washington, DC 20017, USA');
+                // Make sure we can get full street names
+                expect(resultValue.address_components[0].long_name).toEqual('13th Street Northeast & Monroe Street Northeast');
                 done();
               }
             )
@@ -116,6 +118,32 @@ describe('googleHelpers', () => {
       defaultRunConfig({
         onResolved: routeResponse => {
           expect(routeResponse.summary).toMatchSnapshot();
+          done();
+        }
+      })
+    );
+  });
+
+  test('fullStreetNamesofLocationTask', done => {
+    const location = {
+      country: 'USA',
+      state: 'California',
+      city: 'Oakland',
+      // Intentionally put Grand Ave a different positions
+      intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
+    };
+    fullStreetNamesofLocationTask(location).run().listen(
+      defaultRunConfig({
+        onResolved: response => {
+          // Sort to make each pair alphabetical
+          expect(R.map(R.sortBy(R.identity), response)).toEqual([
+            [
+              'Grand Avenue', 'Perkins Street'
+            ],
+            [
+              'Grand Avenue', 'Lee Street'
+            ]
+          ]);
           done();
         }
       })

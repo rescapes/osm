@@ -1,8 +1,6 @@
 import * as R from 'ramda';
-import {mergeDeep, reqStrPathThrowing} from 'rescape-ramda';
+import {reqStrPathThrowing} from 'rescape-ramda';
 import {resolveGeoLocationTask, resolveGeojsonTask, addressPair} from './locationHelpers';
-import {turfPointToLocation, googleLocationToTurfLineString} from 'rescape-helpers';
-
 
 describe('LocationSelector', () => {
 
@@ -44,7 +42,7 @@ describe('LocationSelector', () => {
         throw new Error(reject);
       },
       onResolved: responseResult => responseResult.map(response => {
-        expect(response).toEqual([37.810808800000004, -122.26146955]);
+        expect(R.map(f => f.toFixed(2), response)).toEqual(["37.81", "-122.26"]);
         done();
       }).mapError(reject => {
         throw new Error(reject);
@@ -73,7 +71,7 @@ describe('LocationSelector', () => {
       },
       onResolved: responseResult => responseResult.map(
         response => {
-          expect(turfPointToLocation(response)).toEqual([37.8109508, -122.2616811]);
+          expect(R.map(f => f.toFixed(2), response)).toEqual(["37.81", "-122.26"]);
           done();
         }
       ).mapError(

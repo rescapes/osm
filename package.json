@@ -50,6 +50,7 @@
     "folktale": "^2.3.0",
     "follow-redirects": "^1.5.8",
     "http-https": "^1.0.0",
+    "mapbox-geocoding": "^0.1.5",
     "node-fetch": "^2.2.0",
     "nominatim-geocoder": "^0.1.4",
     "path": "^0.12.7",

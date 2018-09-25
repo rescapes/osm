@@ -14,6 +14,7 @@ import {task} from 'folktale/concurrency/task';
 import * as R from 'ramda';
 import {compact, promiseToTask} from 'rescape-ramda';
 import Nominatim from 'nominatim-geocoder';
+import mapbox from 'mapbox-geocoding';
 
 /**
  * Uses Mapbox to resolve locations based on a search string
@@ -75,3 +76,27 @@ export const cityNominatim = location => {
     ).catch(reject);
   });
 };
+
+/***
+ * Uses mapbox to resolve to geocode.
+ * Very limited, only works on cities and full addresses. Not interesecionts, streets
+ */
+export const mapboxGeocodeTask = R.curry((accessToken, address) => {
+  mapbox.setAccessToken(accessToken);
+
+  // Geocode an address to coordinates
+  return task(({reject, resolve}) => {
+    mapbox.geocode(
+      'mapbox.places',
+      address,
+      (err, geoData) => {
+        if (err) {
+          reject(err);
+        }
+        else {
+          resolve(geoData);
+        }
+      }
+    );
+  })
+});

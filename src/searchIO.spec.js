@@ -8,7 +8,7 @@
  *
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import {cityNominatim} from './searchIO';
+import {cityNominatim, mapboxGeocodeTask} from './searchIO';
 import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import * as R from 'ramda';
 
@@ -31,4 +31,26 @@ describe('searchIO', () => {
       })
     );
   }, 100000);
+
+  test('mapboxGeocodeTask', () => {
+    const mapboxApiKey = 'pk.eyJ1IjoiY2Fsb2NhbiIsImEiOiJjaXl1aXkxZjkwMG15MndxbmkxMHczNG50In0.07Zu3XXYijL6GJMuxFtvQg';
+
+    mapboxGeocodeTask(
+      mapboxApiKey,
+      'Industrigata 36, 0357 Oslo, Norway'
+    ).run().listen(defaultRunConfig(
+      {
+        onResolved:
+          result => {
+            expect(
+              result.features[0].id
+            ).toEqual(
+              'address.8977678114831560'
+            );
+            done();
+          }
+      })
+    );
+  });
 });
+

@@ -168,8 +168,7 @@ foreach .ways -> .singleway (
       state: 'California',
       city: 'Oakland',
       // Intentionally put Grand Ave a different positions
-      intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']
-      ]
+      intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
     }).run().listen(defaultRunConfig(
       {
         onResolved:

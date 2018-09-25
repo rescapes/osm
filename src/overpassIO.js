@@ -242,3 +242,4 @@ const fetchOsmCelled = ({cellSize, ...options}, conditions, types) => {
     )(results)
   );
 };
+

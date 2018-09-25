@@ -50,7 +50,7 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
  * @param {String} location.city Required city
  * @return {Task} A Task that resolves the relation id or errors
  */
-export const cityNominatim = location => {
+export const cityNominatimTask = location => {
   // Create a location string with the country, state (if exists), and city
   // Note I tried to pass city, state, country to the API but it doesn't work, New York City returns York
   // So leaving this as a query string which does work

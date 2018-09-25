@@ -17,6 +17,8 @@ import os from 'os';
 import squareGrid from '@turf/square-grid';
 import bbox from '@turf/bbox';
 import {concatFeatures} from 'rescape-helpers';
+import {fullStreetNamesOfLocationTask} from './googleLocation';
+import {cityNominatimTask} from './searchIO';
 
 /**
  * Translates to OSM condition that must be true
@@ -71,7 +73,7 @@ const boundsAsString = bounds => {
       R.reverse(R.slice(2, 4)(list))),
     R.join(','),
     str => (`[bbox: ${str}`)
-  )(bounds)
+  )(bounds);
 };
 
 
@@ -162,7 +164,7 @@ export const fetchOsm = R.curry((options, conditions, types) => {
  * @param {String} query A complete OSM query, minus the settings
  * @returns {Task} A Task to run the query
  */
-export const fetchOsmRaw = R.curry((options, query) => {
+export const fetchOsmRawTask = R.curry((options, query) => {
   // Default settings
   const settings = options.settings || [`[out:json]`];
   const appliedSettings = `${R.join('', settings)}${
@@ -173,7 +175,7 @@ export const fetchOsmRaw = R.curry((options, query) => {
       // Otherwise assume we bound by area or something else non-global
       R.always('')
     )(options)
-  };`;
+    };`;
   // Create a Task to run the query. Settings are already added to the query, so omit here
   return taskQuery(options, `${appliedSettings}${query}`);
 });
@@ -243,3 +245,96 @@ const fetchOsmCelled = ({cellSize, ...options}, conditions, types) => {
   );
 };
 
+/**
+ * Constructs an OSM query for the given location. Queries are limited to the city of the location
+ * and return the ways and nodes related two the intersections. These are more than are actually
+ * needed because some refer to ways that are outside the block between the intersectiions but connected to them.
+ * Thus they need to be cleaned up after. The OSM query language is too weak to do it here
+ * @param {String} country Required country for area resolution
+ * @param {String} state Optional depending on the country
+ * @param {String} city Required string for area resolution
+ * @param {[[String]]} intersections Required two pairs of intersection names that are full street names, i.e.
+ * Avenue not Ave
+ * @return {string}
+ */
+const constructLocationQuery = ({country, state, city, intersections}) => {
+
+  // Fix all street endings. OSM needs full names: Avenue not Ave, Lane not Ln
+  const streetCount = R.reduce(
+    (accum, street) => R.over(
+      R.lensProp(street),
+      value => (value || 0) + 1,
+      accum
+    ),
+    {},
+    R.flatten(intersections)
+  );
+  if (!R.find(R.equals(2), R.values(streetCount))) {
+    throw `No common block in intersections: ${JSON.stringify(intersections)}`;
+  }
+  // Sort each intersection, putting the common block first
+  const modifiedIntersections = R.map(
+    intersection => R.reverse(R.sortBy(street => R.prop(street, streetCount), intersection)),
+    intersections
+  );
+  // List the 3 blocks: common block and then other two blocks
+  const orderedBlocks = [R.head(R.head(modifiedIntersections)), ...R.map(R.last, modifiedIntersections)];
+
+  return `
+    area[boundary='administrative']['is_in:country'='${country}']['is_in:state'='${state}'][name='${city}']->.area;
+    ${
+    R.join('\n',
+      R.addIndex(R.map)(
+        (block, i) => `way(area.area)[highway][name="${block}"][footway!="crossing"]->.w${i + 1};`,
+        orderedBlocks
+      )
+    )
+    }
+// Get the two intersection nodes 
+// node contained in w1 and w2
+(node(w.w1)(w.w2);
+// node contained in w1 and w3
+ node(w.w1)(w.w3);
+)->.allnodes;
+// Get all main ways containing one or both nodes
+way.w1[highway](bn.allnodes)->.ways; 
+(.ways; .allnodes;)->.outputSet;
+.outputSet out geom;
+`;
+};
+
+/***
+ * Sorts the features by connecting them at their start/ends
+ * @param features
+ */
+const sortFeatures = features => {
+  // Build a lookup of start and end points
+  reqPathThrowing
+};
+
+export const queryLocation = location => {
+  // This long chain of Task reads bottom to top. Only the functions marked Task are actually async calls.
+  // Everything else is wrapped in a Task to match the expected type
+  return R.composeK(
+    response => of(sortFeatures(response.features)),
+    // Perform the query
+    query => fetchOsmRawTask({}, query),
+    // Now build an OSM query for the location
+    location => of(constructLocationQuery(location)),
+    // Use OSM Nominatim to get the bbox of the city. We're not currently using bbox but this at least
+    // verifies that we are searching for a city that OSM knows about as an Area. We use Area to limit
+    // our OSM query to the given city to make the results accurate and fast
+    location => cityNominatimTask(R.pick(['country', 'state', 'city'], location)).map(
+      // bounding box comes as two lats, then two lon, so fix
+      result => R.merge(location, {
+        // We're not using the bbox, but note it anyway
+        bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], result.boundingbox)),
+      })
+    ),
+    // OSM needs full street names (Avenue not Ave), so use Google to resolve them
+    location => fullStreetNamesOfLocationTask(location).map(
+      // Replace the intersections with the fully qualified names
+      intersections => R.merge(location, {intersections})
+    )
+  )(location);
+};

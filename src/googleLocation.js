@@ -273,7 +273,7 @@ export const routeFromOriginAndDestination = createRouteFromOriginAndDestination
  * @param location
  * @return {[[String]]} Two arrays containing the long names of each intersection
  */
-export const fullStreetNamesofLocationTask = location => {
+export const fullStreetNamesOfLocationTask = location => {
   return R.composeK(
     // result is a Result.Ok/Error, so chain them if Result.Ok
     results => of(

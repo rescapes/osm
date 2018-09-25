@@ -13,7 +13,7 @@ import {
   createRouteFromOriginAndDestination,
   geocodeBlockAddresses,
   geocodeAddress,
-  geojsonCenterOfBlockAddress, fullStreetNamesofLocationTask
+  geojsonCenterOfBlockAddress, fullStreetNamesOfLocationTask
 } from './googleLocation';
 import * as R from 'ramda';
 import {defaultRunConfig} from 'rescape-ramda';
@@ -124,7 +124,7 @@ describe('googleHelpers', () => {
     );
   });
 
-  test('fullStreetNamesofLocationTask', done => {
+  test('fullStreetNamesOfLocationTask', done => {
     const location = {
       country: 'USA',
       state: 'California',
@@ -132,7 +132,7 @@ describe('googleHelpers', () => {
       // Intentionally put Grand Ave a different positions
       intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
     };
-    fullStreetNamesofLocationTask(location).run().listen(
+    fullStreetNamesOfLocationTask(location).run().listen(
       defaultRunConfig({
         onResolved: response => {
           // Sort to make each pair alphabetical

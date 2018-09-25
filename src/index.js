@@ -18,6 +18,7 @@ export {
   geocodeAddress,
   geocodeBlockAddresses,
   geojsonCenterOfBlockAddress,
+  fullStreetNamesOfLocationTask,
   routeFromOriginAndDestination,
   initDirectionsService,
 } from './googleLocation'

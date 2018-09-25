@@ -10,10 +10,11 @@
  */
 import {strPathOr, compact, reqStrPath} from 'rescape-ramda';
 import {compactEmpty} from 'rescape-ramda'
-import {geojsonCenterOfBlockAddress, geocodeAddress, geocodeBlockAddresses} from 'sop-vml';
+import {geojsonCenterOfBlockAddress, geocodeAddress, geocodeBlockAddresses} from './googleLocation'
 import {turfPointToLocation, googleLocationToLocation, googleLocationToTurfLineString} from 'rescape-helpers';
 import * as Result from 'folktale/result';
 import * as R from 'ramda';
+import {of} from 'folktale/concurrency/task';
 
 /**
  * Creates an address string for geolocation resolution
@@ -67,7 +68,6 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
  * If nothing or too many results occur an Error is returned instead of a Result
  */
 export const resolveGeoLocationTask = location => {
-  const theLocation = R.unless(R.has('intersections'), locationWithIntersections)(location);
   const latLng = R.props(['latitude', 'longitude'], location);
   // If we have a lat/lon predefined on the location, just return it as a Task<Result> to match the other return values
   if (R.all(R.is(Number), latLng)) {
@@ -105,10 +105,10 @@ export const resolveGeoLocationTask = location => {
 export const resolveGeojsonTask = location => {
   // Already done
   if (R.prop('geojson', location)) {
-    return of(Result(Ok(location.geojson)));
+    return of(Result.Ok(location.geojson));
   }
   // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
-  return geocodeBlockAddresses(addressPair(theLocation)).map(
+  return geocodeBlockAddresses(addressPair(location)).map(
     responsesResult => {
       // Map each response in result to a simple lat, lon
       // We chain the Result with two responses by traversing the two
@@ -122,5 +122,20 @@ export const resolveGeojsonTask = location => {
         )(responses)
       )
     }
+  );
+};
+
+
+/**
+ * Given a location returns a pair of address strings representing both ends of the block
+ * @param {Object} location The location object
+ * @returns {[String]} Two address strings for the location
+ */
+export const addressPair = location => {
+  const locationProps = R.pick(['country', 'state', 'city', 'neighborhood'], location);
+  // Create two address strings from the intersection pair
+  return R.map(
+    intersectionPair => addressString(R.merge(locationProps, {intersectionPair})),
+    location.intersections
   );
 };

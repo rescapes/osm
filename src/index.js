@@ -11,6 +11,7 @@
 
 export {fetchOsm, osmNotEqual, osmAlways, osmEquals} from './overpassIO'
 export {searchLocation} from './searchIO'
+export {addressString, resolveGeojsonTask, resolveGeoLocationTask} from './locationHelpers'
 export {
   calculateRoute,
   findClosest,

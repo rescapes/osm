@@ -15,5 +15,6 @@
  * @return {Object} The Google Maps client
  */
 export default apiKey => require('@google/maps').createClient({
-  key: apiKey
+  key: apiKey,
+  Promise: Promise
 });

@@ -12,9 +12,8 @@ describe('LocationSelector', () => {
       latitude: 47,
       longitude: 1
     };
-    const theLocation = R.unless(R.has('intersections'), locationWithIntersections)(location);
     // Resolves synchronously, but returns a Task nevertheless
-    resolveGeoLocationTask(theLocation).run().listen({
+    resolveGeoLocationTask(location).run().listen({
       onRejected: reject => {
         throw new Error(reject);
       },
@@ -35,13 +34,13 @@ describe('LocationSelector', () => {
       state: 'California',
       city: 'Oakland',
       neighborhood: 'Adams Point',
-      blockname: 'Grand Ave',
-      intersc1: 'Bay Pl',
-      intersc2: 'Harrison St'
+      locations: [
+        ['Grand Ave', 'Bay Pl'],
+        ['Grand Ave', 'Harrison St']
+      ],
     };
     // Resolves synchronously, but returns a Task nevertheless
-    const theLocation = R.unless(R.has('intersections'), locationWithIntersections)(location);
-    resolveGeoLocationTask(theLocation).run().listen({
+    resolveGeoLocationTask(location).run().listen({
       onRejected: reject => {
         throw new Error(reject);
       },
@@ -63,9 +62,10 @@ describe('LocationSelector', () => {
       state: 'California',
       city: 'Oakland',
       neighborhood: 'Adams Point',
-      blockname: 'Grand Ave',
-      intersc1: 'Bay Pl',
-      intersc2: 'Harrison St'
+      locations: [
+        ['Grand Ave', 'Bay Pl'],
+        ['Grand Ave', 'Harrison St']
+      ]
     };
     // Resolves asynchronously
     const theLocation = R.unless(R.has('intersections'), locationWithIntersections)(location);
@@ -95,13 +95,13 @@ describe('LocationSelector', () => {
       state: 'California',
       city: 'Oakland',
       neighborhood: 'Adams Point',
-      blockname: 'Grand Ave',
-      intersc1: 'Bay Pl',
-      intersc2: 'Harrison St'
+      locations: [
+        ['Grand Ave', 'Bay Pl'],
+        ['Grand Ave', 'Harrison St']
+      ]
     };
     // Resolves asynchronously
-    const theLocation = R.unless(R.has('intersections'), locationWithIntersections)(location);
-    resolveGeojsonTask(theLocation).run().listen({
+    resolveGeojsonTask(location).run().listen({
       onRejected: reject => {
         throw new Error(reject);
       },

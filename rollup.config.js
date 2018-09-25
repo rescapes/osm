@@ -10,7 +10,8 @@ const config = {
     'src/index.js',
     'src/overpassIO.js',
     'src/searchIO.js',
-    'src/googleLocations.js'
+    'src/googleLocation.js',
+    'src/locationHelpers.js'
   ],
   plugins: [
     // Automatically exclude dependencies and peerDependencies from cjs and es builds, (and excludes

@@ -36,15 +36,16 @@ const OK_STATUS = 200;
  */
 export const geocodeAddress = address => {
   return task(resolver => {
-    googleMaps.geocode({
+    const promise = googleMaps.geocode({
       address
-    }, (err, response) => {
-      if (!err) {
+    }).asPromise();
+    promise.then(response => {
         const results = response.json.results;
         if (R.equals(1, R.length(results))) {
           const result = R.head(results);
           // Result to indicate success
           console.debug(`Successfully geocoded ${address}`);
+          // If an error occurs here Google swallows it, so catch it
           resolver.resolve(Result.of(result));
         }
         else {
@@ -54,13 +55,13 @@ export const geocodeAddress = address => {
             error: 'Did not receive exactly one location', results, response
           }));
         }
-      }
-      else {
+      },
+      err => {
+        // Handle error
         // Error to give up
         console.warn(`Failed to geocode ${address}. Error ${err.json.error_message}`);
         resolver.resolve(Result.Error({error: err.json.error_message, response: err}));
-      }
-    });
+      });
   });
 };
 
@@ -230,17 +231,22 @@ export const createRouteFromOriginAndDestination = R.curry((directionService, or
   // geocode the pair. By coding together we can resolve ambiguous locations by finding the closest
   // two locations between the ambiguous results in the origin and destination
   const geocodeTask = geocodeBlockAddresses(originDestinationPair);
-  // chain the Task sending the two lat/lng locations to calculateRoute
+  // chain the Task sending the two lat/lng locations to calculateRoute, which itself returns a Task
   return R.chain(
+    // geocodePairResult is a Result that we chain to call calculateRoute
+    // calculateRoute returns a Task whose value we convert to a Result, yielding Task<Result>
     geocodePairResult => {
-      return geocodePairResult.mapError(
+      return geocodePairResult.chain(
+        ([originGeocode, destinationGeocode]) => calculateRoute(
+          directionService, originGeocode, destinationGeocode
+        )
+      ).orElse(
+        // If we have a Result.Error just wrap it in a Task to match the Result.Ok condition
         errorValue => {
           console.warn(`Skipping ${R.join(' and ', originDestinationPair)} because geocode resolve failed on one or both`);
           // This is filtered out later
           return of(Result.Error(errorValue));
         }
-      ).map(
-        ([originGeocode, destinationGeocode]) => R.map(Result.of, calculateRoute(directionService, originGeocode, destinationGeocode))
       );
     },
     geocodeTask

@@ -21,7 +21,6 @@ describe('searchIO', () => {
       {
         onResolved:
           result => {
-            // the sample can have duplicate ids
             expect(
               R.props(['osm_id', 'osm_type'], result)
             ).toEqual(

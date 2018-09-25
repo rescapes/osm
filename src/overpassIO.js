@@ -303,20 +303,78 @@ way.w1[highway](bn.allnodes)->.ways;
 `;
 };
 
+/**
+ * Makes a string from a point array for hashing
+ * @param {[Number}] point Two element array
+ */
+const hashPoint = point => {
+  return R.join(':', point);
+};
+
 /***
  * Sorts the features by connecting them at their start/ends
  * @param features
  */
 const sortFeatures = features => {
   // Build a lookup of start and end points
-  reqPathThrowing
+  const lookup = R.reduce(
+    (result, feature) => {
+      return R.reduce(
+        (res, headLast) => {
+          return R.over(
+            // hash the head or tail point
+            R.lensProp(
+              hashPoint(
+                R[headLast](feature.geometry.coordinates)
+              )
+            ),
+            // Find the hash in res (it might be undefined)
+            resultsForPoint => {
+              // Operate on it or create a new dict to operate on
+              return R.over(
+                // Find the 'head' or 'tail' property
+                R.lensProp(headLast),
+                // Operate on it or create a new array, adding feature
+                resultsForPointEnd => R.concat(resultsForPointEnd || [], [feature]),
+                resultsForPoint || {}
+              );
+            },
+            res
+          );
+        },
+        result,
+        ['head', 'last']
+      );
+    },
+    {},
+    features
+  );
+  const headOnly = R.filter(obj => R.both(R.compose(R.equals(1), R.length, R.keys), R.prop('head'))(obj), lookup)
+  const headKey = R.head(R.keys(headOnly))
+  const headValue = R.head(R.values(headOnly))
+  const tailOnly = R.filter(obj => R.both(R.compose(R.equals(1), R.length, R.keys), R.prop('last'))(obj), lookup)
+  const tailKey = R.head(R.keys(tailOnly))
+  const tailValue = R.head(R.values(tailOnly))
+  R.reduce(
+    (chain, feature) => {
+
+    },
+    headValue,
+    R.omit([headKey, tailKey], lookup)
+  )
 };
 
 export const queryLocation = location => {
   // This long chain of Task reads bottom to top. Only the functions marked Task are actually async calls.
   // Everything else is wrapped in a Task to match the expected type
   return R.composeK(
-    response => of(sortFeatures(response.features)),
+    // Sort linestrings (ways) so we know how they are connected
+    response => of(sortFeatures(
+      R.filter(
+        R.pathEq(['geometry', 'type'], 'LineString'),
+        response.features
+      )
+    )),
     // Perform the query
     query => fetchOsmRawTask({}, query),
     // Now build an OSM query for the location
@@ -328,7 +386,7 @@ export const queryLocation = location => {
       // bounding box comes as two lats, then two lon, so fix
       result => R.merge(location, {
         // We're not using the bbox, but note it anyway
-        bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], result.boundingbox)),
+        bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], result.boundingbox))
       })
     ),
     // OSM needs full street names (Avenue not Ave), so use Google to resolve them

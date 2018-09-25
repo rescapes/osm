@@ -75,14 +75,14 @@ export const resolveGeoLocationTask = location => {
   }
   // If we have both intersection pairs, resolve the center point between them.
   // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
-  else if (R.equals(2, R.length(theLocation.intersections))) {
-    return geojsonCenterOfBlockAddress(addressPair(theLocation)).map(
+  else if (R.equals(2, R.length(location.intersections))) {
+    return geojsonCenterOfBlockAddress(addressPair(location)).map(
       centerResult => centerResult.map(center => turfPointToLocation(center))
     );
   }
   // Otherwise create the most precise address string tha is possible
   else
-    return geocodeAddress(addressString(theLocation)).map(responseResult => {
+    return geocodeAddress(addressString(location)).map(responseResult => {
       // Chain the either to a new Result that resolves geometry.location
       return responseResult.chain(response =>
         // This returns a Maybe

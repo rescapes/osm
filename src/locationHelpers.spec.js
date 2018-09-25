@@ -1,6 +1,6 @@
 import * as R from 'ramda';
 import {mergeDeep, reqStrPathThrowing} from 'rescape-ramda';
-import {resolveGeoLocationTask, resolveGeojsonTask } from './locationHelpers';
+import {resolveGeoLocationTask, resolveGeojsonTask, addressPair} from './locationHelpers';
 import {turfPointToLocation, googleLocationToTurfLineString} from 'rescape-helpers';
 
 
@@ -34,18 +34,17 @@ describe('LocationSelector', () => {
       state: 'California',
       city: 'Oakland',
       neighborhood: 'Adams Point',
-      locations: [
+      intersections: [
         ['Grand Ave', 'Bay Pl'],
         ['Grand Ave', 'Harrison St']
-      ],
+      ]
     };
-    // Resolves synchronously, but returns a Task nevertheless
     resolveGeoLocationTask(location).run().listen({
       onRejected: reject => {
         throw new Error(reject);
       },
       onResolved: responseResult => responseResult.map(response => {
-        expect(response).toEqual([47, 1]);
+        expect(response).toEqual([37.810808800000004, -122.26146955]);
         done();
       }).mapError(reject => {
         throw new Error(reject);
@@ -62,14 +61,13 @@ describe('LocationSelector', () => {
       state: 'California',
       city: 'Oakland',
       neighborhood: 'Adams Point',
-      locations: [
+      intersections: [
         ['Grand Ave', 'Bay Pl'],
         ['Grand Ave', 'Harrison St']
       ]
     };
     // Resolves asynchronously
-    const theLocation = R.unless(R.has('intersections'), locationWithIntersections)(location);
-    resolveGeoLocationTask(theLocation).run().listen({
+    resolveGeoLocationTask(location).run().listen({
       onRejected: reject => {
         throw new Error(reject);
       },
@@ -81,7 +79,7 @@ describe('LocationSelector', () => {
       ).mapError(
         error => {
           throw new Error(error);
-        },
+        }
       )
     });
   }, 2000);
@@ -95,7 +93,7 @@ describe('LocationSelector', () => {
       state: 'California',
       city: 'Oakland',
       neighborhood: 'Adams Point',
-      locations: [
+      intersections: [
         ['Grand Ave', 'Bay Pl'],
         ['Grand Ave', 'Harrison St']
       ]
@@ -108,8 +106,8 @@ describe('LocationSelector', () => {
       onResolved: responseResult => responseResult.map(
         response => {
           expect(reqStrPathThrowing('geometry.coordinates', response)).toEqual([
-            [-122.2604457, 37.8105194],
-            [-122.2622932, 37.8109488]
+            [-122.2605142, 37.810652],
+            [-122.2624249, 37.8109656]
           ]);
           done();
         }
@@ -118,6 +116,27 @@ describe('LocationSelector', () => {
         }
       )
     });
-  }, 20000)
-
+  }, 20000);
+  test('addressPair', () => {
+    const location = {
+      country: 'USA',
+      state: 'Anystate',
+      city: 'Anytown',
+      neighborhood: 'Downtown',
+      intersections: [
+        [
+          'Main St',
+          'First St'
+        ],
+        [
+          'Main St',
+          'Second St'
+        ]
+      ]
+    };
+    expect(addressPair(location)).toEqual([
+      "Main St and First St, Anytown, Anystate, USA",
+      "Main St and Second St, Anytown, Anystate, USA"
+    ]);
+  });
 });

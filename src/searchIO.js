@@ -66,12 +66,12 @@ export const cityNominatimTask = location => {
   return task(({reject, resolve}) => {
     return geocoder.search({q: locationString, addressDetails: 1}).then(
       results => {
-        if (R.equals(1, R.length(results))) {
+        //if (R.equals(1, R.length(results))) {
           resolve(R.head(results));
-        }
-        else {
-          reject({error: "To many results", results});
-        }
+        //}
+        //else {
+        //  reject({error: "To many results", results});
+        //}
       }
     ).catch(reject);
   });

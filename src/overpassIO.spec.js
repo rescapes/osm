@@ -91,8 +91,25 @@ describe('overpassHelpersUnmocked', () => {
       {
         onResolved:
           response => {
-            // the sample can have duplicate ids
-            expect(response.features).toEqual(removeDuplicateObjectsByProp('id', LA_SAMPLE.features));
+            // Expect it to be two ways
+            expect(R.map(R.prop('id'), response).toEqual(['way/417728789', 'way/417728790']));
+            done();
+          }
+      }));
+  }, 1000000);
+
+  test('fetchOsmBlockOslo', done => {
+    expect.assertions(1);
+    queryLocation({
+      country: 'Norway',
+      city: 'Oslo',
+      intersections: [['Kongens gate', 'Myntgata'], ['Kongens gate', 'Revierstredet']]
+    }).run().listen(defaultRunConfig(
+      {
+        onResolved:
+          response => {
+            // Expect it to be two ways
+            expect(R.map(R.prop('id'), response).toEqual(['way/417728789', 'way/417728790']));
             done();
           }
       }));

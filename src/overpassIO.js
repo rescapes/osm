@@ -288,8 +288,9 @@ const constructLocationQuery = ({type}, {country, state, city, intersections}) =
   // List the 3 blocks: common block and then other two blocks
   const orderedBlocks = [R.head(R.head(modifiedIntersections)), ...R.map(R.last, modifiedIntersections)];
 
+  const stateStr = state ? `['is_in:state'='${state}']` : '';
   return `
-    area[boundary='administrative']['is_in:country'='${country}']['is_in:state'='${state}'][name='${city}']->.area;
+    area[boundary='administrative']['is_in:country'='${country}']${stateStr}[name='${city}']->.area;
     ${
     R.join('\n',
       R.addIndex(R.map)(
@@ -368,6 +369,61 @@ const _reduceFeaturesByHeadAndLast = (result, feature) => {
 };
 
 /**
+ * Given two node points and criteria for matching, returns true if the given LineString feature matches
+ * @param {[String]} Two hash node point coordinates
+ * @param {Object} lineStringFeature a Geojson feature that is a LineString type
+ * @returns {Object} With keys 'head' and 'last' and valued true|false depending on if it matched.
+ * I can match 0, 1, or both
+ */
+const _lineStringFeatureEndNodeMatches = R.curry((nodePointHashes, lineStringFeature) => {
+  const isContainedInNodePoints = R.flip(R.contains)(nodePointHashes);
+  const headLastValues = ['head', 'last'];
+  // See if the two node points match the feature end-points
+  // This creates an array for whether it matches head and last respectively [true|false, true|false]
+  return R.compose(
+    R.fromPairs,
+    R.map(
+      headLast => R.compose(
+        // return key 'head' or 'last' with value of whether it matched
+        matched => [headLast, matched],
+        // Does it match one of the node points?
+        isContainedInNodePoints,
+        // Hash the head or last point of the feature
+        points => hashPoint(R[headLast](points))
+      )(lineStringFeature.geometry.coordinates)
+    )
+  )(headLastValues);
+});
+
+/***
+ * Returns an update to the given nodeMatches by checking what the given feature matches
+ * @param {[Object]} nodeFeatures The two node geojson objects representing the two street intersections
+ * to be merged with the given nodeMatches
+ * @param {Object} nodeMatches {head: true|false, tail: true|false}
+ * @param {Object} feature Object to test
+ * @returns {Object} New verion of nodeMatches based on testing feature. Note that nodeMatches['tail']
+ * is not allowed to be set true until nodeMatches['head'] returns true
+ * @private
+ */
+const _updateNodeMatches = nodeFeatures => {
+  const nodePointHashes = R.map(node => hashPoint(node.geometry.coordinates), nodeFeatures);
+
+  return (nodeMatches, feature) => {
+    const newNodeMaches = _lineStringFeatureEndNodeMatches(nodePointHashes, feature)
+    return R.mergeWith(
+      // Merge with previous result and then and with nodeMatches['head']. This means nodeMatches['last'] can't
+      // be true until nodeMatches['head'] is
+      (l, r) => R.compose(
+        R.and(R.any(R.prop('head'), [nodeMatches, newNodeMaches])),
+        R.or
+      )(l, r),
+      nodeMatches,
+      newNodeMaches
+    );
+  }
+};
+
+/**
  * Returns Features linked in order
  * @param {Object} lookup. Structure created in _reduceFeaturesByHeadAndLast
  * @param {[Object]} nodeFeatures. The two nodeFeatures. These serve as the boundaries of the features
@@ -390,32 +446,39 @@ const _linkedFeatures = (lookup, nodeFeatures) => {
     ['head', 'last']
   );
   const lastFeature = R.head(R.values(lastPointToFeature));
+
+
+  // Get the two node points
+  const _updateNodeMatchesPartial = _updateNodeMatches(nodeFeatures);
+
   // Starting at the head, find the point who's last item contains the previous feature
   let resolvedPointLookups = headPointToFeature;
   let previousFeature = R.head(R.values(headPointToFeature));
-
-  const matchesANode = R.curry((nodePoints, feature) => {
-    // See if the two node points match the feature end points
-    return R.compose(
-      // Is there 1 or 2 matching points lt means is 0 less that the number of points
-      R.lt(0),
-      R.length,
-      R.intersection(nodePoints)
-    )(R.map(headLast => hashPoint(R[headLast](feature.geometry.coordinates)), ['head', 'last']));
-  });
-  // Get the two node points
-  const nodePoints = R.map(node => hashPoint(node.geometry.coordinates), nodeFeatures);
-  const matchesANodePartial = matchesANode(nodePoints);
-
+  // Tracks when we have matched at the starting point and ending point of a LineString Feature.
+  // We can't allow Features to yield until one first matches at its head (first) point
+  // As soon as one matches at its end point we are done matching features, and any remaining are disgarded
+  let nodeMatches = {head: false, last: false};
 
   function* linker(lookup) {
-    // Yield the head feature if its start or end matches a nodeFeature
-    if (matchesANodePartial(previousFeature)) {
+    // Yield the head feature if its head (first) point matches a nodeFeature
+    // Having only its last point match means its not between the two nodes.
+    // Normally this first way will not match because the first way returned by OSM will touch a node at its last point
+    // However if its the start/end of the street then the first way should match at its first point
+    nodeMatches = _updateNodeMatchesPartial(nodeMatches, previousFeature);
+
+    if (R.prop('head', nodeMatches)) {
+      // Mark that we've intersected one of the nodes
       yield previousFeature;
     }
 
-    // If this feature is our last feature we are done. Otherwise keep going
-    while (R.not(R.equals(previousFeature, lastFeature))) {
+    // If the previousFeature was our last feature or nodeMatches['last'] has occurred, we are done
+    // nodeMatches['last'] is true when the last point of a LineString feature has matched an end node
+    // This should always be true by the time we process the last feature, if not earlier
+    // If either clause is true quit
+    while (R.not(R.or(
+      R.prop('last', nodeMatches),
+      R.equals(previousFeature, lastFeature)
+    ))) {
       // Find the pointLookup whose point is the last point for the currentFeature
       const nextPointLookup = findOneThrowing(
         pointLookupValue => R.pathEq(['last', 0], previousFeature)(pointLookupValue),
@@ -426,8 +489,9 @@ const _linkedFeatures = (lookup, nodeFeatures) => {
       resolvedPointLookups = R.merge(resolvedPointLookups, nextPointToFeature);
       // Store it for the next round
       previousFeature = R.head(R.values(nextPointToFeature));
-      // Yield the feature if it's not the
-      if (matchesANodePartial(previousFeature)) {
+      // Yield the feature if this or previous feature matched a node on its head (first) point
+      nodeMatches = _updateNodeMatchesPartial(nodeMatches, previousFeature);
+      if (R.prop('head', nodeMatches)) {
         yield previousFeature;
       }
     }
@@ -456,7 +520,7 @@ const sortFeatures = (wayFeatures, nodeFeatures) => {
     wayFeatures
   );
   // Use the linker to link the features together, dropping those that aren't between the two nodes
-  const linkedFeatures = _linkedFeatures(lookup, nodeFeatures);
+  return _linkedFeatures(lookup, nodeFeatures);
 
 };
 
@@ -483,7 +547,9 @@ export const queryLocation = location => {
       // bounding box comes as two lats, then two lon, so fix
       result => R.merge(location, {
         // We're not using the bbox, but note it anyway
-        bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], result.boundingbox))
+        bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], result.boundingbox)),
+        osmId: result.osm_id,
+        placeId: result.place_id
       })
     ),
     // OSM needs full street names (Avenue not Ave), so use Google to resolve them

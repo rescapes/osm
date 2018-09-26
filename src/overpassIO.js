@@ -10,9 +10,14 @@
  */
 
 import queryOverpass from 'query-overpass';
-import {task, of} from 'folktale/concurrency/task';
+import {task, of, waitAll} from 'folktale/concurrency/task';
 import * as R from 'ramda';
-import {mergeAllWithKey, removeDuplicateObjectsByProp, reqPathThrowing, reqStrPathThrowing} from 'rescape-ramda';
+import {
+  findOneThrowing,
+  fromPairsMap,
+  mapObjToValues, mergeAllWithKey, removeDuplicateObjectsByProp, reqPathThrowing,
+  reqStrPathThrowing
+} from 'rescape-ramda';
 import os from 'os';
 import squareGrid from '@turf/square-grid';
 import bbox from '@turf/bbox';
@@ -248,8 +253,11 @@ const fetchOsmCelled = ({cellSize, ...options}, conditions, types) => {
 /**
  * Constructs an OSM query for the given location. Queries are limited to the city of the location
  * and return the ways and nodes related two the intersections. These are more than are actually
- * needed because some refer to ways that are outside the block between the intersectiions but connected to them.
- * Thus they need to be cleaned up after. The OSM query language is too weak to do it here
+ * needed because some refer to ways that are outside the block between the intersections but connected to them.
+ * Thus they need to be cleaned up after. The OSM query language is too weak to do it here.
+ * Unfortunately the OSM API messed up results if we query for both node and ways together. So I've added the
+ * mandatory type argument of 'way' or 'node'. You must query for each separately
+ * @param {String} type Either 'way' or 'node'
  * @param {String} country Required country for area resolution
  * @param {String} state Optional depending on the country
  * @param {String} city Required string for area resolution
@@ -257,7 +265,7 @@ const fetchOsmCelled = ({cellSize, ...options}, conditions, types) => {
  * Avenue not Ave
  * @return {string}
  */
-const constructLocationQuery = ({country, state, city, intersections}) => {
+const constructLocationQuery = ({type}, {country, state, city, intersections}) => {
 
   // Fix all street endings. OSM needs full names: Avenue not Ave, Lane not Ln
   const streetCount = R.reduce(
@@ -298,7 +306,12 @@ const constructLocationQuery = ({country, state, city, intersections}) => {
 )->.allnodes;
 // Get all main ways containing one or both nodes
 way.w1[highway](bn.allnodes)->.ways; 
-(.ways; .allnodes;)->.outputSet;
+// Either return nodes or ways. Can't do both because the API messes up the geojson
+(${ R.cond([
+    [R.equals('way'), R.always('.ways')],
+    [R.equals('node'), R.always('.allNodes')],
+    [R.T, () => { throw Error('type argument must specified and be "way" or "node"')}]
+  ])(type) };)->.outputSet;
 .outputSet out geom;
 `;
 };
@@ -312,56 +325,119 @@ const hashPoint = point => {
 };
 
 /***
+ * Reduces a LineString feature by it's head and last point
+ * @param {Object} result The accumulating result. This might already be filled with other features.
+ * The return value adds this features head and last points to the result. The form of this is
+ * {
+ *  coordinate_hash1: {head: [features], last: [features]},
+ *  coordinate_hash2: {head: [features], last: [features]},
+ *  ...
+ * }
+ * @param {Object} feature geojson LineString feature
+ * @returns {Object} Accumulation of result plus the two feature points has by ['head'|'last'] and then coordinate hash
+ */
+const _reduceFeaturesByHeadAndLast = (result, feature) => {
+  return R.reduce(
+    (res, headLast) => {
+      return R.over(
+        // hash the head or tail point
+        R.lensProp(
+          hashPoint(
+            R[headLast](feature.geometry.coordinates)
+          )
+        ),
+        // Find the hash in res (it might be undefined)
+        resultsForPoint => {
+          // Operate on it or create a new dict to operate on
+          return R.over(
+            // Find the 'head' or 'tail' property
+            R.lensProp(headLast),
+            // Operate on it or create a new array, adding feature
+            resultsForPointEnd => R.concat(resultsForPointEnd || [], [feature]),
+            resultsForPoint || {}
+          );
+        },
+        res
+      );
+    },
+    result,
+    ['head', 'last']
+  );
+};
+
+/**
+ * Returns Features linked in order
+ * @param {Object} lookup. Structure created in _reduceFeaturesByHeadAndLast
+ * @returns {[Object]} The ordered features from head to last. Any features that are outside of the trai
+ * from head to last are left out
+ */
+const _linkedFeatures = lookup => {
+  // Now start with the head feature and link our way to the end feature
+  const [headPointToFeature, lastPointToFeature] = R.map(
+    headLast => R.compose(
+      // Convert 1 item dict to 1 item dict valued by the single feature
+      R.map(value => R.head(R.prop(headLast, value))),
+      // Filter by objects having only a 'head' or 'last' key, not both
+      R.filter(obj => R.both(
+        R.compose(R.equals(1), R.length, R.keys),
+        R.prop(headLast)
+        )(obj)
+      )
+    )(lookup),
+    ['head', 'last']
+  );
+  const lastFeature = R.head(R.values(lastPointToFeature));
+  // Starting at the head, find the point who's last item contains the previous feature
+  let resolvedPointLookups = headPointToFeature;
+  let previousFeature = R.head(R.values(headPointToFeature));
+
+  function* linker(lookup) {
+    // Yield the head feature
+    yield previousFeature;
+
+    // If this feature is our last feature we are done. Otherwise keep going
+    while (R.not(R.equals(previousFeature, lastFeature))) {
+      // Find the pointLookup whose point is the last point for the currentFeature
+      const nextPointLookup = findOneThrowing(
+        pointLookupValue => R.pathEq(['last', 0], previousFeature)(pointLookupValue),
+        R.omit(R.keys(resolvedPointLookups), lookup)
+      );
+      // Make the single item object keyed by next point and valued by feature whose head is the next point
+      const nextPointToFeature = R.map(value => R.head(R.prop('head', value)), nextPointLookup);
+      resolvedPointLookups = R.merge(resolvedPointLookups, nextPointToFeature);
+      // Store it for the next round
+      previousFeature = R.head(R.values(nextPointToFeature));
+      // Yield the feature if it's not the
+      yield previousFeature;
+    }
+  }
+
+  return [...linker(lookup)];
+};
+
+/***
  * Sorts the features by connecting them at their start/ends
- * @param features
  */
 const sortFeatures = features => {
   // Build a lookup of start and end points
+  // This results in {
+  //  end_coordinate_hash: {head: [feature]}
+  //  coordinate_hash: {head: [feature], tail: [feature] }
+  //  end_coordinate_hash: {tail: [feature]}
+  //}
+  // Note that two hashes have only one feature. One with one at the head and one with one at the tail
+  // The other have two features. So this gives us a good idea of how the features are chained together
   const lookup = R.reduce(
     (result, feature) => {
-      return R.reduce(
-        (res, headLast) => {
-          return R.over(
-            // hash the head or tail point
-            R.lensProp(
-              hashPoint(
-                R[headLast](feature.geometry.coordinates)
-              )
-            ),
-            // Find the hash in res (it might be undefined)
-            resultsForPoint => {
-              // Operate on it or create a new dict to operate on
-              return R.over(
-                // Find the 'head' or 'tail' property
-                R.lensProp(headLast),
-                // Operate on it or create a new array, adding feature
-                resultsForPointEnd => R.concat(resultsForPointEnd || [], [feature]),
-                resultsForPoint || {}
-              );
-            },
-            res
-          );
-        },
-        result,
-        ['head', 'last']
-      );
+      return _reduceFeaturesByHeadAndLast(result, feature);
     },
     {},
     features
   );
-  const headOnly = R.filter(obj => R.both(R.compose(R.equals(1), R.length, R.keys), R.prop('head'))(obj), lookup)
-  const headKey = R.head(R.keys(headOnly))
-  const headValue = R.head(R.values(headOnly))
-  const tailOnly = R.filter(obj => R.both(R.compose(R.equals(1), R.length, R.keys), R.prop('last'))(obj), lookup)
-  const tailKey = R.head(R.keys(tailOnly))
-  const tailValue = R.head(R.values(tailOnly))
-  R.reduce(
-    (chain, feature) => {
+  // Use the linker to linke the features together
+  const linkedFeatures = _linkedFeatures(lookup);
+  return linkedFeatures;
 
-    },
-    headValue,
-    R.omit([headKey, tailKey], lookup)
-  )
 };
 
 export const queryLocation = location => {
@@ -369,30 +445,33 @@ export const queryLocation = location => {
   // Everything else is wrapped in a Task to match the expected type
   return R.composeK(
     // Sort linestrings (ways) so we know how they are connected
-    response => of(sortFeatures(
+    responses => of(sortFeatures(
       R.filter(
         R.pathEq(['geometry', 'type'], 'LineString'),
         response.features
       )
     )),
-    // Perform the query
-    query => fetchOsmRawTask({}, query),
-    // Now build an OSM query for the location
-    location => of(constructLocationQuery(location)),
-    // Use OSM Nominatim to get the bbox of the city. We're not currently using bbox but this at least
-    // verifies that we are searching for a city that OSM knows about as an Area. We use Area to limit
-    // our OSM query to the given city to make the results accurate and fast
-    location => cityNominatimTask(R.pick(['country', 'state', 'city'], location)).map(
-      // bounding box comes as two lats, then two lon, so fix
-      result => R.merge(location, {
-        // We're not using the bbox, but note it anyway
-        bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], result.boundingbox))
-      })
+    // Perform the queries in parallel
+    queries => waitAll(
+      R.map(query => fetchOsmRawTask({}, query), queries)
     ),
-    // OSM needs full street names (Avenue not Ave), so use Google to resolve them
-    location => fullStreetNamesOfLocationTask(location).map(
-      // Replace the intersections with the fully qualified names
-      intersections => R.merge(location, {intersections})
-    )
-  )(location);
+    // Now build an OSM query for the location. We have to query for way and then nodes because the API muddles
+    // the geojson if we request them together
+    location => of(R.map(type => constructLocationQuery({type}, location), ['way', 'node']),
+      // Use OSM Nominatim to get the bbox of the city. We're not currently using bbox but this at least
+      // verifies that we are searching for a city that OSM knows about as an Area. We use Area to limit
+      // our OSM query to the given city to make the results accurate and fast
+      location => cityNominatimTask(R.pick(['country', 'state', 'city'], location)).map(
+        // bounding box comes as two lats, then two lon, so fix
+        result => R.merge(location, {
+          // We're not using the bbox, but note it anyway
+          bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], result.boundingbox))
+        })
+      ),
+      // OSM needs full street names (Avenue not Ave), so use Google to resolve them
+      location => fullStreetNamesOfLocationTask(location).map(
+        // Replace the intersections with the fully qualified names
+        intersections => R.merge(location, {intersections})
+      )
+    )(location);
 };

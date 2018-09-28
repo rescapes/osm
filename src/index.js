@@ -10,8 +10,8 @@
  */
 
 export {fetchOsm, osmNotEqual, osmAlways, osmEquals} from './overpassIO'
-export {searchLocation} from './searchIO'
-export {addressString, resolveGeojsonTask, resolveGeoLocationTask} from './locationHelpers'
+export {searchLocation, nominatimTask, mapboxGeocodeTask} from './searchIO'
+export {addressString, addressPair, streetAddressString} from './locationHelpers'
 export {
   calculateRoute,
   findClosest,
@@ -21,4 +21,7 @@ export {
   fullStreetNamesOfLocationTask,
   routeFromOriginAndDestination,
   initDirectionsService,
+  resolveGeoLocationTask,
+  resolveGeojsonTask,
+  createRouteFromOriginAndDestination
 } from './googleLocation'

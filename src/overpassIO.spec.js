@@ -12,7 +12,7 @@
 import {fetchOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocation} from './overpassIO';
 import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
-import {cityNominatimTask} from './searchIO';
+import {nominatimTask} from './searchIO';
 import {of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
 import {fullStreetNamesOfLocationTask} from './googleLocation';
@@ -79,7 +79,7 @@ describe('overpassHelpersUnmocked', () => {
   }, 1000000);
 
 
-  test('fetchOsmBlock', done => {
+  test('fetchOsmOaklandBlock', done => {
     expect.assertions(1);
     queryLocation({
       country: 'USA',
@@ -92,7 +92,7 @@ describe('overpassHelpersUnmocked', () => {
         onResolved:
           response => {
             // Expect it to be two ways
-            expect(R.map(R.prop('id'), response).toEqual(['way/417728789', 'way/417728790']));
+            expect(R.map(R.prop('id'), response)).toEqual(['way/417728789', 'way/417728790']);
             done();
           }
       }));
@@ -103,13 +103,14 @@ describe('overpassHelpersUnmocked', () => {
     queryLocation({
       country: 'Norway',
       city: 'Oslo',
+      neighborhood: 'Sentrum',
       intersections: [['Kongens gate', 'Myntgata'], ['Kongens gate', 'Revierstredet']]
     }).run().listen(defaultRunConfig(
       {
         onResolved:
           response => {
             // Expect it to be two ways
-            expect(R.map(R.prop('id'), response).toEqual(['way/417728789', 'way/417728790']));
+            expect(R.map(R.prop('id'), response)).toEqual(['way/417728789', 'way/417728790']);
             done();
           }
       }));

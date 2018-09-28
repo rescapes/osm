@@ -11,14 +11,12 @@
 import {
   initDirectionsService,
   createRouteFromOriginAndDestination,
-  geocodeBlockAddresses,
   geocodeAddress,
-  geojsonCenterOfBlockAddress, fullStreetNamesOfLocationTask
+  geojsonCenterOfBlockAddress, fullStreetNamesOfLocationTask, resolveGeojsonTask, resolveGeoLocationTask
 } from './googleLocation';
 import * as R from 'ramda';
-import {defaultRunConfig} from 'rescape-ramda';
+import {defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
 import {turfPointToLocation} from 'rescape-helpers';
-import {of} from 'folktale/concurrency/task';
 
 const austinOrigin = 'Salina St and E 21st St, Austin, TX, USA';
 const austinDestination = 'Leona St and E 21st St, Austin, TX, USA';
@@ -116,9 +114,11 @@ describe('googleHelpers', () => {
   test('createRouteFromOriginAndDestination', done => {
     createRouteFromOriginAndDestination(initDirectionsService(), [austinOrigin, austinDestination]).run().listen(
       defaultRunConfig({
-        onResolved: routeResponse => {
-          expect(routeResponse.summary).toMatchSnapshot();
-          done();
+        onResolved: routeResult => {
+          routeResult.map(route => {
+            expect(route.summary).toMatchSnapshot();
+            done();
+          })
         }
       })
     );
@@ -149,4 +149,116 @@ describe('googleHelpers', () => {
       })
     );
   });
+
+  test('resolveGeoLocationTask with lat/lon', done => {
+    const location = {
+      id: 1,
+      latitude: 47,
+      longitude: 1
+    };
+    // Resolves synchronously, but returns a Task nevertheless
+    resolveGeoLocationTask(location).run().listen({
+      onRejected: reject => {
+        throw new Error(reject);
+      },
+      onResolved: responseResult => responseResult.map(response => {
+        expect(response).toEqual([47, 1]);
+        done();
+      }).mapError(reject => {
+        throw new Error(reject);
+      })
+    });
+  });
+
+
+  test('resolveGeoLocationTask with 2 intersections', done => {
+    const location = {
+      id: 1,
+      country: 'USA',
+      state: 'California',
+      city: 'Oakland',
+      neighborhood: 'Adams Point',
+      intersections: [
+        ['Grand Ave', 'Bay Pl'],
+        ['Grand Ave', 'Harrison St']
+      ]
+    };
+    resolveGeoLocationTask(location).run().listen({
+      onRejected: reject => {
+        throw new Error(reject);
+      },
+      onResolved: responseResult => responseResult.map(response => {
+        expect(R.map(f => f.toFixed(2), response)).toEqual(["37.81", "-122.26"]);
+        done();
+      }).mapError(reject => {
+        throw new Error(reject);
+      })
+    });
+  });
+
+  test('resolveGeoLocationFromApi', (done) => {
+    // Goes to the api to resolve
+    // Resolves synchronously
+    const location = {
+      id: 1,
+      country: 'USA',
+      state: 'California',
+      city: 'Oakland',
+      neighborhood: 'Adams Point',
+      intersections: [
+        ['Grand Ave', 'Bay Pl'],
+        ['Grand Ave', 'Harrison St']
+      ]
+    };
+    // Resolves asynchronously
+    resolveGeoLocationTask(location).run().listen({
+      onRejected: reject => {
+        throw new Error(reject);
+      },
+      onResolved: responseResult => responseResult.map(
+        response => {
+          expect(R.map(f => f.toFixed(2), response)).toEqual(["37.81", "-122.26"]);
+          done();
+        }
+      ).mapError(
+        error => {
+          throw new Error(error);
+        }
+      )
+    });
+  }, 2000);
+
+  test('resolveGeojsonFromApi', (done) => {
+    // Goes to the api to resolve
+    // Resolves synchronously
+    const location = {
+      id: 1,
+      country: 'USA',
+      state: 'California',
+      city: 'Oakland',
+      neighborhood: 'Adams Point',
+      intersections: [
+        ['Grand Ave', 'Bay Pl'],
+        ['Grand Ave', 'Harrison St']
+      ]
+    };
+    // Resolves asynchronously
+    resolveGeojsonTask(location).run().listen({
+      onRejected: reject => {
+        throw new Error(reject);
+      },
+      onResolved: responseResult => responseResult.map(
+        response => {
+          expect(reqStrPathThrowing('geometry.coordinates', response)).toEqual([
+            [-122.2605142, 37.810652],
+            [-122.2624249, 37.8109656]
+          ]);
+          done();
+        }
+      ).mapError(error => {
+          throw new Error(error);
+        }
+      )
+    });
+  }, 20000);
 });

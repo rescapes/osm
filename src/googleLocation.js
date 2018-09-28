@@ -14,12 +14,14 @@ import rhumbDistance from '@turf/rhumb-distance';
 import {featureCollection} from '@turf/helpers';
 import center from '@turf/center';
 import {reqStrPath, reqStrPathThrowing, traverseReduce} from 'rescape-ramda';
-import * as Result from 'folktale/result';
 import googleMapsClient from './googleMapsClient';
 import {
-  googleLocationToTurfPoint, locationToTurfPoint, originDestinationToLatLngString
+  googleLocationToLocation,
+  googleLocationToTurfLineString,
+  googleLocationToTurfPoint, locationToTurfPoint, originDestinationToLatLngString, turfPointToLocation
 } from 'rescape-helpers';
 import {addressPair, addressString} from './locationHelpers';
+import * as Result from 'folktale/result';
 
 // Make sure that the key here is enabled to convert addresses to geocode and to use streetview
 // https://console.developers.google.com/apis/api/geocoding_backend?project=_
@@ -240,7 +242,7 @@ export const createRouteFromOriginAndDestination = R.curry((directionService, or
       return geocodePairResult.chain(
         ([originGeocode, destinationGeocode]) => calculateRoute(
           directionService, originGeocode, destinationGeocode
-        )
+        ).map(result => Result.of(result))
       ).orElse(
         // If we have a Result.Error just wrap it in a Task to match the Result.Ok condition
         errorValue => {
@@ -296,3 +298,75 @@ export const fullStreetNamesOfLocationTask = location => {
     location => of(addressPair(location))
   )(location);
 };
+
+
+/**
+ * Resolves the geolocation of a Location
+ * @param {Object} location
+ * @param {Object} location.country
+ * @param {String} location.state Optional
+ * @param {String} location.city
+ * @param {[[String]]} location.intersections Zero, one or two arrays of two-item intersections:
+ * e.g. [['Main St', 'Chestnut St'], ['Main St', 'Elm St']] or 0 or 1 of theses
+ * @return {Task<Result<[Number, Number]>>} The resolved center latitude and longitude of the location in a Result
+ * If nothing or too many results occur an Error is returned instead of a Result
+ */
+export const resolveGeoLocationTask = location => {
+  const latLng = R.props(['latitude', 'longitude'], location);
+  // If we have a lat/lon predefined on the location, just return it as a Task<Result> to match the other return values
+  if (R.all(R.is(Number), latLng)) {
+    return of(Result.Ok(latLng));
+  }
+  // If we have both intersection pairs, resolve the center point between them.
+  // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
+  else if (R.equals(2, R.length(location.intersections))) {
+    return geojsonCenterOfBlockAddress(addressPair(location)).map(
+      centerResult => centerResult.map(center => turfPointToLocation(center))
+    );
+  }
+  // Otherwise create the most precise address string tha is possible
+  else {
+    return geocodeAddress(addressString(location)).map(responseResult => {
+      // Chain the either to a new Result that resolves geometry.location
+      return responseResult.chain(response =>
+        // This returns a Maybe
+        reqStrPath('geometry.location', response)
+      ).map(
+        // Map the Maybe value
+        googleLocationToLocation
+      );
+    });
+  }
+};
+
+
+/**
+ * Resolves the geojson for complete locations.
+ * This primitively makes a geojson line between the two intersections.
+ * Obviously we must do better by using OpenStreetMap
+ * @param location
+ * @return {Task<Result>} Result.Ok containing the geojson, or a Result.Error
+ */
+export const resolveGeojsonTask = location => {
+  // Already done
+  if (R.prop('geojson', location)) {
+    return of(Result.Ok(location.geojson));
+  }
+  // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
+  return geocodeBlockAddresses(addressPair(location)).map(
+    responsesResult => {
+      // Map each response in result to a simple lat, lon
+      // We chain the Result with two responses by traversing the two
+      // responses to map them to simple [lat, lon]
+      // In the end we get a single Result containing a Turf LineString or an Error
+      return responsesResult.chain(responses => R.composeK(
+        // Map the two locations to a Turf LineString
+        locations => Result.of(googleLocationToTurfLineString(locations)),
+        // Produces a Result of two locations
+        R.traverse(Result.of, reqStrPath('geometry.location'))
+        )(responses)
+      );
+    }
+  );
+};
+

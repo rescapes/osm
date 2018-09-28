@@ -23,7 +23,7 @@ import squareGrid from '@turf/square-grid';
 import bbox from '@turf/bbox';
 import {concatFeatures} from 'rescape-helpers';
 import {fullStreetNamesOfLocationTask} from './googleLocation';
-import {cityNominatimTask} from './searchIO';
+import {nominatimTask} from './searchIO';
 
 /**
  * Translates to OSM condition that must be true
@@ -265,8 +265,10 @@ const fetchOsmCelled = ({cellSize, ...options}, conditions, types) => {
  * Avenue not Ave
  * @return {string}
  */
-const constructLocationQuery = ({type}, {country, state, city, intersections}) => {
+const constructLocationQuery = ({type}, {country, state, city, intersections, osmId}) => {
 
+  // The Overpass Area Id is based on the osm id plus this magic nubmer
+  const areaId = parseInt(osmId) + 3600000000;
   // Fix all street endings. OSM needs full names: Avenue not Ave, Lane not Ln
   const streetCount = R.reduce(
     (accum, street) => R.over(
@@ -288,13 +290,11 @@ const constructLocationQuery = ({type}, {country, state, city, intersections}) =
   // List the 3 blocks: common block and then other two blocks
   const orderedBlocks = [R.head(R.head(modifiedIntersections)), ...R.map(R.last, modifiedIntersections)];
 
-  const stateStr = state ? `['is_in:state'='${state}']` : '';
-  return `
-    area[boundary='administrative']['is_in:country'='${country}']${stateStr}[name='${city}']->.area;
+  const query = `
     ${
     R.join('\n',
       R.addIndex(R.map)(
-        (block, i) => `way(area.area)[highway][name="${block}"][footway!="crossing"]->.w${i + 1};`,
+        (block, i) => `way(area:${areaId})[highway][name="${block}"][footway!="crossing"]->.w${i + 1};`,
         orderedBlocks
       )
     )
@@ -317,6 +317,7 @@ way.w1[highway](bn.allnodes)->.ways;
   ])(type) };)->.outputSet;
 .outputSet out geom;
 `;
+  return query;
 };
 
 /**
@@ -409,7 +410,7 @@ const _updateNodeMatches = nodeFeatures => {
   const nodePointHashes = R.map(node => hashPoint(node.geometry.coordinates), nodeFeatures);
 
   return (nodeMatches, feature) => {
-    const newNodeMaches = _lineStringFeatureEndNodeMatches(nodePointHashes, feature)
+    const newNodeMaches = _lineStringFeatureEndNodeMatches(nodePointHashes, feature);
     return R.mergeWith(
       // Merge with previous result and then and with nodeMatches['head']. This means nodeMatches['last'] can't
       // be true until nodeMatches['head'] is
@@ -420,7 +421,7 @@ const _updateNodeMatches = nodeFeatures => {
       nodeMatches,
       newNodeMaches
     );
-  }
+  };
 };
 
 /**
@@ -528,7 +529,88 @@ export const queryLocation = location => {
   // This long chain of Task reads bottom to top. Only the functions marked Task are actually async calls.
   // Everything else is wrapped in a Task to match the expected type
   return R.composeK(
-    // Sort linestrings (ways) so we know how they are connected
+    location => locationToQueryResults(location),
+    // OSM needs full street names (Avenue not Ave), so use Google to resolve them
+    location => fullStreetNamesOfLocationTask(location).map(
+      // Replace the intersections with the fully qualified names
+      intersections => R.merge(location, {intersections})
+    )
+  )(location);
+};
+
+/**
+ * Resolve the location and then query for the block in overpass.
+ * Overpass will give us too much data back, so we have to clean it up in sortFeatures.
+ * This process will first use nominatimTask to query nomatim.openstreetmap.org for the relationship
+ * of the neighborhood of the city. If it fails it will try the entire city. With this result we
+ * query overpass using the area representation of the neighborhood or city, which is the OpenStreetMap id
+ * plus a magic number defined by Overpass. If the neighborhood area query fails to give us the results we want,
+ * we retry with the city area
+ * @param location
+ * @returns {*}
+ */
+export const locationToQueryResults = location => {
+  // Sort linestrings (ways) so we know how they are connected
+  return R.compose(
+    // Chain our queries until we get a result or fail
+    locationsWithOsm => chainUntil(
+      result => {
+        // We have good results when we have exactly 2 nodes an at least 1 way
+        return R.allPass(
+          // Not null
+          R.complement(R.isNil)(result),
+          // 2 nodes
+          R.compose(R.equals(2), R.prop('node')),
+          // >0 ways
+          R.compose(R.lt(0), R.prop('way'))
+        )(result);
+      },
+      () => {
+        return Result.Error(
+          {
+            error: "Unable to resolve block using the given locations with OpenStreetMap",
+            locations: locationsWithOsm
+          }
+        );
+      },
+      // Creates an iterator that queries with and without neighborhood
+      // Normally we only iterate once to get a good result
+      queryOverpassForBlockTaskIterator(locationsWithOsm)
+    ),
+    // Use OSM Nominatim to get the bbox of the city. We're not currently using bbox but this at least
+    // verifies that we are searching for a city that OSM knows about as an Area. We use Area to limit
+    // our OSM query to the given city to make the results accurate and fast
+    location => waitAll(
+      R.map(
+        keys => nominatimTask(R.pick(keys, location)).map(
+          // bounding box comes as two lats, then two lon, so fix
+          result => R.merge(location, {
+            // We're not using the bbox, but note it anyway
+            bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], result.boundingbox)),
+            osmId: result.osm_id,
+            placeId: result.place_id
+          })
+        ),
+        // Query with neighborhood (if given) and without. We probably won't need the area from the without
+        // query but it doesn't hurt to grab it here
+        R.concat(
+          R.ifElse(
+            R.prop('neighborhood'),
+            R.always([['country', 'state', 'city', 'neighborhood']]),
+            R.always([])
+          )(location)
+            [['country', 'state', 'city']]
+        )
+      )
+    )
+  )(location);
+};
+
+function* queryOverpassForBlockTaskUntilFound(locationsWithOsm) {
+}
+
+const queryOverpassForBlockTask = locationWithOsm => {
+  R.compose(
     ([wayResponse, nodeResponse]) => of(sortFeatures(
       wayResponse.features,
       nodeResponse.features
@@ -539,23 +621,11 @@ export const queryLocation = location => {
     ),
     // Now build an OSM query for the location. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
-    location => of(R.map(type => constructLocationQuery({type}, location), ['way', 'node'])),
-    // Use OSM Nominatim to get the bbox of the city. We're not currently using bbox but this at least
-    // verifies that we are searching for a city that OSM knows about as an Area. We use Area to limit
-    // our OSM query to the given city to make the results accurate and fast
-    location => cityNominatimTask(R.pick(['country', 'state', 'city'], location)).map(
-      // bounding box comes as two lats, then two lon, so fix
-      result => R.merge(location, {
-        // We're not using the bbox, but note it anyway
-        bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], result.boundingbox)),
-        osmId: result.osm_id,
-        placeId: result.place_id
-      })
-    ),
-    // OSM needs full street names (Avenue not Ave), so use Google to resolve them
-    location => fullStreetNamesOfLocationTask(location).map(
-      // Replace the intersections with the fully qualified names
-      intersections => R.merge(location, {intersections})
+    locationsWithOsm => of(
+      R.map(
+        type => constructLocationQuery({type}, location),
+        ['way', 'node']
+      )
     )
-  )(location);
-};
+  );
+}

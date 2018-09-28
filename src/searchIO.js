@@ -48,16 +48,18 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
  * @param {String} location.country Required country
  * @param {String} location.state Optional. The state, province, canton, etc
  * @param {String} location.city Required city
+ * @param {String} location.neighborhood Optional. It's quicker to resolve a relation for a neighborhood and
+ * then query within a neighborhood. However if there is no neighborhood or nothing is found it can be omitted
  * @return {Task} A Task that resolves the relation id or errors
  */
-export const cityNominatimTask = location => {
+export const nominatimTask = location => {
   // Create a location string with the country, state (if exists), and city
   // Note I tried to pass city, state, country to the API but it doesn't work, New York City returns York
   // So leaving this as a query string which does work
   const locationString = R.compose(
     R.join(','),
     compact,
-    R.props(['city', 'state', 'country'])
+    R.props(['neighborhood', 'city', 'state', 'country'])
   )(location);
   const geocoder = new Nominatim({
     secure: true, // enables ssl
@@ -66,12 +68,18 @@ export const cityNominatimTask = location => {
   return task(({reject, resolve}) => {
     return geocoder.search({q: locationString, addressDetails: 1}).then(
       results => {
-        //if (R.equals(1, R.length(results))) {
-          resolve(R.head(results));
-        //}
-        //else {
-        //  reject({error: "To many results", results});
-        //}
+        const matches = R.filter(
+          // We must find a relation, not a node
+            R.propEq('osm_type', 'relation'),
+            results
+        );
+        if (R.length(matches)) {
+          // Assume the first match is the best since results are ordered by importance
+          resolve(R.head(matches));
+        }
+        else {
+          reject({error: "No qualifying results", results});
+        }
       }
     ).catch(reject);
   });
@@ -98,5 +106,5 @@ export const mapboxGeocodeTask = R.curry((accessToken, address) => {
         }
       }
     );
-  })
+  });
 });

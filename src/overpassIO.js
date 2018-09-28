@@ -16,7 +16,7 @@ import {
   findOneThrowing,
   fromPairsMap,
   mapObjToValues, mergeAllWithKey, removeDuplicateObjectsByProp, reqPathThrowing,
-  reqStrPathThrowing
+  reqStrPathThrowing, traverseReduceWhile
 } from 'rescape-ramda';
 import os from 'os';
 import squareGrid from '@turf/square-grid';
@@ -338,7 +338,11 @@ const hashPoint = point => {
  *  ...
  * }
  * @param {Object} feature geojson LineString feature
- * @returns {Object} Accumulation of result plus the two feature points has by ['head'|'last'] and then coordinate hash
+ * @returns {Object} Keyed by hashed point valued by an object that has one or both of head and last keys
+ * head and last keys are valued by the features whose head point is this point and features whose last point
+ * is this point, respectively. We need to end up with no more than one Feature per point per head/last. If we get
+ * more than one somewhere it means that feature points aren't ordered in the same direction. So if we get
+ * more than one we flip the coordinates of one feature and reclassify for the purpose of chainijng
  */
 const _reduceFeaturesByHeadAndLast = (result, feature) => {
   return R.reduce(
@@ -396,18 +400,25 @@ const _lineStringFeatureEndNodeMatches = R.curry((nodePointHashes, lineStringFea
   )(headLastValues);
 });
 
+/**
+ * Creates a hash of the coords of each give node feature
+ * @param nodeFeatures
+ * @returns {*}
+ */
+const hashNodeFeatures = nodeFeatures => R.map(node => hashPoint(node.geometry.coordinates), nodeFeatures);
+
 /***
  * Returns an update to the given nodeMatches by checking what the given feature matches
  * @param {[Object]} nodeFeatures The two node geojson objects representing the two street intersections
  * to be merged with the given nodeMatches
  * @param {Object} nodeMatches {head: true|false, tail: true|false}
  * @param {Object} feature Object to test
- * @returns {Object} New verion of nodeMatches based on testing feature. Note that nodeMatches['tail']
+ * @returns {Object} New version of nodeMatches based on testing feature. Note that nodeMatches['tail']
  * is not allowed to be set true until nodeMatches['head'] returns true
  * @private
  */
 const _updateNodeMatches = nodeFeatures => {
-  const nodePointHashes = R.map(node => hashPoint(node.geometry.coordinates), nodeFeatures);
+  const nodePointHashes = hashNodeFeatures(nodeFeatures);
 
   return (nodeMatches, feature) => {
     const newNodeMaches = _lineStringFeatureEndNodeMatches(nodePointHashes, feature);
@@ -432,7 +443,8 @@ const _updateNodeMatches = nodeFeatures => {
  * are left out
  */
 const _linkedFeatures = (lookup, nodeFeatures) => {
-  // Now start with the head feature and link our way to the end feature
+  // headPointToFeature are keyed by points that only have a feature's first point matching it
+  // lastPointToFeature are keyed by points that only have a feature's last point matching it
   const [headPointToFeature, lastPointToFeature] = R.map(
     headLast => R.compose(
       // Convert 1 item dict to 1 item dict valued by the single feature
@@ -469,7 +481,9 @@ const _linkedFeatures = (lookup, nodeFeatures) => {
 
     if (R.prop('head', nodeMatches)) {
       // Mark that we've intersected one of the nodes
-      yield previousFeature;
+      // The head point of this feature must match, so shorten its end if it overlaps the last node
+      const shortedFeature = shortenToNodeFeaturesIfNeeded(nodeFeatures, 'last', previousFeature);
+      yield shortedFeature
     }
 
     // If the previousFeature was our last feature or nodeMatches['last'] has occurred, we are done
@@ -491,10 +505,17 @@ const _linkedFeatures = (lookup, nodeFeatures) => {
       // Store it for the next round
       previousFeature = R.head(R.values(nextPointToFeature));
       // Yield the feature if this or previous feature matched a node on its head (first) point
-      nodeMatches = _updateNodeMatchesPartial(nodeMatches, previousFeature);
+      const newNodeMatches = _updateNodeMatchesPartial(nodeMatches, previousFeature);
       if (R.prop('head', nodeMatches)) {
-        yield previousFeature;
+        const shortenedFeature = shortenToNodeFeaturesIfNeeded(
+          nodeFeatures,
+          // If we already had a head then this could only overlap the other node at the end
+          // If this is the first match slice from the head to the matching node if needed
+          R.cond(R.prop('head'), R.always('last'), R.always('head'))(nodeMatches),
+          previousFeature);
+        yield shortenedFeature;
       }
+      nodeMatches = newNodeMatches
     }
   }
 
@@ -502,9 +523,43 @@ const _linkedFeatures = (lookup, nodeFeatures) => {
 };
 
 /***
+ * Shortens a features coordinates to the node if it's a way that crosses the node
+ * @param nodeFeatures
+ * @param headLast head means shorten from the front of the feature, last means shorten to the last
+ * @param feature
+ */
+const shortenToNodeFeaturesIfNeeded = (nodeFeatures, headLast, feature) => {
+  const findNode = R.head(hashNodeFeatures(
+    R.ifElse(
+      R.equals('head'),
+      () => R.slice(0, 1, nodeFeatures),
+      () => R.slice(1, Infinity, nodeFeatures)
+    )(headLast)
+  ));
+  const coordLens = R.lensPath(['geometry', 'coordinates']);
+  const coordHashes = R.map(point => hashPoint(point), R.view(coordLens, feature));
+  return R.when(
+    () => R.contains(findNode, coordHashes),
+    // Modify the feature coordinates by slicing them from the start to the matching point or the matching point
+    // to the end
+    feature => R.over(
+      coordLens,
+      coords => R.ifElse(
+        R.equals('head'),
+        // Slice from the start to the matching coord
+        () => R.slice(0, R.findIndex(R.equals(findNode), coordHashes)+1, coords),
+        // Slice from the matching coord to the end
+        () => R.slice(R.findIndex(R.equals(findNode), coordHashes), Infinity, coords)
+      )(headLast),
+      feature
+    )
+  )(feature);
+};
+
+/***
  * Sorts the features by connecting them at their start/ends
  */
-const sortFeatures = (wayFeatures, nodeFeatures) => {
+export const sortFeatures = (wayFeatures, nodeFeatures) => {
   // Build a lookup of start and end points
   // This results in {
   //  end_coordinate_hash: {head: [feature]}
@@ -520,16 +575,61 @@ const sortFeatures = (wayFeatures, nodeFeatures) => {
     {},
     wayFeatures
   );
+  // Do any features have the same head or last point? If so flip the coordinates of one
+  const modified_lookup = R.map(
+    headLastObj => {
+      return R.map(
+        features => {
+          return R.when(
+            f => R.compose(R.lt(1), R.length)(f),
+            // Reverse the first features coordinates
+            f => R.compose(
+              f => R.over(R.lensPath([0, '__reversed__']), R.T, f),
+              f => R.over(R.lensPath([0, 'geometry', 'coordinates']), R.reverse, f)
+            )(f)
+          )(features);
+        },
+        headLastObj
+      );
+    },
+    lookup
+  );
+  const modifiedWayFeatures = R.compose(
+    R.values,
+    // Take l if it has __reversed__, otherwise take r assuming r has reversed or neither does and are identical
+    featureObjs => mergeAllWithKey(
+      (_, l, r) => R.ifElse(R.prop('__reversed__'), R.always(l), R.always(r))(l),
+      featureObjs),
+    // Hash each by id
+    features => R.map(feature => ({[feature.id]: feature}), features),
+    R.flatten,
+    values => R.chain(R.values, values),
+    R.values
+  )(modified_lookup);
+
+  const finalLookup = R.reduce(
+    (result, feature) => {
+      return _reduceFeaturesByHeadAndLast(result, feature);
+    },
+    {},
+    modifiedWayFeatures
+  );
+
   // Use the linker to link the features together, dropping those that aren't between the two nodes
-  return _linkedFeatures(lookup, nodeFeatures);
+  return _linkedFeatures(finalLookup, nodeFeatures);
 
 };
 
+/**
+ * Query the given locations
+ * @param location
+ * @returns {*}
+ */
 export const queryLocation = location => {
   // This long chain of Task reads bottom to top. Only the functions marked Task are actually async calls.
   // Everything else is wrapped in a Task to match the expected type
   return R.composeK(
-    location => locationToQueryResults(location),
+    location => _locationToQueryResults(location),
     // OSM needs full street names (Avenue not Ave), so use Google to resolve them
     location => fullStreetNamesOfLocationTask(location).map(
       // Replace the intersections with the fully qualified names
@@ -547,36 +647,13 @@ export const queryLocation = location => {
  * plus a magic number defined by Overpass. If the neighborhood area query fails to give us the results we want,
  * we retry with the city area
  * @param location
- * @returns {*}
+ * @returns {Task<Result<Object>>} Result.Ok if data is found, otherwise Result.Error
  */
-export const locationToQueryResults = location => {
+const _locationToQueryResults = location => {
   // Sort linestrings (ways) so we know how they are connected
-  return R.compose(
+  return R.composeK(
     // Chain our queries until we get a result or fail
-    locationsWithOsm => chainUntil(
-      result => {
-        // We have good results when we have exactly 2 nodes an at least 1 way
-        return R.allPass(
-          // Not null
-          R.complement(R.isNil)(result),
-          // 2 nodes
-          R.compose(R.equals(2), R.prop('node')),
-          // >0 ways
-          R.compose(R.lt(0), R.prop('way'))
-        )(result);
-      },
-      () => {
-        return Result.Error(
-          {
-            error: "Unable to resolve block using the given locations with OpenStreetMap",
-            locations: locationsWithOsm
-          }
-        );
-      },
-      // Creates an iterator that queries with and without neighborhood
-      // Normally we only iterate once to get a good result
-      queryOverpassForBlockTaskIterator(locationsWithOsm)
-    ),
+    locationsWithOsm => _queryOverpassForBlockTaskUntilFound(locationsWithOsm),
     // Use OSM Nominatim to get the bbox of the city. We're not currently using bbox but this at least
     // verifies that we are searching for a city that OSM knows about as an Area. We use Area to limit
     // our OSM query to the given city to make the results accurate and fast
@@ -598,19 +675,73 @@ export const locationToQueryResults = location => {
             R.prop('neighborhood'),
             R.always([['country', 'state', 'city', 'neighborhood']]),
             R.always([])
-          )(location)
-            [['country', 'state', 'city']]
+          )(location),
+          [['country', 'state', 'city']]
         )
       )
     )
   )(location);
 };
 
-function* queryOverpassForBlockTaskUntilFound(locationsWithOsm) {
-}
+/***
+ * Queries the location with the OverPass API for its given street block. Querying happens once or twice, first
+ * with the neighborhood specified (faster) and then without if no results return. The neighborhood is
+ * also be omitted in a first and only query if the location doesn't have one
+ * @param locationsWithOsm
+ * @returns Task<Result<Object>> A Result.Ok with the geojson object or a Result.Error
+ */
+const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
+  const predicate = R.allPass([
+    // Not null
+    R.complement(R.isNil),
+    // 2 nodes
+    R.compose(R.equals(2), R.prop('node')),
+    // >0 ways
+    R.compose(R.lt(0), R.prop('way'))
+  ]);
 
-const queryOverpassForBlockTask = locationWithOsm => {
-  R.compose(
+  return R.composeK(
+    // Run the predicate once more to make sure we got a result. Return a Result.ok or Result.error
+    (result) => {
+      of(R.ifElse(
+        result => predicate(result),
+        result => Result.Ok(result),
+        () => {
+          return Result.Error(
+            {
+              error: "Unable to resolve block using the given locations with OpenStreetMap",
+              // result probably won't be useful info, but just in case
+              result,
+              locations: locationsWithOsm
+            }
+          );
+        }
+      )(result));
+    },
+    // A chained Task that runs 1 or 2 queries as needed
+    locationsWithOsm => traverseReduceWhile(
+      // Keep searching until we have a result
+      (previousResult, result) => {
+        // We have good results when we have exactly 2 nodes an at least 1 way
+        // Return false if all conditions are met
+        return R.complement(predicate)(previousResult);
+      },
+      // No merge, we just want the first legit result, which the predicate will determine
+      (previousResult, result) => result,
+      of({}),
+      // Create a list of Tasks. We'll only run as many as needed
+      R.map(locationWithOsm => _queryOverpassForBlockTask(locationWithOsm), locationsWithOsm)
+    )
+  )(locationsWithOsm);
+};
+
+/**
+ * Given a location with an osmId included, query the Overpass API and cleanup the results to get a single block
+ * of geojson representing the location's two intersections and the block
+ * @param locationWithOsm
+ */
+const _queryOverpassForBlockTask = locationWithOsm => {
+  return R.composeK(
     ([wayResponse, nodeResponse]) => of(sortFeatures(
       wayResponse.features,
       nodeResponse.features
@@ -621,11 +752,11 @@ const queryOverpassForBlockTask = locationWithOsm => {
     ),
     // Now build an OSM query for the location. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
-    locationsWithOsm => of(
+    locationWithOsm => of(
       R.map(
-        type => constructLocationQuery({type}, location),
+        type => constructLocationQuery({type}, locationWithOsm),
         ['way', 'node']
       )
     )
-  );
-}
+  )(locationWithOsm);
+};

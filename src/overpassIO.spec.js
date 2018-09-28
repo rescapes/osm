@@ -9,10 +9,9 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {fetchOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocation} from './overpassIO';
+import {fetchOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocation, sortFeatures} from './overpassIO';
 import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
-import {nominatimTask} from './searchIO';
 import {of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
 import {fullStreetNamesOfLocationTask} from './googleLocation';
@@ -164,5 +163,53 @@ describe('overpassHelpers', () => {
           }
       })
     );
+  });
+});
+describe('otherOverpassHelpers', () => {
+
+  test('sortFeatures', done => {
+    expect.assertions(1);
+    const wayFeatures = [
+      {
+        "type": "Feature",
+        "id": "way/5089101",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [ [ 10.741472, 59.909751 ], [ 10.7408729, 59.9091401 ], [ 10.7406481, 59.9089025 ],
+            [ 10.7401699, 59.9084086 ] ]
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "way/35356123",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [ [ 10.7382301, 59.9050395 ], [ 10.73823, 59.9051366 ], [ 10.7382295, 59.9057173 ],
+            [ 10.7382682, 59.9061974 ], [ 10.738318, 59.9063885 ], [ 10.7383382, 59.9064661 ],
+            [ 10.7384607, 59.9067405 ], [ 10.7387876, 59.907108 ], [ 10.7394072, 59.9077427 ],
+            [ 10.7398879, 59.9082376 ], [ 10.7399744, 59.9083267 ], [ 10.7401699, 59.9084086 ] ]
+        }
+      }
+    ];
+    const nodeFeatures = [
+      {
+        "type": "Feature",
+        "id": "node/79565",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [ 10.7401699, 59.9084086 ]
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "node/26630363",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [ 10.7406481, 59.9089025 ]
+        }
+      }
+    ];
+    sortFeatures(wayFeatures, nodeFeatures);
+    done()
   });
 });

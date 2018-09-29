@@ -58,7 +58,7 @@
     "ramda": "^0.25.0",
     "request": "^2.88.0",
     "rescape-helpers": "^1.1.62",
-    "rescape-ramda": "^1.4.57"
+    "rescape-ramda": "^1.4.58"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
@@ -75,7 +75,7 @@
     "babelrc-rollup": "^3.0.0",
     "cross-env": "^5.2.0",
     "dotenv": "6.0.0",
-    "eslint": "5.6.0",
+    "eslint": "5.6.1",
     "eslint-loader": "2.1.1",
     "eslint-plugin-import": "2.14.0",
     "eslint-plugin-react": "^7.11.1",

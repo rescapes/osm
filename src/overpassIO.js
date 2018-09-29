@@ -9,10 +9,13 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+
 import queryOverpass from 'query-overpass';
 import {task, of, waitAll} from 'folktale/concurrency/task';
 import * as R from 'ramda';
+import * as Result from 'folktale/result';
 import {
+  compact,
   findOneThrowing,
   fromPairsMap,
   mapObjToValues, mergeAllWithKey, removeDuplicateObjectsByProp, reqPathThrowing,
@@ -24,6 +27,26 @@ import bbox from '@turf/bbox';
 import {concatFeatures} from 'rescape-helpers';
 import {fullStreetNamesOfLocationTask} from './googleLocation';
 import {nominatimTask} from './searchIO';
+
+
+const servers = [
+  //'https://lz4.overpass-api.de/api/interpreter',
+  //'https://z.overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter'
+];
+
+function* gen() {
+  let serverIndex = -1;
+  while (true) {
+    serverIndex = R.modulo(serverIndex + 1, R.length(servers));
+    yield servers[serverIndex];
+  }
+}
+
+const genServer = gen();
+const roundRobinOsmServers = () => {
+  return genServer.next().value;
+};
 
 /**
  * Translates to OSM condition that must be true
@@ -139,6 +162,7 @@ const taskQuery = (options, query) => {
  * put a bounding box here. Instead put it in conditions.bounds.
  * @param {Object} options.testBounds Used only for testing
  * @param {Object} options.cellSize If specified delegates to fetchCelled
+ * @param {String} options.overpassUrl server to query
  * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
  * @param {Array} conditions.filters List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
  * The conditions apply to all types given
@@ -164,6 +188,7 @@ export const fetchOsm = R.curry((options, conditions, types) => {
  * Run a provided query in osm. This assumes a complete query that doesn't need to be split into smaller calls.
  * Settings should be separate from the query in option.settings
  * @param {Object} options settings to pass to query-overpass
+ * @param {String} options.overpassUrl server to query
  * @param {[String]} options.settings OSM query settings such as '[out:csv']`. Defaults to [`[out:json]`]. Don't
  * put a bounding box here. Instead put it in conditions.bounds.
  * @param {String} query A complete OSM query, minus the settings
@@ -194,6 +219,7 @@ export const fetchOsmRawTask = R.curry((options, query) => {
  * be queried separately. The results from all queries are merged by feature id so that no
  * duplicates are returned.
  * @param {[Number]} bounds [lat_min, lon_min, lat_max, lon_max]
+ * @param {String} options.overpassUrl server to query
  * @param {Number} options.sleepBetweenCalls Pause this many milliseconds between calls to avoid the request rate limit
  * @param {Object} options.testBounds Used only for testing
  * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
@@ -375,29 +401,26 @@ const _reduceFeaturesByHeadAndLast = (result, feature) => {
 
 /**
  * Given two node points and criteria for matching, returns true if the given LineString feature matches
+ * one or both nodes anywhere on the LineString nodes
  * @param {[String]} Two hash node point coordinates
  * @param {Object} lineStringFeature a Geojson feature that is a LineString type
  * @returns {Object} With keys 'head' and 'last' and valued true|false depending on if it matched.
- * I can match 0, 1, or both
+ * It can match 0, 1, or both
  */
 const _lineStringFeatureEndNodeMatches = R.curry((nodePointHashes, lineStringFeature) => {
-  const isContainedInNodePoints = R.flip(R.contains)(nodePointHashes);
+  const lineStringPointHashes = R.map(hashPoint, lineStringFeature.geometry.coordinates);
   const headLastValues = ['head', 'last'];
-  // See if the two node points match the feature end-points
-  // This creates an array for whether it matches head and last respectively [true|false, true|false]
-  return R.compose(
-    R.fromPairs,
+  // Returns {head: true|false, last: true|false} if any node on the LineString matches the head node
+  // and last node respectively
+  return R.fromPairs(
     R.map(
-      headLast => R.compose(
-        // return key 'head' or 'last' with value of whether it matched
-        matched => [headLast, matched],
-        // Does it match one of the node points?
-        isContainedInNodePoints,
-        // Hash the head or last point of the feature
-        points => hashPoint(R[headLast](points))
-      )(lineStringFeature.geometry.coordinates)
+      headLast => [
+        headLast,
+        R.contains(R[headLast](nodePointHashes), lineStringPointHashes)
+      ],
+      headLastValues
     )
-  )(headLastValues);
+  );
 });
 
 /**
@@ -408,11 +431,13 @@ const _lineStringFeatureEndNodeMatches = R.curry((nodePointHashes, lineStringFea
 const hashNodeFeatures = nodeFeatures => R.map(node => hashPoint(node.geometry.coordinates), nodeFeatures);
 
 /***
- * Returns an update to the given nodeMatches by checking what the given feature matches
+ * Returns an update to the given nodeMatches by checking if the given way LineString feature matches one or both
+ * nodes by matching on any node of the LineString. Ways can overlap intersection nodes so we have to check
+ * every node of the way
  * @param {[Object]} nodeFeatures The two node geojson objects representing the two street intersections
  * to be merged with the given nodeMatches
- * @param {Object} nodeMatches {head: true|false, tail: true|false}
- * @param {Object} feature Object to test
+ * @param {Object<k,Boolean>} lookup nodeMatches {head: true|false, tail: true|false}
+ * @param {Object} nodeFeature way LineString feature Object to test
  * @returns {Object} New version of nodeMatches based on testing feature. Note that nodeMatches['tail']
  * is not allowed to be set true until nodeMatches['head'] returns true
  * @private
@@ -439,10 +464,40 @@ const _updateNodeMatches = nodeFeatures => {
  * Returns Features linked in order
  * @param {Object} lookup. Structure created in _reduceFeaturesByHeadAndLast
  * @param {[Object]} nodeFeatures. The two nodeFeatures. These serve as the boundaries of the features
- * @returns {[Object]} The ordered features from head to last. Any features that are outside of the nodes
+ * @returns {Object} The ordered features from head to last. Any features that are outside of the nodes
  * are left out
  */
 const _linkedFeatures = (lookup, nodeFeatures) => {
+
+  // Get the two node points
+  const _updateNodeMatchesPartial = _updateNodeMatches(nodeFeatures);
+
+  // If the previousFeature was our last feature or nodeMatches['last'] has occurred, we are done
+  // nodeMatches['last'] is true when the last point of a LineString feature has matched an end node
+  // This should always be true by the time we process the last feature, if not earlier
+  // If either clause is true quit
+  const {results} = R.reduce(({results, nodeMatches}, {resolvedPointLookups, wayFeature}) => {
+      const newNodeMatches = _updateNodeMatchesPartial(nodeMatches, wayFeature);
+      // Yield any part of the feature that is between the intersection nodes
+      const shortenedWayFeature = determinePortionOfWayToYield(newNodeMatches, nodeFeatures, wayFeature);
+      const newResults = R.concat(results, compact([shortenedWayFeature]));
+      if (R.prop('last', newNodeMatches))
+      // Quit after this if we intersected the last intersection node. We ignore any way after
+        return R.reduced({results: newResults, nodeMatches: newNodeMatches});
+      else
+        return {results: newResults, nodeMatches: newNodeMatches};
+    },
+    // nodeMatches tracks when we have matched at the starting point and ending point of a LineString Feature.
+    // We can't allow Features to yield until one first matches at its head (first) point
+    // As soon as one matches at its end point we are done matching features, and any remaining are disgarded
+    {results: [], nodeMatches: {head: false, last: false}},
+    [...orderedWayFeatureGenerator(lookup)]
+  );
+  // Return the nodes and ways
+  return {nodes: nodeFeatures, ways: results};
+};
+
+function* orderedWayFeatureGenerator(lookup) {
   // headPointToFeature are keyed by points that only have a feature's first point matching it
   // lastPointToFeature are keyed by points that only have a feature's last point matching it
   const [headPointToFeature, lastPointToFeature] = R.map(
@@ -458,102 +513,121 @@ const _linkedFeatures = (lookup, nodeFeatures) => {
     )(lookup),
     ['head', 'last']
   );
-  const lastFeature = R.head(R.values(lastPointToFeature));
-
-
-  // Get the two node points
-  const _updateNodeMatchesPartial = _updateNodeMatches(nodeFeatures);
 
   // Starting at the head, find the point who's last item contains the previous feature
   let resolvedPointLookups = headPointToFeature;
-  let previousFeature = R.head(R.values(headPointToFeature));
-  // Tracks when we have matched at the starting point and ending point of a LineString Feature.
-  // We can't allow Features to yield until one first matches at its head (first) point
-  // As soon as one matches at its end point we are done matching features, and any remaining are disgarded
-  let nodeMatches = {head: false, last: false};
+  let wayFeature = R.head(R.values(headPointToFeature));
+  const lastFeature = R.head(R.values(lastPointToFeature));
 
-  function* linker(lookup) {
-    // Yield the head feature if its head (first) point matches a nodeFeature
-    // Having only its last point match means its not between the two nodes.
-    // Normally this first way will not match because the first way returned by OSM will touch a node at its last point
-    // However if its the start/end of the street then the first way should match at its first point
-    nodeMatches = _updateNodeMatchesPartial(nodeMatches, previousFeature);
+  // Make the single item object keyed by next point and valued by feature whose head is the next pointj
+  while (true) {
+    // Yield these two for iteration
+    yield({
+      wayFeature,
+      resolvedPointLookups
+    });
+    if (R.equals(wayFeature, lastFeature))
+      break;
 
-    if (R.prop('head', nodeMatches)) {
-      // Mark that we've intersected one of the nodes
-      // The head point of this feature must match, so shorten its end if it overlaps the last node
-      const shortedFeature = shortenToNodeFeaturesIfNeeded(nodeFeatures, 'last', previousFeature);
-      yield shortedFeature
-    }
+    // Find the pointLookup whose point is the last point for the currentFeature
+    const nextPointLookup = findOneThrowing(
+      pointLookupValue => R.pathEq(['last', 0], wayFeature)(pointLookupValue),
+      R.omit(R.keys(resolvedPointLookups), lookup)
+    );
+    // From that pointLookup get the next point by looking at it's head property
+    const nextPointToFeature = R.map(value => R.head(R.prop('head', value)), nextPointLookup);
+    // Keep track of all points we've processed
+    resolvedPointLookups = R.merge(resolvedPointLookups, nextPointToFeature);
+    // Use the way whose head touches the nextPoint
+    // We always assume there is only 1 way whose head touches, because we should have sorted all ways go
+    // flow in the same direction
+    wayFeature = R.head(R.values(nextPointToFeature));
+  }
+}
 
-    // If the previousFeature was our last feature or nodeMatches['last'] has occurred, we are done
-    // nodeMatches['last'] is true when the last point of a LineString feature has matched an end node
-    // This should always be true by the time we process the last feature, if not earlier
-    // If either clause is true quit
-    while (R.not(R.or(
-      R.prop('last', nodeMatches),
-      R.equals(previousFeature, lastFeature)
-    ))) {
-      // Find the pointLookup whose point is the last point for the currentFeature
-      const nextPointLookup = findOneThrowing(
-        pointLookupValue => R.pathEq(['last', 0], previousFeature)(pointLookupValue),
-        R.omit(R.keys(resolvedPointLookups), lookup)
-      );
-      // Make the single item object keyed by next point and valued by feature whose head is the next point
-      const nextPointToFeature = R.map(value => R.head(R.prop('head', value)), nextPointLookup);
-      resolvedPointLookups = R.merge(resolvedPointLookups, nextPointToFeature);
-      // Store it for the next round
-      previousFeature = R.head(R.values(nextPointToFeature));
-      // Yield the feature if this or previous feature matched a node on its head (first) point
-      const newNodeMatches = _updateNodeMatchesPartial(nodeMatches, previousFeature);
-      if (R.prop('head', nodeMatches)) {
-        const shortenedFeature = shortenToNodeFeaturesIfNeeded(
-          nodeFeatures,
-          // If we already had a head then this could only overlap the other node at the end
-          // If this is the first match slice from the head to the matching node if needed
-          R.cond(R.prop('head'), R.always('last'), R.always('head'))(nodeMatches),
-          previousFeature);
-        yield shortenedFeature;
-      }
-      nodeMatches = newNodeMatches
+/**
+ * Slice the given wayFeature to fit between the two nodeFeatures. We only do this if nodeMatches['head'] is true,
+ * which indicates that part of this way or a previous one has intersections the first of the two nodes.
+ * If the wayFeature intersects one node we shorten it from its start to that node or from that node to its end
+ * depending on if its the first or last node. If the way matches both nodes we trim it on both sides
+ * @param {Object<k, Boolean>} nodeMatches {head: true|false, last: true|false} indicating if the head and last
+ * node have been matched by this wayFeature or a previous one
+ * @param {[Object]} nodeFeatures Always the two intersection node features
+ * @param {Object} wayFeature The LineString way feature
+ * @returns {Object|null} Returns a copy of the Feature with trimmed coordinates. Returns null if
+ * nodeMatches['head'] is or the trimmed way feature coordinates are trimmed down to only 1 point
+ */
+const determinePortionOfWayToYield = (nodeMatches, nodeFeatures, wayFeature) => {
+  if (R.prop('head', nodeMatches)) {
+    // Mark that we've intersected one of the nodes
+    // The head point of this feature must match, so shorten its end if it overlaps the last node
+    const shortedFeature = shortenToNodeFeaturesIfNeeded(nodeMatches, nodeFeatures, wayFeature);
+    // If we the shortened way is more than 1 point, yield it. A point point way is only matching the node,
+    // so we can assume it's completely outside the block except but intersections the intersection at one end
+    if (R.lt(1, R.length(shortedFeature.geometry.coordinates))) {
+      return shortedFeature;
     }
   }
-
-  return [...linker(lookup)];
+  return null;
 };
 
 /***
  * Shortens a features coordinates to the node if it's a way that crosses the node
+ * It's possible for ways to overlap the head node and last node (the intersections)
+
+ * If this is is a head node match, we might have a way that overlaps the head node,
+ * so we need to take the slice of the way from head node to last point way
+ * x-x-x-x-x-x-x-x|--------------------- -------------------|
+ * way head       head node              (new way starts)   last node
+
+ * If we already had a match with the head node then this could only possibly overlap the last node
+ * so we need to take the slice of the way from the way head to the lst node
+ * ---|-----------------|x-x-x-x-x-x-x-x-x-x
+ *    head node         last node
+
+ * It might also be possible for a way to overlap both intersections
+ * x-x-x|----------------|x-x-x
+ *      head node        last node
+ * @param {Object<k,Boolean>} nodeMatches Keys are head and last and value are true or false. If head is true
+ * it means that this nodeFeature or a previous has matched the first intersection, so we want to slice this
+ * way from this head node intersection (or from head if it's not in this Feature).
+ * If last is true that means that this nodeFeature matches the last
+ * intersection so we want to slice up until and including this intersection node
  * @param nodeFeatures
- * @param headLast head means shorten from the front of the feature, last means shorten to the last
- * @param feature
+ * @param wayFeature
  */
-const shortenToNodeFeaturesIfNeeded = (nodeFeatures, headLast, feature) => {
-  const findNode = R.head(hashNodeFeatures(
-    R.ifElse(
-      R.equals('head'),
-      () => R.slice(0, 1, nodeFeatures),
-      () => R.slice(1, Infinity, nodeFeatures)
-    )(headLast)
-  ));
-  const coordLens = R.lensPath(['geometry', 'coordinates']);
-  const coordHashes = R.map(point => hashPoint(point), R.view(coordLens, feature));
-  return R.when(
-    () => R.contains(findNode, coordHashes),
-    // Modify the feature coordinates by slicing them from the start to the matching point or the matching point
-    // to the end
-    feature => R.over(
-      coordLens,
-      coords => R.ifElse(
-        R.equals('head'),
-        // Slice from the start to the matching coord
-        () => R.slice(0, R.findIndex(R.equals(findNode), coordHashes)+1, coords),
-        // Slice from the matching coord to the end
-        () => R.slice(R.findIndex(R.equals(findNode), coordHashes), Infinity, coords)
-      )(headLast),
-      feature
-    )
-  )(feature);
+const shortenToNodeFeaturesIfNeeded = (nodeMatches, nodeFeatures, wayFeature) => {
+  const wayPointHashes = R.map(hashPoint, wayFeature.geometry.coordinates);
+  const nodeHashes = hashNodeFeatures(nodeFeatures);
+  // If we don't find the node in the way, resolve to index 0 for the head node
+  // and resolve to Infinity for the last node
+  const resolveSliceIndex = (nodeIndex, nodeHash) => R.ifElse(
+    R.equals(-1),
+    () => R.ifElse(
+      R.equals(0),
+      R.always(0),
+      R.always(Infinity)
+    )(nodeIndex),
+    // Add 1 to the last index to make the slice inclusive of the last point
+    foundIndex => R.ifElse(
+      R.equals(1),
+      () => R.add(1, foundIndex),
+      R.always(foundIndex)
+    )(nodeIndex)
+  )(R.indexOf(nodeHash, wayPointHashes));
+
+  const sliceFromTo = R.addIndex(R.map)(
+    (nodeHash, index) => resolveSliceIndex(index, nodeHash),
+    nodeHashes
+  );
+  const coordinateLens = R.lensPath(['geometry', 'coordinates']);
+  // Slice the feature coordinates by slicing them from the start to the matching point or the matching point
+  // to the end
+  return R.over(
+    coordinateLens,
+    coordinates => R.slice(...sliceFromTo, coordinates),
+    wayFeature
+  );
 };
 
 /***
@@ -617,13 +691,12 @@ export const sortFeatures = (wayFeatures, nodeFeatures) => {
 
   // Use the linker to link the features together, dropping those that aren't between the two nodes
   return _linkedFeatures(finalLookup, nodeFeatures);
-
 };
 
 /**
  * Query the given locations
  * @param location
- * @returns {*}
+ * @returns {Task<Result>} Result.Ok with the geojson results or a Result.Error
  */
 export const queryLocation = location => {
   // This long chain of Task reads bottom to top. Only the functions marked Task are actually async calls.
@@ -695,39 +768,41 @@ const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
     // Not null
     R.complement(R.isNil),
     // 2 nodes
-    R.compose(R.equals(2), R.prop('node')),
+    R.compose(R.equals(2), R.length, R.prop('nodes')),
     // >0 ways
-    R.compose(R.lt(0), R.prop('way'))
+    R.compose(R.lt(0), R.length, R.prop('ways'))
   ]);
 
   return R.composeK(
     // Run the predicate once more to make sure we got a result. Return a Result.ok or Result.error
-    (result) => {
-      of(R.ifElse(
-        result => predicate(result),
-        result => Result.Ok(result),
-        () => {
-          return Result.Error(
-            {
-              error: "Unable to resolve block using the given locations with OpenStreetMap",
-              // result probably won't be useful info, but just in case
-              result,
-              locations: locationsWithOsm
-            }
-          );
-        }
-      )(result));
-    },
+    (result) => of(R.ifElse(
+      result => predicate(result),
+      result => Result.Ok(result),
+      () => {
+        return Result.Error(
+          {
+            error: "Unable to resolve block using the given locations with OpenStreetMap",
+            // result probably won't be useful info, but just in case
+            result,
+            locations: locationsWithOsm
+          }
+        );
+      }
+    )(result)),
     // A chained Task that runs 1 or 2 queries as needed
     locationsWithOsm => traverseReduceWhile(
-      // Keep searching until we have a result
-      (previousResult, result) => {
-        // We have good results when we have exactly 2 nodes an at least 1 way
-        // Return false if all conditions are met
-        return R.complement(predicate)(previousResult);
+      {
+        // Keep searching until we have a result
+        predicate: (previousResult, result) => {
+          // We have good results when we have exactly 2 nodes and at least 1 way
+          // Return false if all conditions are met
+          return R.complement(predicate)(result);
+        },
+        accumulateAfterPredicateFail: true
       },
+
       // No merge, we just want the first legit result, which the predicate will determine
-      (previousResult, result) => result,
+      (previousResult, result) => R.merge(previousResult, result),
       of({}),
       // Create a list of Tasks. We'll only run as many as needed
       R.map(locationWithOsm => _queryOverpassForBlockTask(locationWithOsm), locationsWithOsm)
@@ -748,7 +823,11 @@ const _queryOverpassForBlockTask = locationWithOsm => {
     )),
     // Perform the queries in parallel
     queries => waitAll(
-      R.map(query => fetchOsmRawTask({}, query), queries)
+      // Wait 2 seconds for the second call, Overpass is super picky
+      R.addIndex(R.map)((query, i) => fetchOsmRawTask({
+        overpassUrl: roundRobinOsmServers(),
+        sleepBetweenCalls: i * 2000
+      }, query), queries)
     ),
     // Now build an OSM query for the location. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together

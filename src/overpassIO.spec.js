@@ -10,11 +10,9 @@
  */
 
 import {fetchOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocation, sortFeatures} from './overpassIO';
-import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
+import {defaultRunConfig, removeDuplicateObjectsByProp, reqStrPathThrowing} from 'rescape-ramda';
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
-import {of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
-import {fullStreetNamesOfLocationTask} from './googleLocation';
 
 const mock = false;
 jest.unmock('query-overpass');
@@ -106,12 +104,13 @@ describe('overpassHelpersUnmocked', () => {
       intersections: [['Kongens gate', 'Myntgata'], ['Kongens gate', 'Revierstredet']]
     }).run().listen(defaultRunConfig(
       {
-        onResolved:
+        onResolved: responseResult => responseResult.map(
           response => {
             // Expect it to be two ways
-            expect(R.map(R.prop('id'), response)).toEqual(['way/417728789', 'way/417728790']);
+            expect(R.map(R.prop('id'), R.prop('ways', response))).toEqual(['way/5089101']);
             done();
           }
+        )
       }));
   }, 1000000);
 });
@@ -165,10 +164,10 @@ describe('overpassHelpers', () => {
     );
   });
 });
+
 describe('otherOverpassHelpers', () => {
 
-  test('sortFeatures', done => {
-    expect.assertions(1);
+  test('sortFeatures', () => {
     const wayFeatures = [
       {
         "type": "Feature",
@@ -209,7 +208,10 @@ describe('otherOverpassHelpers', () => {
         }
       }
     ];
-    sortFeatures(wayFeatures, nodeFeatures);
-    done()
+    const features = sortFeatures(wayFeatures, nodeFeatures);
+    // Expect only one feature between the block
+    expect(R.length(features)).toEqual(1)
+    // Expect the feature is sliced down two 2 points
+    expect(R.length(reqStrPathThrowing('0.geometry.coordinates', features))).toEqual(2)
   });
 });

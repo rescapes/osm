@@ -425,7 +425,7 @@ const hashPoint = point => {
  */
 const hashNodeFeature = nodeFeature => {
   return hashPoint(nodeFeature.geometry.coordinates);
-}
+};
 
 /**
  * Creates a hash of the coords of each give node feature
@@ -542,7 +542,6 @@ const _lineStringFeatureEndNodeMatches = R.curry((nodePointHashes, lineStringFea
     )
   );
 });
-
 
 
 /***
@@ -695,7 +694,8 @@ const _reverseNodesAndWayIfNeeded = (nodeMatches, nodeFeatures, wayFeature) => {
       matches => [matches, nodeFeatures]
     ]
   ])(nodeMatches);
-}
+};
+
 /**
  * Slice the given wayFeature to fit between the two nodeFeatures. We only do this if nodeMatches['head'] is true,
  * which indicates that part of this way or a previous one has intersections the first of the two nodes.

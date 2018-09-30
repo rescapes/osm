@@ -3,7 +3,6 @@ import {reqStrPathThrowing} from 'rescape-ramda';
 import {resolveGeoLocationTask, resolveGeojsonTask, addressPair} from './locationHelpers';
 
 describe('LocationSelector', () => {
-;
   test('addressPair', () => {
     const location = {
       country: 'USA',

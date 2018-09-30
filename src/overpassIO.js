@@ -8,8 +8,6 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-
-
 import queryOverpass from 'query-overpass';
 import {task, of, waitAll} from 'folktale/concurrency/task';
 import * as R from 'ramda';
@@ -17,8 +15,7 @@ import * as Result from 'folktale/result';
 import {
   compact,
   findOneThrowing,
-  fromPairsMap,
-  mapObjToValues, mergeAllWithKey, removeDuplicateObjectsByProp, reqPathThrowing,
+  mergeAllWithKey, removeDuplicateObjectsByProp,
   reqStrPathThrowing, traverseReduceWhile
 } from 'rescape-ramda';
 import os from 'os';
@@ -143,14 +140,16 @@ const taskQuery = (options, query) => {
   return task(resolver => {
     // Possibly delay each call to query_overpass to avoid request rate threshold
     // Since we are executing calls sequentially, this will pause sleepBetweenCalls before each call
-    setTimeout(() =>
+    setTimeout(() => {
+        console.debug(`Requesting OSM query: ${query}`);
         queryOverpass(query, (error, data) => {
           if (!error) {
             resolver.resolve(data);
           } else {
             resolver.reject(error);
           }
-        }, options),
+        }, options);
+      },
       options.sleepBetweenCalls || 0);
   });
 };
@@ -438,27 +437,19 @@ const hashNodeFeatures = nodeFeatures => R.map(node => hashPoint(node.geometry.c
  * to be merged with the given nodeMatches
  * @param {Object<k,Boolean>} lookup nodeMatches {head: true|false, tail: true|false}
  * @param {Object} nodeFeature way LineString feature Object to test
- * @returns {Object} New version of nodeMatches based on testing feature. Note that nodeMatches['tail']
- * is not allowed to be set true until nodeMatches['head'] returns true
+ * @returns {Object} New version of nodeMatches based on testing feature.
  * @private
  */
-const _updateNodeMatches = nodeFeatures => {
+const _updateNodeMatches = R.curry((nodeFeatures, nodeMatches, feature) => {
   const nodePointHashes = hashNodeFeatures(nodeFeatures);
-
-  return (nodeMatches, feature) => {
-    const newNodeMaches = _lineStringFeatureEndNodeMatches(nodePointHashes, feature);
-    return R.mergeWith(
-      // Merge with previous result and then and with nodeMatches['head']. This means nodeMatches['last'] can't
-      // be true until nodeMatches['head'] is
-      (l, r) => R.compose(
-        R.and(R.any(R.prop('head'), [nodeMatches, newNodeMaches])),
-        R.or
-      )(l, r),
-      nodeMatches,
-      newNodeMaches
-    );
-  };
-};
+  const newNodeMaches = _lineStringFeatureEndNodeMatches(nodePointHashes, feature);
+  return R.mergeWith(
+    // Once one is true leave it true
+    (l, r) => R.or(l, r),
+    nodeMatches,
+    newNodeMaches
+  );
+});
 
 /**
  * Returns Features linked in order
@@ -469,28 +460,33 @@ const _updateNodeMatches = nodeFeatures => {
  */
 const _linkedFeatures = (lookup, nodeFeatures) => {
 
-  // Get the two node points
-  const _updateNodeMatchesPartial = _updateNodeMatches(nodeFeatures);
+  // Reduce ways, slicing them to fit between the two node Features.
+  // Once we intersect both nodes we quit and ignore any more ways. Usually there will be one extra way at most.
+  const {results} = R.reduce(({results, nodeMatches, nodeFeatures}, {resolvedPointLookups, wayFeature}) => {
 
-  // If the previousFeature was our last feature or nodeMatches['last'] has occurred, we are done
-  // nodeMatches['last'] is true when the last point of a LineString feature has matched an end node
-  // This should always be true by the time we process the last feature, if not earlier
-  // If either clause is true quit
-  const {results} = R.reduce(({results, nodeMatches}, {resolvedPointLookups, wayFeature}) => {
-      const newNodeMatches = _updateNodeMatchesPartial(nodeMatches, wayFeature);
+      // Update the node matches with wayFeature. If we find the last node before the had node, reverse
+      // the nodes and the matches, and henceforth the nodes will be reversed
+      const [newNodeMatches, newNodeFeatures] = R.ifElse(
+        R.both(R.prop('last'), R.complement(R.prop('head'))),
+        // Reverse the true/false of the matches and reverse the nodeFeatures
+        matches => [R.map(R.not, matches), R.reverse(nodeFeatures)],
+        matches => [matches, nodeFeatures]
+      )(_updateNodeMatches(nodeFeatures, nodeMatches, wayFeature));
+
       // Yield any part of the feature that is between the intersection nodes
-      const shortenedWayFeature = determinePortionOfWayToYield(newNodeMatches, nodeFeatures, wayFeature);
+      const shortenedWayFeature = someAllOrNoneOfWay(newNodeMatches, newNodeFeatures, wayFeature);
       const newResults = R.concat(results, compact([shortenedWayFeature]));
+      const reduction = {results: newResults, nodeMatches: newNodeMatches, nodeFeatures: newNodeFeatures};
       if (R.prop('last', newNodeMatches))
       // Quit after this if we intersected the last intersection node. We ignore any way after
-        return R.reduced({results: newResults, nodeMatches: newNodeMatches});
+        return R.reduced(reduction);
       else
-        return {results: newResults, nodeMatches: newNodeMatches};
+        return reduction;
     },
     // nodeMatches tracks when we have matched at the starting point and ending point of a LineString Feature.
     // We can't allow Features to yield until one first matches at its head (first) point
     // As soon as one matches at its end point we are done matching features, and any remaining are disgarded
-    {results: [], nodeMatches: {head: false, last: false}},
+    {results: [], nodeFeatures, nodeMatches: {head: false, last: false}},
     [...orderedWayFeatureGenerator(lookup)]
   );
   // Return the nodes and ways
@@ -557,7 +553,7 @@ function* orderedWayFeatureGenerator(lookup) {
  * @returns {Object|null} Returns a copy of the Feature with trimmed coordinates. Returns null if
  * nodeMatches['head'] is or the trimmed way feature coordinates are trimmed down to only 1 point
  */
-const determinePortionOfWayToYield = (nodeMatches, nodeFeatures, wayFeature) => {
+const someAllOrNoneOfWay = (nodeMatches, nodeFeatures, wayFeature) => {
   if (R.prop('head', nodeMatches)) {
     // Mark that we've intersected one of the nodes
     // The head point of this feature must match, so shorten its end if it overlaps the last node
@@ -632,8 +628,13 @@ const shortenToNodeFeaturesIfNeeded = (nodeMatches, nodeFeatures, wayFeature) =>
 
 /***
  * Sorts the features by connecting them at their start/ends
+ * @param {[Object]} wayFeatures List of way feaures to sort
+ * @param {[Object]} nodeFeatures Two node features respresenting the block intersection
+ * @param {Object} Object contains keys nodes and ways. Nodes must always be the two node Features of the4 block.
+ * ways must be at least on way Feature, possibly shortened to match the block and up to n way features with at
+ * most the first and last possibly shortened to match the block
  */
-export const sortFeatures = (wayFeatures, nodeFeatures) => {
+export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
   // Build a lookup of start and end points
   // This results in {
   //  end_coordinate_hash: {head: [feature]}
@@ -690,7 +691,15 @@ export const sortFeatures = (wayFeatures, nodeFeatures) => {
   );
 
   // Use the linker to link the features together, dropping those that aren't between the two nodes
-  return _linkedFeatures(finalLookup, nodeFeatures);
+
+  const linkedFeatures = _linkedFeatures(finalLookup, nodeFeatures);
+
+  // Finally remove the __reversed__ tags from the ways (we could leave them on for debugging if needed)
+  return R.over(
+    R.lensProp('ways'),
+    ways => R.map(R.omit('__reversed__'), ways),
+    linkedFeatures
+  );
 };
 
 /**
@@ -704,16 +713,39 @@ export const queryLocation = location => {
   return R.composeK(
     location => _locationToQueryResults(location),
     // OSM needs full street names (Avenue not Ave), so use Google to resolve them
-    location => fullStreetNamesOfLocationTask(location).map(
-      // Replace the intersections with the fully qualified names
-      intersections => R.merge(location, {intersections})
-    )
+    location => R.cond([
+      // If we defined explicitly OSM nodes set the intersections to the nodes
+      [R.view(R.lensPath(['data', 'osmOverrides', 'nodes'])),
+        location => of(
+          R.over(
+            R.lensProp('intersections'),
+            location => R.view(R.lensPath(['data', 'osmOverrides', 'nodes']), location),
+            location)
+        )
+      ],
+      // If we defined explicitly OSM intersections set the intersections to them
+      [R.view(R.lensPath(['data', 'osmOverrides', 'intersections'])),
+        location => of(
+          R.over(
+            R.lensProp('intersections'),
+            location =>R.view(R.lensPath(['data', 'osmOverrides', 'intersections']), location),
+            location)
+        )
+      ],
+      // Use Google to resolve full names
+      [R.T,
+        location => fullStreetNamesOfLocationTask(location).map(
+          // Replace the intersections with the fully qualified names
+          intersections => R.mergeAll([location, {intersections}, R.propOr('Intersections', location)])
+        )
+      ]
+    ])(location)
   )(location);
 };
 
 /**
  * Resolve the location and then query for the block in overpass.
- * Overpass will give us too much data back, so we have to clean it up in sortFeatures.
+ * Overpass will give us too much data back, so we have to clean it up in getFeaturesOfBlock.
  * This process will first use nominatimTask to query nomatim.openstreetmap.org for the relationship
  * of the neighborhood of the city. If it fails it will try the entire city. With this result we
  * query overpass using the area representation of the neighborhood or city, which is the OpenStreetMap id
@@ -727,20 +759,38 @@ const _locationToQueryResults = location => {
   return R.composeK(
     // Chain our queries until we get a result or fail
     locationsWithOsm => _queryOverpassForBlockTaskUntilFound(locationsWithOsm),
+    // Remove failed nominatim queries
+    results => of(compact(results)),
     // Use OSM Nominatim to get the bbox of the city. We're not currently using bbox but this at least
     // verifies that we are searching for a city that OSM knows about as an Area. We use Area to limit
     // our OSM query to the given city to make the results accurate and fast
     location => waitAll(
       R.map(
-        keys => nominatimTask(R.pick(keys, location)).map(
-          // bounding box comes as two lats, then two lon, so fix
-          result => R.merge(location, {
-            // We're not using the bbox, but note it anyway
-            bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], result.boundingbox)),
-            osmId: result.osm_id,
-            placeId: result.place_id
-          })
-        ),
+        keys => nominatimTask(R.pick(keys, location))
+          .map(responseResult => responseResult.matchWith({
+              Ok: ({value}) => {
+                // bounding box comes as two lats, then two lon, so fix
+                return R.merge(location, {
+                  // We're not using the bbox, but note it anyway
+                  bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], value.boundingbox)),
+                  osmId: value.osm_id,
+                  placeId: value.place_id
+                });
+              },
+              Error: ({value}) => {
+                // If no results are found, just return null. Hopefully the other nominatin query will return something
+                console.debug(value);
+                return null;
+              }
+              // Remove nulls
+            })
+          ).mapRejected(
+            // If the query fails to excute
+            errorResult => errorResult.map(error => {
+              console.warn(`Giving up. Nominatim query failed with error message: ${error}`);
+              return error;
+            })
+          ),
         // Query with neighborhood (if given) and without. We probably won't need the area from the without
         // query but it doesn't hurt to grab it here
         R.concat(
@@ -775,20 +825,24 @@ const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
 
   return R.composeK(
     // Run the predicate once more to make sure we got a result. Return a Result.ok or Result.error
-    (result) => of(R.ifElse(
-      result => predicate(result),
-      result => Result.Ok(result),
-      () => {
-        return Result.Error(
-          {
-            error: "Unable to resolve block using the given locations with OpenStreetMap",
-            // result probably won't be useful info, but just in case
-            result,
-            locations: locationsWithOsm
-          }
-        );
-      }
-    )(result)),
+    result => of(
+      R.ifElse(
+        result => predicate(result),
+        result => Result.Ok(result),
+        () => {
+          return Result.Error(
+            {
+              error: `Unable to resolve block using the given locations with OpenStreetMap. Take a look at the results. 
+            If there are more than two nodes you need to query them manually and figure the correct two. Then update
+            the location field osmIntersections with the two ids. e.g. ([351103238', 367331193])
+            `,
+              result,
+              locations: locationsWithOsm
+            }
+          );
+        }
+      )(result)
+    ),
     // A chained Task that runs 1 or 2 queries as needed
     locationsWithOsm => traverseReduceWhile(
       {
@@ -817,7 +871,7 @@ const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
  */
 const _queryOverpassForBlockTask = locationWithOsm => {
   return R.composeK(
-    ([wayResponse, nodeResponse]) => of(sortFeatures(
+    ([wayResponse, nodeResponse]) => of(getFeaturesOfBlock(
       wayResponse.features,
       nodeResponse.features
     )),

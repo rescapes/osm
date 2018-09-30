@@ -12,12 +12,10 @@
 // Enzyme setup
 import * as R from 'ramda';
 import {JSDOM} from 'jsdom';
-// Makes locaalStorage available in node to Apollo
 
 global.navigator = {
   userAgent: 'node.js'
 };
-
 if (process.env.NODE_ENV !== 'production') {
   require('longjohn');
 }

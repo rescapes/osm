@@ -15,6 +15,7 @@ import * as R from 'ramda';
 import {compact, promiseToTask} from 'rescape-ramda';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
+import * as Result from 'folktale/result';
 
 /**
  * Uses Mapbox to resolve locations based on a search string
@@ -50,38 +51,41 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
  * @param {String} location.city Required city
  * @param {String} location.neighborhood Optional. It's quicker to resolve a relation for a neighborhood and
  * then query within a neighborhood. However if there is no neighborhood or nothing is found it can be omitted
- * @return {Task} A Task that resolves the relation id or errors
+ * @return {Task<Result>} A Task that resolves the relation id in a Result.Ok or returns a Result.Error if no
+ * qualifying results are found. Task rejects with a Result.Error() if the query fails
  */
 export const nominatimTask = location => {
   // Create a location string with the country, state (if exists), and city
   // Note I tried to pass city, state, country to the API but it doesn't work, New York City returns York
   // So leaving this as a query string which does work
-  const locationString = R.compose(
+  const query = R.compose(
     R.join(','),
     compact,
     R.props(['neighborhood', 'city', 'state', 'country'])
   )(location);
+  const host = 'nominatim.openstreetmap.org';
   const geocoder = new Nominatim({
     secure: true, // enables ssl
-    host: 'nominatim.openstreetmap.org'
+    host
   });
   return task(({reject, resolve}) => {
-    return geocoder.search({q: locationString, addressDetails: 1}).then(
+    console.debug(`Nominatim query: http://${host}?{$query}&addressDetails=1`);
+    return geocoder.search({q: query, addressDetails: 1}).then(
       results => {
         const matches = R.filter(
           // We must find a relation, not a node
-            R.propEq('osm_type', 'relation'),
-            results
+          R.propEq('osm_type', 'relation'),
+          results
         );
         if (R.length(matches)) {
           // Assume the first match is the best since results are ordered by importance
-          resolve(R.head(matches));
+          resolve(Result.Ok(R.head(matches)));
         }
         else {
-          reject({error: "No qualifying results", results});
+          resolve(Result.Error({error: "No qualifying results", results, query }));
         }
       }
-    ).catch(reject);
+    ).catch(error => reject(Result.Error({error})));
   });
 };
 

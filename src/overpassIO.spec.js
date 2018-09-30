@@ -315,9 +315,11 @@ describe('overpassHelpersUnmocked', () => {
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
       intersections: [['Langgata', 'Pedersgata'], ['Vinkelgata', 'Pedersgata']],
-      // Override the intersections
       data: {
-        osmOverides: {
+        osmOverrides: {
+          // We have to override OSM names because they differ from Google
+          intersections: [['Langgata', 'Nytorget'], ['Vinkelgata', 'Nytorget']],
+          // Hard code node ids because there are two Nytorget streets that intersect
           nodes: [351103238, 367331193]
         }
       }
@@ -325,7 +327,10 @@ describe('overpassHelpersUnmocked', () => {
       {
         onResolved: responseResult => responseResult.map(
           response => {
-            throw new Error("We should have gotten a Result.Error")
+            expect(
+              R.length(reqStrPathThrowing('ways', response))
+            ).toEqual(1)
+            done()
           }
         )
       }));

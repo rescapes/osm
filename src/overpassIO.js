@@ -276,6 +276,91 @@ const fetchOsmCelled = ({cellSize, ...options}, conditions, types) => {
 };
 
 /**
+ * Query Overpass when we know the node and/or way ids ahead of time. This is done when the regular resolution
+ * using intersections would return the wrong data because of duplicate street names
+ * @param type
+ * @param country
+ * @param state
+ * @param city
+ * @param intersections
+ * @param osmId
+ * @param {Object} data Location data optionally containing OSM overrides
+ * @param {Object} [data.osmOverrides] Optional overrides
+ * @param {[Number]} [data.osmOverrides.nodes] Optional 2 node ids
+ * @param {[Number]} [data.osmOverrides.ways] Optional 1 or more way ids
+ * @returns {string}
+ */
+const constructIdQuery = ({type}, {country, state, city, intersections, osmId, data}) => {
+
+  // The Overpass Area Id is based on the osm id plus this magic nubmer
+  const areaId = parseInt(osmId) + 3600000000;
+  // hard-coded node and/or ways
+  const nodes = R.view(R.lensPath(['osmOverrides', 'nodes']), data);
+  const ways = R.view(R.lensPath(['osmOverrides', 'ways']), data);
+  // Get the ordered blocks, unless we have hard-coded way ids
+  const orderedBlocks = R.ifElse(
+    R.identity,
+    () => null,
+    () => _extractOrderedBlocks(intersections)
+  )(ways);
+
+  const query = `
+    ${
+    R.ifElse(
+      R.identity,
+      // We have hard-coded way ids, just set the first and last to a variable, we don't need w3 because
+      // we know for sure that these two ways touch our intersection nodes
+      ways => R.join('\n',
+        R.addIndex(R.map)(
+          (wayId, i) => `way(${wayId})->.w${i + 1};`,
+          [R.head(ways), R.last(ways)]
+        )
+      ),
+      // We don't have hard-coded way ids, so search for these values by querying
+      () => R.join('\n',
+        R.addIndex(R.map)(
+          (block, i) => `way(area:${areaId})[highway][name="${block}"][footway!="crossing"]->.w${i + 1};`,
+          orderedBlocks
+        )
+      )
+    )(ways)
+    }
+    // Get the two intersection nodes 
+    ${
+    R.ifElse(
+      R.identity,
+      // We have hard-coded node ids, just set the nodes to them
+      nodes => `(${R.join(' ', R.map(node => `node(${node});`, nodes))})->.nodes;`,
+      // Otherwise search for the nodes by searching for the nodes contained in both w1 and w2 and both w1 and w3
+      () => `(node(w.w1)(w.w2);
+        node(w.w1)(w.w3);
+        )->.nodes;
+        `
+    )(nodes)
+    }
+    ${
+    R.ifElse(
+      R.identity,
+      // We have hard-coded ways, just return these as our final ways
+      ways => `(${R.map(way => `way(${way});`, ways)})->.ways;`,
+      // Otherwise get all ways containing one or both nodes
+      () => `way.w1[highway](bn.nodes)->.ways;`
+    )(ways)
+    } 
+    // Either return nodes or ways. Can't do both because the API messes up the geojson
+(${ R.cond([
+    [R.equals('way'), R.always('.ways')],
+    [R.equals('node'), R.always('.nodes')],
+    [R.T, () => {
+      throw Error('type argument must specified and be "way" or "node"');
+    }]
+  ])(type) };)->.outputSet;
+.outputSet out geom;
+`;
+  return query;
+};
+
+/**
  * Constructs an OSM query for the given location. Queries are limited to the city of the location
  * and return the ways and nodes related two the intersections. These are more than are actually
  * needed because some refer to ways that are outside the block between the intersections but connected to them.
@@ -294,29 +379,10 @@ const constructLocationQuery = ({type}, {country, state, city, intersections, os
 
   // The Overpass Area Id is based on the osm id plus this magic nubmer
   const areaId = parseInt(osmId) + 3600000000;
-  // Fix all street endings. OSM needs full names: Avenue not Ave, Lane not Ln
-  const streetCount = R.reduce(
-    (accum, street) => R.over(
-      R.lensProp(street),
-      value => (value || 0) + 1,
-      accum
-    ),
-    {},
-    R.flatten(intersections)
-  );
-  if (!R.find(R.equals(2), R.values(streetCount))) {
-    throw `No common block in intersections: ${JSON.stringify(intersections)}`;
-  }
-  // Sort each intersection, putting the common block first
-  const modifiedIntersections = R.map(
-    intersection => R.reverse(R.sortBy(street => R.prop(street, streetCount), intersection)),
-    intersections
-  );
-  // List the 3 blocks: common block and then other two blocks
-  const orderedBlocks = [R.head(R.head(modifiedIntersections)), ...R.map(R.last, modifiedIntersections)];
-
+  const orderedBlocks = _extractOrderedBlocks(intersections);
   const query = `
     ${
+    // Iterate through the 3 blocks and query for ways in the area with that blockname that isn't a crosswalk
     R.join('\n',
       R.addIndex(R.map)(
         (block, i) => `way(area:${areaId})[highway][name="${block}"][footway!="crossing"]->.w${i + 1};`,
@@ -329,13 +395,13 @@ const constructLocationQuery = ({type}, {country, state, city, intersections, os
 (node(w.w1)(w.w2);
 // node contained in w1 and w3
  node(w.w1)(w.w3);
-)->.allnodes;
+)->.nodes;
 // Get all main ways containing one or both nodes
-way.w1[highway](bn.allnodes)->.ways; 
+way.w1[highway](bn.nodes)->.ways; 
 // Either return nodes or ways. Can't do both because the API messes up the geojson
 (${ R.cond([
     [R.equals('way'), R.always('.ways')],
-    [R.equals('node'), R.always('.allnodes')],
+    [R.equals('node'), R.always('.nodes')],
     [R.T, () => {
       throw Error('type argument must specified and be "way" or "node"');
     }]
@@ -347,10 +413,65 @@ way.w1[highway](bn.allnodes)->.ways;
 
 /**
  * Makes a string from a point array for hashing
- * @param {[Number}] point Two element array
+ * @param {String} A string representation of the point
  */
 const hashPoint = point => {
   return R.join(':', point);
+};
+/**
+ * Hash the given ndoeFeature point
+ * @param nodeFeature
+ * @param {String} A string representation of the point
+ */
+const hashNodeFeature = nodeFeature => {
+  return hashPoint(nodeFeature.geometry.coordinates);
+}
+
+/**
+ * Creates a hash of the coords of each give node feature
+ * @param nodeFeatures
+ * @param {[String]} A string representation of each node point
+ */
+const hashNodeFeatures = nodeFeatures => R.map(hashNodeFeature, nodeFeatures);
+
+/**
+ * Hash the given way, a LineString Feature into an array of points
+ * @param way
+ * @returns {[String]} Array of point hashes
+ */
+const hashWay = way => {
+  return R.map(hashPoint, way.geometry.coordinates);
+};
+
+/**
+ * Given a pair of adjacent street intersections, return the 3 blocks of the two intersections. First the main
+ * intersection they both have in common, then the other two blocks
+ * @returns {[String]} The three blocks
+ * @private
+ */
+const _extractOrderedBlocks = (intersections) => {
+
+  // Find the common street
+  const streetCount = R.reduce(
+    (accum, street) => R.over(
+      R.lensProp(street),
+      value => (value || 0) + 1,
+      accum
+    ),
+    {},
+    R.flatten(intersections)
+  );
+  // This should never happen
+  if (!R.find(R.equals(2), R.values(streetCount))) {
+    throw `No common block in intersections: ${JSON.stringify(intersections)}`;
+  }
+  // Sort each intersection, putting the common block first
+  const modifiedIntersections = R.map(
+    intersection => R.reverse(R.sortBy(street => R.prop(street, streetCount), intersection)),
+    intersections
+  );
+  // List the 3 blocks: common block and then other two blocks
+  return [R.head(R.head(modifiedIntersections)), ...R.map(R.last, modifiedIntersections)];
 };
 
 /***
@@ -407,7 +528,7 @@ const _reduceFeaturesByHeadAndLast = (result, feature) => {
  * It can match 0, 1, or both
  */
 const _lineStringFeatureEndNodeMatches = R.curry((nodePointHashes, lineStringFeature) => {
-  const lineStringPointHashes = R.map(hashPoint, lineStringFeature.geometry.coordinates);
+  const lineStringPointHashes = hashWay(lineStringFeature);
   const headLastValues = ['head', 'last'];
   // Returns {head: true|false, last: true|false} if any node on the LineString matches the head node
   // and last node respectively
@@ -422,12 +543,7 @@ const _lineStringFeatureEndNodeMatches = R.curry((nodePointHashes, lineStringFea
   );
 });
 
-/**
- * Creates a hash of the coords of each give node feature
- * @param nodeFeatures
- * @returns {*}
- */
-const hashNodeFeatures = nodeFeatures => R.map(node => hashPoint(node.geometry.coordinates), nodeFeatures);
+
 
 /***
  * Returns an update to the given nodeMatches by checking if the given way LineString feature matches one or both
@@ -466,12 +582,8 @@ const _linkedFeatures = (lookup, nodeFeatures) => {
 
       // Update the node matches with wayFeature. If we find the last node before the had node, reverse
       // the nodes and the matches, and henceforth the nodes will be reversed
-      const [newNodeMatches, newNodeFeatures] = R.ifElse(
-        R.both(R.prop('last'), R.complement(R.prop('head'))),
-        // Reverse the true/false of the matches and reverse the nodeFeatures
-        matches => [R.map(R.not, matches), R.reverse(nodeFeatures)],
-        matches => [matches, nodeFeatures]
-      )(_updateNodeMatches(nodeFeatures, nodeMatches, wayFeature));
+      const updatedNodeMatches = _updateNodeMatches(nodeFeatures, nodeMatches, wayFeature);
+      const [newNodeMatches, newNodeFeatures] = _reverseNodesAndWayIfNeeded(updatedNodeMatches, nodeFeatures, wayFeature);
 
       // Yield any part of the feature that is between the intersection nodes
       const shortenedWayFeature = someAllOrNoneOfWay(newNodeMatches, newNodeFeatures, wayFeature);
@@ -541,6 +653,49 @@ function* orderedWayFeatureGenerator(lookup) {
   }
 }
 
+/**
+ * Sometimes the last node is matched before the first node. We know this if nodeMatches.head is false but
+ * nodeMatches.last is true. If both nodes match on the same way, we might still have to reverse the nodes
+ * if the head of the way is closer to the last node.
+ * @param {Object} nodeMatches {head: true|false, last: true|false}
+ * @param {[Object]} nodeFeatures: We return a reverse of these if needed as described above
+ * @param {Object} wayFeature: The way to check the nodes against
+ * @returns {[matches, nodeFeatures]} The reversed nodeMatches in the case that head is false and last is true,
+ * it returns head: true, last: false. The possibly reversed nodeFeatures if either of the
+ * above described conditions happen
+ * @private
+ */
+const _reverseNodesAndWayIfNeeded = (nodeMatches, nodeFeatures, wayFeature) => {
+  return R.cond([
+    [
+      // If the last node matches before the head reverse the true/false of the matches and reverse the nodeFeatures
+      R.both(R.prop('last'), R.complement(R.prop('head'))),
+      matches => [R.map(R.not, matches), R.reverse(nodeFeatures)]
+    ],
+    [
+      // If both nodes match, find the closest to the head of the way and put that node first
+      R.both(R.prop('last'), R.prop('head')),
+      matches => {
+        const wayPointHashes = hashWay(wayFeature);
+        const sortedNodeFeatures = R.sortBy(
+          // Find the closest node to the start of the way
+          nodeFeature => R.indexOf(hashNodeFeature(nodeFeature), wayPointHashes),
+          nodeFeatures
+        );
+        return R.ifElse(
+          // If the first was closest, leave it alone, else reverse
+          sortedNodeFeatures => R.equals(R.head(nodeFeatures), R.head(sortedNodeFeatures)),
+          R.always([matches, nodeFeatures]),
+          R.always([matches, R.reverse(nodeFeatures)])
+        )(sortedNodeFeatures);
+      }
+    ],
+    [
+      R.T,
+      matches => [matches, nodeFeatures]
+    ]
+  ])(nodeMatches);
+}
 /**
  * Slice the given wayFeature to fit between the two nodeFeatures. We only do this if nodeMatches['head'] is true,
  * which indicates that part of this way or a previous one has intersections the first of the two nodes.
@@ -714,21 +869,12 @@ export const queryLocation = location => {
     location => _locationToQueryResults(location),
     // OSM needs full street names (Avenue not Ave), so use Google to resolve them
     location => R.cond([
-      // If we defined explicitly OSM nodes set the intersections to the nodes
-      [R.view(R.lensPath(['data', 'osmOverrides', 'nodes'])),
-        location => of(
-          R.over(
-            R.lensProp('intersections'),
-            location => R.view(R.lensPath(['data', 'osmOverrides', 'nodes']), location),
-            location)
-        )
-      ],
       // If we defined explicitly OSM intersections set the intersections to them
       [R.view(R.lensPath(['data', 'osmOverrides', 'intersections'])),
         location => of(
           R.over(
             R.lensProp('intersections'),
-            location =>R.view(R.lensPath(['data', 'osmOverrides', 'intersections']), location),
+            () => R.view(R.lensPath(['data', 'osmOverrides', 'intersections']), location),
             location)
         )
       ],
@@ -755,15 +901,14 @@ export const queryLocation = location => {
  * @returns {Task<Result<Object>>} Result.Ok if data is found, otherwise Result.Error
  */
 const _locationToQueryResults = location => {
-  // Sort linestrings (ways) so we know how they are connected
+  // Sort LineStrings (ways) so we know how they are connected
   return R.composeK(
     // Chain our queries until we get a result or fail
     locationsWithOsm => _queryOverpassForBlockTaskUntilFound(locationsWithOsm),
     // Remove failed nominatim queries
     results => of(compact(results)),
-    // Use OSM Nominatim to get the bbox of the city. We're not currently using bbox but this at least
-    // verifies that we are searching for a city that OSM knows about as an Area. We use Area to limit
-    // our OSM query to the given city to make the results accurate and fast
+    // Use OSM Nominatim to get relation of the neighborhood (if it exists) and the city
+    // We'll use one of these to query an area in Overpass
     location => waitAll(
       R.map(
         keys => nominatimTask(R.pick(keys, location))
@@ -844,7 +989,7 @@ const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
       )(result)
     ),
     // A chained Task that runs 1 or 2 queries as needed
-    locationsWithOsm => traverseReduceWhile(
+    locations => traverseReduceWhile(
       {
         // Keep searching until we have a result
         predicate: (previousResult, result) => {
@@ -859,7 +1004,7 @@ const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
       (previousResult, result) => R.merge(previousResult, result),
       of({}),
       // Create a list of Tasks. We'll only run as many as needed
-      R.map(locationWithOsm => _queryOverpassForBlockTask(locationWithOsm), locationsWithOsm)
+      R.map(locationWithOsm => _queryOverpassForBlockTask(locationWithOsm), locations)
     )
   )(locationsWithOsm);
 };
@@ -871,11 +1016,12 @@ const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
  */
 const _queryOverpassForBlockTask = locationWithOsm => {
   return R.composeK(
+    // Finally get the features from the response
     ([wayResponse, nodeResponse]) => of(getFeaturesOfBlock(
       wayResponse.features,
       nodeResponse.features
     )),
-    // Perform the queries in parallel
+    // Then perform the queries in parallel
     queries => waitAll(
       // Wait 2 seconds for the second call, Overpass is super picky
       R.addIndex(R.map)((query, i) => fetchOsmRawTask({
@@ -883,11 +1029,11 @@ const _queryOverpassForBlockTask = locationWithOsm => {
         sleepBetweenCalls: i * 2000
       }, query), queries)
     ),
-    // Now build an OSM query for the location. We have to query for ways and then nodes because the API muddles
+    // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
     locationWithOsm => of(
       R.map(
-        type => constructLocationQuery({type}, locationWithOsm),
+        type => constructIdQuery({type}, locationWithOsm),
         ['way', 'node']
       )
     )

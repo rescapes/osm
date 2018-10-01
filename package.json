@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "main": "lib/index.js",
   "module": "es/index.js",
@@ -147,6 +147,13 @@
     ],
     "sourceMaps": true,
     "plugins": [
+      [
+        "transform-runtime",
+        {
+          "polyfill": false,
+          "regenerator": true
+        }
+      ],
       "transform-object-rest-spread"
     ],
     "env": {

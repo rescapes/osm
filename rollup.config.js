@@ -34,6 +34,7 @@ if (env === 'es' || env === 'cjs') {
   config.external = ['symbol-observable', 'folktale/concurrency/task', 'enzyme', 'enzyme-wait']
   config.plugins.push(
     babel({
+      runtimeHelpers: true,
       exclude: ['node_modules/**'],
       plugins: ['external-helpers']
     })

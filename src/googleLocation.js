@@ -31,6 +31,9 @@ const googleMaps = googleMapsClient(apiKey);
 // HTTP OK response
 const OK_STATUS = 200;
 
+export const isLatLng = address => {
+  return false
+}
 /**
  * Resolves the lat/lon from the given address
  * @param {String} address Street address
@@ -38,9 +41,13 @@ const OK_STATUS = 200;
  * else an Error with the error. Failed geocoding should be expected and handled
  */
 export const geocodeAddress = address => {
+  if (isLatLng(address)) {
+    return
+  }
   return task(resolver => {
     const promise = googleMaps.geocode({
-      address
+      address,
+      components: {type: 'address'}
     }).asPromise();
     promise.then(response => {
         const results = response.json.results;
@@ -314,6 +321,7 @@ export const fullStreetNamesOfLocationTask = location => {
 export const resolveGeoLocationTask = location => {
   const latLng = R.props(['latitude', 'longitude'], location);
   // If we have a lat/lon predefined on the location, just return it as a Task<Result> to match the other return values
+  // TODO We should get rid of this because a location is never a single point, rather two intersections
   if (R.all(R.is(Number), latLng)) {
     return of(Result.Ok(latLng));
   }
@@ -324,7 +332,7 @@ export const resolveGeoLocationTask = location => {
       centerResult => centerResult.map(center => turfPointToLocation(center))
     );
   }
-  // Otherwise create the most precise address string tha is possible
+  // Otherwise create the most precise address string that is possible
   else {
     return geocodeAddress(addressString(location)).map(responseResult => {
       // Chain the either to a new Result that resolves geometry.location

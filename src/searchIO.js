@@ -68,25 +68,24 @@ export const nominatimTask = location => {
     secure: true, // enables ssl
     host
   });
-  return task(({reject, resolve}) => {
-    console.debug(`Nominatim query: http://${host}?{$query}&addressDetails=1`);
-    return geocoder.search({q: query, addressDetails: 1}).then(
-      results => {
-        const matches = R.filter(
-          // We must find a relation, not a node
-          R.propEq('osm_type', 'relation'),
-          results
-        );
-        if (R.length(matches)) {
-          // Assume the first match is the best since results are ordered by importance
-          resolve(Result.Ok(R.head(matches)));
-        }
-        else {
-          resolve(Result.Error({error: "No qualifying results", results, query }));
-        }
+  console.debug(`Nominatim query: http://${host}?${query}&addressDetails=1`);
+  return promiseToTask(geocoder.search({q: query, addressDetails: 1}).then(
+    results => {
+      const matches = R.filter(
+        // We must find a relation, not a node
+        R.propEq('osm_type', 'relation'),
+        results
+      );
+      if (R.length(matches)) {
+        // Assume the first match is the best since results are ordered by importance
+        return(Result.Ok(R.head(matches)));
       }
-    ).catch(error => reject(Result.Error({error})));
-  });
+      else {
+        return(Result.Error({error: "No qualifying results", results, query}));
+      }
+    }
+    ).catch(error => Result.Error({error}))
+  );
 };
 
 /***

@@ -118,7 +118,7 @@ describe('googleHelpers', () => {
           routeResult.map(route => {
             expect(route.summary).toMatchSnapshot();
             done();
-          })
+          });
         }
       })
     );
@@ -249,10 +249,9 @@ describe('googleHelpers', () => {
       },
       onResolved: responseResult => responseResult.map(
         response => {
-          expect(reqStrPathThrowing('geometry.coordinates', response)).toEqual([
-            [-122.2605142, 37.810652],
-            [-122.2624249, 37.8109656]
-          ]);
+          expect(reqStrPathThrowing('geometry.coordinates', response)).toEqual(
+            [[-122.2604457, 37.8105194], [-122.2624249, 37.8109656]]
+          );
           done();
         }
       ).mapError(error => {

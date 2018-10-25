@@ -97,7 +97,7 @@ const boundsAsString = bounds => {
       R.reverse(R.slice(0, 2)(list)),
       R.reverse(R.slice(2, 4)(list))),
     R.join(','),
-    str => (`[bbox: ${str}`)
+    str => (`[bbox: ${str}]`)
   )(bounds);
 };
 
@@ -108,7 +108,7 @@ const boundsAsString = bounds => {
 const buildFilterQuery = R.curry((settings, conditions, types) => {
 
   // For now we always apply the bounds as a bbox in settings
-  const appliedSettings = `${R.join('', settings)}${boundsAsString(reqStrPathThrowing('bounds', settings))};`;
+  const appliedSettings = `${R.join('', settings)}${boundsAsString(reqStrPathThrowing('bounds', conditions))};`;
   const filters = reqStrPathThrowing('filters', conditions);
 
   return `

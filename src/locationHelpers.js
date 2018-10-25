@@ -19,11 +19,11 @@ import * as R from 'ramda';
  * @param {String} neighborhood Optional the neighborhood
  * @param {String} blockname Optional specify if there is a blockname but not intersections yet known
  * @param {[String]} intersectionPair Optional array of two street names representing an intersection
- * If intersectinoPair is specified neighborhood is omitted form the search, since the former is more precise
- * @param {[String]} intersections Optional array of one pair of street names. This is the same
- * as intersections but in the form [pair] to match our Location object when it only has one of its
- * two intersections resolved
  * If intersectionPair is specified neighborhood is omitted form the search, since the former is more precise
+ * @param {[String]} intersections Optional array of one pair of street names. This is the same
+ * as intersectionPair but in the form [pair] to match our Location object when it only has one of its
+ * two intersections resolved
+ * If intersectionPair is specified neighborhood is omitted from the search, since the former is more precise
  * @returns {String} The address string with neighborhood and state optional
  * Example: Main St and Chestnut St, Anytown, Anystate, USA which will resolve to an intersection
  * or Downtown District, Anytown, Anystate, USA, which will resolve to a district/neighborhood center point
@@ -72,15 +72,21 @@ export const streetAddressString = ({country, state, city, blockname}) => {
 };
 
 /**
- * Given a location returns a pair of address strings representing both ends of the block
+ * Given a location returns a pair of address strings representing both ends of the block. If
  * @param {Object} location The location object
+ * @param {[[String]]} location.intersections. Two pairs of streets used for the two intersections. If /
  * @returns {[String]} Two address strings for the location
  */
 export const addressPair = location => {
   const locationProps = R.pick(['country', 'state', 'city', 'neighborhood'], location);
   // Create two address strings from the intersection pair
   return R.map(
-    intersectionPair => addressString(R.merge(locationProps, {intersectionPair})),
+    // Create the address from intersectionPair. Or, less commonly, if intersectionPair is a lat,lng string,
+    // Just skip address creation and use the lat,lng.
+    R.unless(
+      R.is(String),
+      intersectionPair => addressString(R.merge(locationProps, {intersectionPair}))
+    ),
     location.intersections
   );
 };

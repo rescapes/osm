@@ -20,14 +20,14 @@ describe('searchIO', () => {
     nominatimTask({country: 'USA', state: 'New York', city: 'New York City'}).run().listen(defaultRunConfig(
       {
         onResolved:
-          result => {
+          result => result.map(value => {
             expect(
-              R.props(['osm_id', 'osm_type'], result)
+              R.props(['osm_id', 'osm_type'], value)
             ).toEqual(
               ['175905', 'relation']
             );
             done();
-          }
+          })
       })
     );
   }, 100000);

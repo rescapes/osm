@@ -14,9 +14,9 @@ import {defaultRunConfig, removeDuplicateObjectsByProp, reqStrPathThrowing} from
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
 import * as R from 'ramda';
 
-const mock = false;
-jest.unmock('query-overpass');
-//jest.mock('query-overpass');
+const mock = true;
+//jest.unmock('query-overpass');
+jest.mock('query-overpass');
 
 
 const conditions = [

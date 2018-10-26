@@ -12,7 +12,8 @@ import {
   initDirectionsService,
   createRouteFromOriginAndDestination,
   geocodeAddress,
-  geojsonCenterOfBlockAddress, fullStreetNamesOfLocationTask, resolveGeojsonTask, resolveGeoLocationTask
+  geojsonCenterOfBlockAddress, fullStreetNamesOfLocationTask, resolveGeojsonTask, resolveGeoLocationTask,
+  geocodeBlockAddresses
 } from './googleLocation';
 import * as R from 'ramda';
 import {defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
@@ -45,6 +46,29 @@ describe('googleHelpers', () => {
     },
     5000);
 
+  test('geocodeAddressWithLatLng', done => {
+      const somewhereSpecial = [60.004471, -44.663669];
+      geocodeAddress(R.join(', ', somewhereSpecial)).run().listen(
+        defaultRunConfig({
+          onResolved:
+            result => result.mapError(
+              errorValue => {
+                // This should not happen
+                expect(R.length(errorValue.results)).toEqual(1);
+                done();
+              }
+            ).map(
+              resultValue => {
+                // Reverse the point to match the geojson format
+                expect(resultValue.geojson.geometry.coordinates).toEqual(R.reverse(somewhereSpecial));
+                done();
+              }
+            )
+        })
+      );
+    },
+    5000);
+
   // Google changed their algorithm to not give multiple results, so this is useless
   /*
   test('geocodeAddress with two results', done => {
@@ -64,6 +88,7 @@ describe('googleHelpers', () => {
       })
     );
   }, 5000);
+  */
 
   test('Resolve correct geocodeAddress with two results', done => {
     const ambiguousBlockAddresses = [
@@ -88,7 +113,32 @@ describe('googleHelpers', () => {
     );
   });
 
-  */
+  test('geocodeBlockAddress with lat/lng', done => {
+    const ambiguousBlockAddresses = [
+      'Monroe and 13th, Washington, DC, USA',
+      '38.931990, -77.030890'
+    ];
+    // Don't worry which street is listed first
+    const expected = actual => R.head(R.filter(R.contains(actual), [
+      "Monroe St NW & 13th St NW, Washington, DC 20010, USA",
+      "13th St NW & Monroe St NW, Washington, DC 20010, USA"
+    ]));
+    geocodeBlockAddresses(ambiguousBlockAddresses).run().listen(
+      defaultRunConfig({
+        onResolved: resultsResult => resultsResult.map(results => {
+          const actualFirst = R.view(R.lensPath([0, 'formatted_address']), results);
+          expect(actualFirst).toEqual(expected(actualFirst));
+          // We expect a geojson point from the lat,lng. Flip the coordinates and stringify to match original
+          const actualSecond = R.join(', ', R.reverse(R.view(R.lensPath([1, 'geojson', 'geometry', 'coordinates']), results)));
+          // Turf rounds off the end 0s
+          expect(actualSecond).toEqual('38.93199, -77.03089');
+          done();
+        })
+      })
+    );
+  });
+
+
   test('geojsonCenterOfBlockAddress', done => {
     const blockAddresses = [
       'Monroe St NW & 13th St NW, Washington, DC, USA',

@@ -31,18 +31,27 @@ const googleMaps = googleMapsClient(apiKey);
 // HTTP OK response
 const OK_STATUS = 200;
 
+const latLngRegExp = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
 export const isLatLng = address => {
-  return false
-}
+  return R.length(R.match(latLngRegExp, address));
+};
+
 /**
- * Resolves the lat/lon from the given address
+ * Resolves the lat/lon from the given addres
  * @param {String} address Street address
- * @return {Task<Result>} resolves with response in a Result if the status is OK,
- * else an Error with the error. Failed geocoding should be expected and handled
+ * @return {Task<Result<Object>} resolves with response in a Result if the status is OK,
+ * else an Error with the error. Failed geocoding should be expected and handled. The Result
+ * contains a geojson that is a Turf Point. Other info from Google like formatted_address is returned
+ * if the request goes through Google. If the address is already a lat,lon Google isn't used
  */
 export const geocodeAddress = address => {
   if (isLatLng(address)) {
-    return
+    // Convert the lat lng string to a geojson object. Wrap in a Task and Result to match the normal flow
+    return of(Result.of(
+      {
+        geojson: locationToTurfPoint(R.map(parseFloat, R.split(',', address)))
+      }
+    ));
   }
   return task(resolver => {
     const promise = googleMaps.geocode({
@@ -56,7 +65,14 @@ export const geocodeAddress = address => {
           // Result to indicate success
           console.debug(`Successfully geocoded ${address}`);
           // If an error occurs here Google swallows it, so catch it
-          resolver.resolve(Result.of(result));
+          resolver.resolve(
+            Result.of(
+              R.set(
+                R.lensProp('geojson'),
+                // Convert result.geometry.location to a turf point.
+                googleLocationToTurfPoint(result.geometry.location),
+                result)
+            ));
         }
         else {
           // Error so we can give up on the address
@@ -85,8 +101,9 @@ export const geocodeAddress = address => {
  * This is needed for locations that didn't specifies cardinal directions like
  * NW, SW and thus result to two different places.
  * @param {[String]} locationPair Two address strings
- * @returns {Task<[Result]>} Task to return the two matching geolocations
- * in a Result. If either doesn't resolve at all then return Result.Error
+ * @returns {Task<[Result<Object>]>} Task to return the two matching geolocations
+ * in a Result. Each object contais a geojson property which is a point. Other information might be in the
+ * object if the address was resolved through Google, but don't count on it.
  */
 export const geocodeBlockAddresses = locationPair => {
   const handleResults = (previousResults, currentResults) => R.ifElse(
@@ -164,7 +181,8 @@ export const geojsonCenterOfBlockAddress = locationPair => R.composeK(
  * Given two sets of ambiguous geocode results, find the two closest to
  * each other from each set and accept those two as the correct answer.
  * Since we always geocode a block, we can usually figure out the correct addresses
- * even if one or both are ambigous
+ * even if one or both are ambigous. Each ResultSet contains objects containing a geosjon property.
+ * This is a geojson point, and this is what is tested for the closest point of each set
  * @param {[Object]} firstResultSet One or more geocode results
  * @param {[Object]} secondResultSet One or more geocode results
  * @return {[Object]} The two locations that are closest together
@@ -176,7 +194,7 @@ export const findClosest = (firstResultSet, secondResultSet) => {
       secondResult => {
         const points = R.map(
           result => {
-            return googleLocationToTurfPoint(result.geometry.location);
+            return result.geojson;
           },
           [firstResult, secondResult]
         );

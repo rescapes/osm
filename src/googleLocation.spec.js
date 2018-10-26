@@ -70,10 +70,9 @@ describe('googleHelpers', () => {
     5000);
 
   // Google changed their algorithm to not give multiple results, so this is useless
-  /*
   test('geocodeAddress with two results', done => {
     // This returns 2 results
-    geocodeAddress('Monroe and 13th').run().listen(
+    geocodeAddress('Herisauer Str & Bildweiherstrasse').run().listen(
       defaultRunConfig({
         onResolved: result => result.mapError(
           errorValue => {
@@ -88,7 +87,6 @@ describe('googleHelpers', () => {
       })
     );
   }, 5000);
-  */
 
   test('Resolve correct geocodeAddress with two results', done => {
     const ambiguousBlockAddresses = [

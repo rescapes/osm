@@ -22,6 +22,7 @@ import {
 } from 'rescape-helpers';
 import {addressPair, addressString} from './locationHelpers';
 import * as Result from 'folktale/result';
+import {lineString} from '@turf/helpers';
 
 // Make sure that the key here is enabled to convert addresses to geocode and to use streetview
 // https://console.developers.google.com/apis/api/geocoding_backend?project=_
@@ -36,6 +37,14 @@ export const isLatLng = address => {
   return R.length(R.match(latLngRegExp, address));
 };
 
+const addGeojsonToGoogleResult = result => {
+  return R.set(
+    R.lensProp('geojson'),
+    // Convert result.geometry.location to a turf point.
+    googleLocationToTurfPoint(result.geometry.location),
+    result
+  );
+};
 /**
  * Resolves the lat/lon from the given addres
  * @param {String} address Street address
@@ -59,26 +68,30 @@ export const geocodeAddress = address => {
       components: {type: 'address'}
     }).asPromise();
     promise.then(response => {
-        const results = response.json.results;
+        // Only accept exact results, not approximate
+        const results = R.filter(
+          result => R.contains(result.geometry.location_type, ['GEOMETRIC_CENTER']),
+          response.json.results
+        );
         if (R.equals(1, R.length(results))) {
           const result = R.head(results);
           // Result to indicate success
           console.debug(`Successfully geocoded ${address}`);
           // If an error occurs here Google swallows it, so catch it
           resolver.resolve(
-            Result.of(
-              R.set(
-                R.lensProp('geojson'),
-                // Convert result.geometry.location to a turf point.
-                googleLocationToTurfPoint(result.geometry.location),
-                result)
-            ));
+            Result.of(addGeojsonToGoogleResult(result))
+          );
         }
         else {
           // Error so we can give up on the address
           console.warn(`Failed to geocode ${address}. ${R.length(results)} results`);
           resolver.resolve(Result.Error({
-            error: 'Did not receive exactly one location', results, response
+            error: 'Did not receive exactly one location',
+            results: R.map(
+              result => addGeojsonToGoogleResult(result),
+              results
+            ),
+            response
           }));
         }
       },
@@ -167,7 +180,7 @@ export const geojsonCenterOfBlockAddress = locationPair => R.composeK(
   // If Result continue by converting eatch location to a Turf Point
   resultsResult => of(resultsResult.map(
     results => R.map(
-      result => locationToTurfPoint(R.props(['lat', 'lng'], result.geometry.location)),
+      result => result.geojson,
       results
     )
   )),
@@ -385,12 +398,12 @@ export const resolveGeojsonTask = location => {
       // We chain the Result with two responses by traversing the two
       // responses to map them to simple [lat, lon]
       // In the end we get a single Result containing a Turf LineString or an Error
-      return responsesResult.chain(responses => R.composeK(
+      return responsesResult.chain(
         // Map the two locations to a Turf LineString
-        locations => Result.of(googleLocationToTurfLineString(locations)),
-        // Produces a Result of two locations
-        R.traverse(Result.of, reqStrPath('geometry.location'))
-        )(responses)
+        responses => Result.of(lineString(R.map(
+          response => reqStrPathThrowing('geojson.geometry.coordinates', response),
+          responses
+        )))
       );
     }
   );

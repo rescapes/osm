@@ -859,10 +859,13 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
 
 /**
  * Query the given locations
- * @param location
+ * @param {Object} location A Location object
+ * @param {[String]} location.intersections Two pairs of strings representing the intersections cross-streets
  * @returns {Task<Result>} Result.Ok with the geojson results or a Result.Error
+ * The data contains nodes and ways, where there should always be exactly 2 nodes for the two intersections.
+ * There must be at least on way and possibly more, depending on where two ways meet.
  */
-export const queryLocation = location => {
+export const queryLocationOsm = location => {
   // This long chain of Task reads bottom to top. Only the functions marked Task are actually async calls.
   // Everything else is wrapped in a Task to match the expected type
   return R.composeK(
@@ -898,7 +901,9 @@ export const queryLocation = location => {
  * plus a magic number defined by Overpass. If the neighborhood area query fails to give us the results we want,
  * we retry with the city area
  * @param location
- * @returns {Task<Result<Object>>} Result.Ok if data is found, otherwise Result.Error
+ * @returns {Task<Result<Object>>} Result.Ok if data is found, otherwise Result.Error.
+ * The data contains nodes and ways, where there should always be exactly 2 nodes for the two intersections.
+ * There must be at least on way and possibly more, depending on where two ways meet.
  */
 const _locationToQueryResults = location => {
   // Sort LineStrings (ways) so we know how they are connected

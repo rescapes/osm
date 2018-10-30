@@ -1,6 +1,9 @@
 import * as R from 'ramda';
 import {reqStrPathThrowing} from 'rescape-ramda';
-import {resolveGeoLocationTask, resolveGeojsonTask, addressPair} from './locationHelpers';
+import {
+  resolveGeoLocationTask, resolveGeojsonTask, addressPair, intersectionsFromLocation,
+  locationWithIntersections
+} from './locationHelpers';
 
 describe('LocationSelector', () => {
   const location = {
@@ -44,4 +47,5 @@ describe('LocationSelector', () => {
       "Main St and Second St, Anytown, Anystate, USA"
     ]);
   });
+
 });

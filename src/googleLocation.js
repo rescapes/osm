@@ -20,7 +20,7 @@ import {
   googleLocationToTurfLineString,
   googleLocationToTurfPoint, locationToTurfPoint, originDestinationToLatLngString, turfPointToLocation
 } from 'rescape-helpers';
-import {addressPair, addressString} from './locationHelpers';
+import {addressPair, addressString, removeStateFromSomeCountriesForSearch} from './locationHelpers';
 import * as Result from 'folktale/result';
 import {lineString} from '@turf/helpers';
 
@@ -46,7 +46,7 @@ const addGeojsonToGoogleResult = result => {
   );
 };
 /**
- * Resolves the lat/lon from the given addres
+ * Resolves the lat/lon from the given address
  * @param {String} address Street address
  * @return {Task<Result<Object>} resolves with response in a Result if the status is OK,
  * else an Error with the error. Failed geocoding should be expected and handled. The Result
@@ -64,8 +64,7 @@ export const geocodeAddress = address => {
   }
   return task(resolver => {
     const promise = googleMaps.geocode({
-      address,
-      components: {type: 'address'}
+      address
     }).asPromise();
     promise.then(response => {
         // Only accept exact results, not approximate
@@ -83,8 +82,8 @@ export const geocodeAddress = address => {
           );
         }
         else {
-          // Error so we can give up on the address
-          console.warn(`Failed to geocode ${address}. ${R.length(results)} results`);
+          // Ambiguous or no results. We can potentially resolve ambiguous ones
+          console.warn(`Failed to exact geocode ${address}. ${R.length(results)} results`);
           resolver.resolve(Result.Error({
             error: 'Did not receive exactly one location',
             results: R.map(
@@ -365,7 +364,7 @@ export const resolveGeoLocationTask = location => {
   }
   // Otherwise create the most precise address string that is possible
   else {
-    return geocodeAddress(addressString(location)).map(responseResult => {
+    return geocodeAddress(addressString(removeStateFromSomeCountriesForSearch(location))).map(responseResult => {
       // Chain the either to a new Result that resolves geometry.location
       return responseResult.chain(response =>
         // This returns a Maybe

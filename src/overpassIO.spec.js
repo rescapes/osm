@@ -9,14 +9,14 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {fetchOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocation, getFeaturesOfBlock} from './overpassIO';
+import {fetchOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocationOsm, getFeaturesOfBlock} from './overpassIO';
 import {defaultRunConfig, removeDuplicateObjectsByProp, reqStrPathThrowing} from 'rescape-ramda';
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
 import * as R from 'ramda';
 
-const mock = true;
-//jest.unmock('query-overpass');
-jest.mock('query-overpass');
+const mock = false;
+jest.unmock('query-overpass');
+//jest.mock('query-overpass');
 
 
 const conditions = [
@@ -245,7 +245,7 @@ describe('overpassHelpersUnmocked', () => {
 
   test('fetchOsmOaklandBlock', done => {
     expect.assertions(1);
-    queryLocation({
+    queryLocationOsm({
       country: 'USA',
       state: 'California',
       city: 'Oakland',
@@ -265,7 +265,7 @@ describe('overpassHelpersUnmocked', () => {
 
   test('fetchOsmBlockOslo', done => {
     expect.assertions(1);
-    queryLocation({
+    queryLocationOsm({
       country: 'Norway',
       city: 'Oslo',
       neighborhood: 'Sentrum',
@@ -285,7 +285,7 @@ describe('overpassHelpersUnmocked', () => {
   test('fetchOsmBlockStavangerError', done => {
     // This gives a Result.Error because it can't resolve the correct number of intersections
     expect.assertions(1);
-    queryLocation({
+    queryLocationOsm({
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
@@ -310,7 +310,7 @@ describe('overpassHelpersUnmocked', () => {
 
   test('fetchOsmBlockStavanger', done => {
     expect.assertions(1);
-    queryLocation({
+    queryLocationOsm({
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',

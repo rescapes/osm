@@ -11,6 +11,26 @@
 import {compactEmpty} from 'rescape-ramda';
 import * as R from 'ramda';
 
+// The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
+// Switzerland for example doesn't resolve correctly if the canton abbreviation is included
+const EXCLUDE_STATES_FROM_COUNTRIES = ['Switzerland'];
+
+/***
+ * Some countries don't resolve locations well in Google with their states, provinces, cantons, etc
+ * @param {Object} location The location from which to remove the state if its country is in the
+ * EXCLUDE_STATES_FROM_COUNTRIES list
+ * @return {Object} The location with the state possibly removed
+ */
+export const removeStateFromSomeCountriesForSearch = location => {
+  return R.when(
+    location => R.contains(
+      R.prop('country', location),
+      EXCLUDE_STATES_FROM_COUNTRIES
+    ),
+    R.omit(['state'])
+  )(location)
+};
+
 /**
  * Creates an address string for geolocation resolution
  * @param {String} country The country
@@ -74,7 +94,8 @@ export const streetAddressString = ({country, state, city, blockname}) => {
 /**
  * Given a location returns a pair of address strings representing both ends of the block. If
  * @param {Object} location The location object
- * @param {[[String]]} location.intersections. Two pairs of streets used for the two intersections. If /
+ * @param {[[String]|String]} location.intersections. Two pairs of streets used for the two intersections.
+ * Each of these pairs can alternatively be a lat,lon string for more precise resolution
  * @returns {[String]} Two address strings for the location
  */
 export const addressPair = location => {
@@ -85,7 +106,7 @@ export const addressPair = location => {
     // Just skip address creation and use the lat,lng.
     R.unless(
       R.is(String),
-      intersectionPair => addressString(R.merge(locationProps, {intersectionPair}))
+      intersectionPair => addressString(removeStateFromSomeCountriesForSearch(R.merge(locationProps, {intersectionPair})))
     ),
     location.intersections
   );

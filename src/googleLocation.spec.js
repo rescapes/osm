@@ -69,24 +69,7 @@ describe('googleHelpers', () => {
     },
     5000);
 
-  // Google changed their algorithm to not give multiple results, so this is useless
-  test('geocodeAddress with two results', done => {
-    // This returns 2 results
-    geocodeAddress('Herisauer Str & Bildweiherstrasse').run().listen(
-      defaultRunConfig({
-        onResolved: result => result.mapError(
-          errorValue => {
-            expect(R.length(errorValue.results)).toEqual(2);
-            done();
-          }
-        ).map(
-          resultValue => {
-            throw new Error("Expected error");
-          }
-        )
-      })
-    );
-  }, 5000);
+
 
   test('Resolve correct geocodeAddress with two results', done => {
     const ambiguousBlockAddresses = [
@@ -298,7 +281,7 @@ describe('googleHelpers', () => {
       onResolved: responseResult => responseResult.map(
         response => {
           expect(reqStrPathThrowing('geometry.coordinates', response)).toEqual(
-            [[-122.2604457, 37.8105194], [-122.2624249, 37.8109656]]
+            [[-122.2605531, 37.810549], [-122.2623298, 37.8108424]]
           );
           done();
         }

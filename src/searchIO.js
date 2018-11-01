@@ -12,7 +12,7 @@
 import xhr from 'xhr';
 import {task} from 'folktale/concurrency/task';
 import * as R from 'ramda';
-import {compact, promiseToTask} from 'rescape-ramda';
+import {compactEmpty, promiseToTask} from 'rescape-ramda';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
@@ -60,7 +60,7 @@ export const nominatimTask = location => {
   // So leaving this as a query string which does work
   const query = R.compose(
     R.join(','),
-    compact,
+    compactEmpty,
     R.props(['neighborhood', 'city', 'state', 'country'])
   )(location);
   const host = 'nominatim.openstreetmap.org';
@@ -68,7 +68,7 @@ export const nominatimTask = location => {
     secure: true, // enables ssl
     host
   });
-  console.debug(`Nominatim query: http://${host}?${query}&addressDetails=1`);
+  console.debug(`Nominatim query: http://${host}?q=${query}&addressDetails=1&format=json&limit=3`);
   return promiseToTask(geocoder.search({q: query, addressDetails: 1}).then(
     results => {
       const matches = R.filter(

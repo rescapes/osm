@@ -307,7 +307,7 @@ const constructIdQuery = ({type}, {country, state, city, intersections, osmId, d
   const query = `
     ${
     R.ifElse(
-      R.identity,
+      R.length,
       // We have hard-coded way ids, just set the first and last to a variable, we don't need w3 because
       // we know for sure that these two ways touch our intersection nodes
       ways => R.join('\n',
@@ -328,7 +328,7 @@ const constructIdQuery = ({type}, {country, state, city, intersections, osmId, d
     // Get the two intersection nodes 
     ${
     R.ifElse(
-      R.identity,
+      R.length,
       // We have hard-coded node ids, just set the nodes to them
       nodes => `(${R.join(' ', R.map(node => `node(${node});`, nodes))})->.nodes;`,
       // Otherwise search for the nodes by searching for the nodes contained in both w1 and w2 and both w1 and w3

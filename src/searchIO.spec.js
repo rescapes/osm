@@ -32,6 +32,22 @@ describe('searchIO', () => {
     );
   }, 100000);
 
+  test('nominatimTaskNoState', done => {
+    nominatimTask({country: 'Norway', city: 'Stavanger'}).run().listen(defaultRunConfig(
+      {
+        onResolved:
+          result => result.map(value => {
+            expect(
+              R.props(['osm_id', 'osm_type'], value)
+            ).toEqual(
+              ['384615', 'relation']
+            );
+            done();
+          })
+      })
+    );
+  }, 100000);
+
   test('mapboxGeocodeTask', done => {
     const mapboxApiKey = 'pk.eyJ1IjoiY2Fsb2NhbiIsImEiOiJjaXl1aXkxZjkwMG15MndxbmkxMHczNG50In0.07Zu3XXYijL6GJMuxFtvQg';
 

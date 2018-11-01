@@ -299,7 +299,7 @@ const constructIdQuery = ({type}, {country, state, city, intersections, osmId, d
   const ways = R.view(R.lensPath(['osmOverrides', 'ways']), data);
   // Get the ordered blocks, unless we have hard-coded way ids
   const orderedBlocks = R.ifElse(
-    R.identity,
+    R.length,
     () => null,
     () => _extractOrderedBlocks(intersections)
   )(ways);
@@ -340,7 +340,7 @@ const constructIdQuery = ({type}, {country, state, city, intersections, osmId, d
     }
     ${
     R.ifElse(
-      R.identity,
+      R.length,
       // We have hard-coded ways, just return these as our final ways
       ways => `(${R.map(way => `way(${way});`, ways)})->.ways;`,
       // Otherwise get all ways containing one or both nodes

@@ -11,7 +11,7 @@
 
 export {fetchOsm, queryLocationOsm} from './overpassIO'
 export {searchLocation, nominatimTask, mapboxGeocodeTask} from './searchIO'
-export {addressString, addressPair, streetAddressString, locationWithIntersections, intersectionFromLocation, intersectionsFromLocation, removeStateFromSomeCountriesForSearch} from './locationHelpers'
+export {addressString, addressPair, streetAddressString, removeStateFromSomeCountriesForSearch} from './locationHelpers'
 export {
   calculateRoute,
   findClosest,

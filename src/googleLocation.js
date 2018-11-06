@@ -47,13 +47,15 @@ const addGeojsonToGoogleResult = result => {
 };
 /**
  * Resolves the lat/lon from the given address
+ * @param {Object} location Location object gives us context about the address. In the future we might just
+ * accept a location an not an address, since we can derive the address from the location
  * @param {String} address Street address
  * @return {Task<Result<Object>} resolves with response in a Result if the status is OK,
  * else an Error with the error. Failed geocoding should be expected and handled. The Result
  * contains a geojson that is a Turf Point. Other info from Google like formatted_address is returned
  * if the request goes through Google. If the address is already a lat,lon Google isn't used
  */
-export const geocodeAddress = address => {
+export const geocodeAddress = R.curry((location, address) => {
   if (isLatLng(address)) {
     // Convert the lat lng string to a geojson object. Wrap in a Task and Result to match the normal flow
     return of(Result.of(
@@ -67,9 +69,16 @@ export const geocodeAddress = address => {
       address
     }).asPromise();
     promise.then(response => {
-        // Only accept exact results, not approximate
+        // Only accept exact results, not approximate, if the location search involves intersections
         const results = R.filter(
-          result => R.contains(result.geometry.location_type, ['GEOMETRIC_CENTER']),
+          result => R.when(
+            R.always(R.and(
+              R.has('intersections', location),
+              R.length(R.prop('intersections', location))
+            )),
+            // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE location
+            r => R.contains(r.geometry.location_type, ['GEOMETRIC_CENTER'])
+          )(result),
           response.json.results
         );
         if (R.equals(1, R.length(results))) {
@@ -101,7 +110,7 @@ export const geocodeAddress = address => {
         resolver.resolve(Result.Error({error: err.json.error_message, response: err}));
       });
   });
-};
+});
 
 /**
  * Given a pair of locations that represents two intersections of a block,
@@ -112,12 +121,14 @@ export const geocodeAddress = address => {
  * but we can almost always guess the correct block intersections.
  * This is needed for locations that didn't specifies cardinal directions like
  * NW, SW and thus result to two different places.
+ * @param {object} location The location of the locationPair. In the future we might get rid of locationPair
+ * and simply derive it from location
  * @param {[String]} locationPair Two address strings
  * @returns {Task<[Result<Object>]>} Task to return the two matching geolocations
  * in a Result. Each object contais a geojson property which is a point. Other information might be in the
  * object if the address was resolved through Google, but don't count on it.
  */
-export const geocodeBlockAddresses = locationPair => {
+export const geocodeBlockAddresses = R.curry((location, locationPair) => {
   const handleResults = (previousResults, currentResults) => R.ifElse(
     R.identity,
     // The second time through we have results from both, so find closest
@@ -156,18 +167,20 @@ export const geocodeBlockAddresses = locationPair => {
     of(Result.of()),
     // Each location is resolved to a Task<Result>, where the Result if a Ok if a single address was
     // resolved and an Error otherwise
-    R.map(geocodeAddress, locationPair)
+    R.map(geocodeAddress(location), locationPair)
   );
-};
+});
 
 /**
  * Returns the geographical center point of a location pair, meaning the center
  * point between the two interesections of a block. This is probably only used for map
  * centering
+ * @param {object} location Location object of the location pair. Provides context for resolving the pair. In
+ * the future we might just pass the location and derive the locationPair from it
  * @param {[String]} locationPair Two address strings
  * @returns {Task<Result>} Task to return the center points
  */
-export const geojsonCenterOfBlockAddress = locationPair => R.composeK(
+export const geojsonCenterOfBlockAddress = (location, locationPair) => R.composeK(
   // Find the center of the two points
   featureCollectionResult => of(featureCollectionResult.map(featureCollection => {
     return center(featureCollection);
@@ -185,7 +198,7 @@ export const geojsonCenterOfBlockAddress = locationPair => R.composeK(
   )),
   // First resolve the geocode for the two ends fo the block.
   // This returns and a Result for success, Error for failure
-  geocodeBlockAddresses
+  geocodeBlockAddresses(location)
 )(locationPair);
 
 
@@ -262,15 +275,18 @@ export const calculateRoute = R.curry((directionsService, origin, destination) =
 
 /***
  * Given an origin and destination street address, calculates a route using the Google API
+ * @param {object} location The location to use as context. This is currently just used to help resolve the addresses.
+ * If the origin destination pair spans more than a single location just specify minimum info like the country,
+ * state, city or a blank object.
  * @param {[String]} originDestinationPair
  * @return {Task<Result>} resolves with a Result of the calculated route if both
  * origin and destination address geocode. Otherwise returns an Result.Error with one or both
  * Result.Error geocode results
  */
-export const createRouteFromOriginAndDestination = R.curry((directionService, originDestinationPair) => {
+export const createRouteFromOriginAndDestination = R.curry((directionService, location, originDestinationPair) => {
   // geocode the pair. By coding together we can resolve ambiguous locations by finding the closest
   // two locations between the ambiguous results in the origin and destination
-  const geocodeTask = geocodeBlockAddresses(originDestinationPair);
+  const geocodeTask = geocodeBlockAddresses(location, originDestinationPair);
   // chain the Task sending the two lat/lng locations to calculateRoute, which itself returns a Task
   return R.chain(
     // geocodePairResult is a Result that we chain to call calculateRoute
@@ -330,7 +346,7 @@ export const fullStreetNamesOfLocationTask = location => {
       )
     ),
     // Geocode the intersection
-    addresses => geocodeBlockAddresses(addresses),
+    addresses => geocodeBlockAddresses(location, addresses),
     // Create the intersection address string
     location => of(addressPair(location))
   )(location);
@@ -358,13 +374,13 @@ export const resolveGeoLocationTask = location => {
   // If we have both intersection pairs, resolve the center point between them.
   // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
   else if (R.equals(2, R.length(location.intersections))) {
-    return geojsonCenterOfBlockAddress(addressPair(location)).map(
+    return geojsonCenterOfBlockAddress(location, addressPair(location)).map(
       centerResult => centerResult.map(center => turfPointToLocation(center))
     );
   }
   // Otherwise create the most precise address string that is possible
   else {
-    return geocodeAddress(addressString(removeStateFromSomeCountriesForSearch(location))).map(responseResult => {
+    return geocodeAddress(location, addressString(removeStateFromSomeCountriesForSearch(location)), location).map(responseResult => {
       // Chain the either to a new Result that resolves geometry.location
       return responseResult.chain(response =>
         // This returns a Maybe
@@ -391,7 +407,7 @@ export const resolveGeojsonTask = location => {
     return of(Result.Ok(location.geojson));
   }
   // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
-  return geocodeBlockAddresses(addressPair(location)).map(
+  return geocodeBlockAddresses(location, addressPair(location)).map(
     responsesResult => {
       // Map each response in result to a simple lat, lon
       // We chain the Result with two responses by traversing the two

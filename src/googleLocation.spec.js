@@ -24,7 +24,12 @@ const austinDestination = 'Leona St and E 21st St, Austin, TX, USA';
 
 describe('googleHelpers', () => {
   test('geocodeAddress', done => {
-      geocodeAddress('Monroe St and 13th NE, Washington, DC, USA').run().listen(
+      geocodeAddress({
+        country: 'USA',
+        state: 'DC',
+        city: 'Washington',
+        intersections: ['Monroe St', '13th NE']
+      }, 'Monroe St and 13th NE, Washington, DC, USA').run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(
@@ -46,9 +51,38 @@ describe('googleHelpers', () => {
     },
     5000);
 
+  test('geocodeAddressApproximate', done => {
+      // This request for a city returns an approximate location, which is ok. It's not okay for intersections
+      // to be approximate
+      geocodeAddress({
+        country: 'USA',
+        state: 'CA',
+        city: 'Irvine',
+        locations: []
+      }, 'Irvine, CA, USA').run().listen(
+        defaultRunConfig({
+          onResolved:
+            result => result.mapError(
+              errorValue => {
+                // This should not happen
+                expect(R.length(errorValue.results)).toEqual(1);
+                done();
+              }
+            ).map(
+              resultValue => {
+                expect(resultValue.formatted_address).toEqual('Irvine, CA, USA');
+                done();
+              }
+            )
+        })
+      );
+    },
+    5000);
+
   test('geocodeAddressWithLatLng', done => {
       const somewhereSpecial = [60.004471, -44.663669];
-      geocodeAddress(R.join(', ', somewhereSpecial)).run().listen(
+      // Leave the location blank since we don't need it when we use a lat/lng
+      geocodeAddress({}, R.join(', ', somewhereSpecial)).run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(
@@ -70,7 +104,6 @@ describe('googleHelpers', () => {
     5000);
 
 
-
   test('Resolve correct geocodeAddress with two results', done => {
     const ambiguousBlockAddresses = [
       'Monroe and 13th, Washington, DC, USA',
@@ -83,7 +116,7 @@ describe('googleHelpers', () => {
       "Holmead Pl NW & Monroe St NW, Washington, DC 20010, USA",
       "Monroe St NW & Holmead Pl NW, Washington, DC 20010, USA"
     ]), actual);
-    geocodeBlockAddresses(ambiguousBlockAddresses).run().listen(
+    geocodeBlockAddresses({country: 'USA', state: 'DC', city: 'Washington'}, ambiguousBlockAddresses).run().listen(
       defaultRunConfig({
         onResolved: resultsResult => resultsResult.map(results => {
           const actual = R.map(R.prop('formatted_address'), results);
@@ -104,7 +137,7 @@ describe('googleHelpers', () => {
       "Monroe St NW & 13th St NW, Washington, DC 20010, USA",
       "13th St NW & Monroe St NW, Washington, DC 20010, USA"
     ]));
-    geocodeBlockAddresses(ambiguousBlockAddresses).run().listen(
+    geocodeBlockAddresses({country: 'USA', state: 'DC', city: 'Washington'}, ambiguousBlockAddresses).run().listen(
       defaultRunConfig({
         onResolved: resultsResult => resultsResult.map(results => {
           const actualFirst = R.view(R.lensPath([0, 'formatted_address']), results);
@@ -125,7 +158,7 @@ describe('googleHelpers', () => {
       'Monroe St NW & 13th St NW, Washington, DC, USA',
       'Monroe St NW & Holmead Pl NW, Washington, DC, USA'
     ];
-    geojsonCenterOfBlockAddress(blockAddresses).run().listen(
+    geojsonCenterOfBlockAddress({country: 'USA', state: 'DC', city: 'Washington'}, blockAddresses).run().listen(
       defaultRunConfig({
         onResolved: resultResult => resultResult.mapError(
           errorValue => {
@@ -143,7 +176,10 @@ describe('googleHelpers', () => {
   });
 
   test('createRouteFromOriginAndDestination', done => {
-    createRouteFromOriginAndDestination(initDirectionsService(), [austinOrigin, austinDestination]).run().listen(
+    createRouteFromOriginAndDestination(
+      initDirectionsService(),
+      {country: 'USA', state: 'Texas', city: 'Austin'},
+      [austinOrigin, austinDestination]).run().listen(
       defaultRunConfig({
         onResolved: routeResult => {
           routeResult.map(route => {
@@ -280,8 +316,13 @@ describe('googleHelpers', () => {
       },
       onResolved: responseResult => responseResult.map(
         response => {
-          expect(reqStrPathThrowing('geometry.coordinates', response)).toEqual(
-            [[-122.2605531, 37.810549], [-122.2623298, 37.8108424]]
+          const actual = R.flatten(reqStrPathThrowing('geometry.coordinates', response));
+          const expected = R.flatten([[-122.2605531, 37.810549], [-122.2623298, 37.8108424]]);
+          // These coords seems to change from search to search, so check approximately
+          R.zipWith(
+            (actual, expected) => expect(actual).toBeCloseTo(expected, 3),
+            actual,
+            expected
           );
           done();
         }

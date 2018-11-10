@@ -280,7 +280,7 @@ describe('overpassHelpersUnmocked', () => {
           }
         )
       }));
-  }, 10000);
+  }, 20000);
 
   test('fetchOsmBlockStavangerError', done => {
     // This gives a Result.Error because it can't resolve the correct number of intersections
@@ -296,12 +296,12 @@ describe('overpassHelpersUnmocked', () => {
           response => {
             throw new Error("We should have gotten a Result.Error")
           }
-        ).mapError(
+        ).orElse(
           response => {
-            // Expect it to be one way
+            // Expect it to be
             expect(
-              R.length(reqStrPathThrowing('result.nodes', response))
-            ).toEqual(1);
+              reqStrPathThrowing('error', response)
+            ).toBeTruthy()
             done();
           }
         )

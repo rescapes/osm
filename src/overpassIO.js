@@ -463,7 +463,7 @@ const _extractOrderedBlocks = (intersections) => {
   );
   // This should never happen
   if (!R.find(R.equals(2), R.values(streetCount))) {
-    throw `No common block in intersections: ${JSON.stringify(intersections)}`;
+    throw Error(`No common block in intersections: ${JSON.stringify(intersections)}`);
   }
   // Sort each intersection, putting the common block first
   const modifiedIntersections = R.map(
@@ -869,23 +869,32 @@ export const queryLocationOsm = location => {
   // This long chain of Task reads bottom to top. Only the functions marked Task are actually async calls.
   // Everything else is wrapped in a Task to match the expected type
   return R.composeK(
-    location => _locationToQueryResults(location),
+    locationResult => locationResult.chain(
+      // Chain the Result since this returns a Task<result>
+      location => _locationToQueryResults(location)
+    ).orElse(
+      // Just wrap the Result.Error in a Task
+      error => of(Result.Error(error))
+    ),
     // OSM needs full street names (Avenue not Ave), so use Google to resolve them
     location => R.cond([
       // If we defined explicitly OSM intersections set the intersections to them
       [R.view(R.lensPath(['data', 'osmOverrides', 'intersections'])),
-        location => of(
+        location => of(Result.of(
           R.over(
             R.lensProp('intersections'),
             () => R.view(R.lensPath(['data', 'osmOverrides', 'intersections']), location),
             location)
-        )
+        ))
       ],
-      // Use Google to resolve full names
+      // Use Google to resolve full names. If Google can't resolve either intersection a Result.Error
+      // is returned. Otherwise a Result.Ok containing the location with the updated location.interesections
       [R.T,
         location => fullStreetNamesOfLocationTask(location).map(
-          // Replace the intersections with the fully qualified names
-          intersections => R.mergeAll([location, {intersections}, R.propOr('Intersections', location)])
+          intersectionsResult => intersectionsResult.map(
+            // Replace the intersections with the fully qualified names
+            intersections => R.mergeAll([location, {intersections}, R.propOr('Intersections', location)])
+          )
         )
       ]
     ])(location)
@@ -984,8 +993,7 @@ const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
             {
               error: `Unable to resolve block using the given locations with OpenStreetMap. Take a look at the results. 
             If there are more than two nodes you need to query them manually and figure the correct two. Then update
-            the location field osmIntersections with the two ids. e.g. ([351103238', 367331193])
-            `,
+            the location field osmIntersections with the two ids. e.g. ([351103238', 367331193])`,
               result,
               locations: locationsWithOsm
             }

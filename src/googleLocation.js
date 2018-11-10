@@ -125,8 +125,9 @@ export const geocodeAddress = R.curry((location, address) => {
  * and simply derive it from location
  * @param {[String]} locationPair Two address strings
  * @returns {Task<[Result<Object>]>} Task to return the two matching geolocations
- * in a Result. Each object contais a geojson property which is a point. Other information might be in the
- * object if the address was resolved through Google, but don't count on it.
+ * in a Result. Each object contains a geojson property which is a point. Other information might be in the
+ * object if the address was resolved through Google, but don't count on it. If either intersection cannot
+ * be goecoded by Google, a Task<Result.Error> is returned
  */
 export const geocodeBlockAddresses = R.curry((location, locationPair) => {
   const handleResults = (previousResults, currentResults) => R.ifElse(
@@ -326,13 +327,14 @@ export const routeFromOriginAndDestination = createRouteFromOriginAndDestination
 /**
  * Get the long names of the intersections of location
  * @param location
- * @return {[[String]]} Two arrays containing the long names of each intersection
+ * @return {Result<[[String]]|Result.Error} Two arrays containing the long names of each intersection.
+ * If either intersection can't be resolved a Result.Error is returned
  */
 export const fullStreetNamesOfLocationTask = location => {
   return R.composeK(
     // result is a Result.Ok/Error, so chain them if Result.Ok
     results => of(
-      results.chain(
+      results.map(
         // Result has two values, each address
         values => R.map(
           R.compose(

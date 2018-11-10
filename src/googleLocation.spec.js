@@ -201,18 +201,20 @@ describe('googleHelpers', () => {
     };
     fullStreetNamesOfLocationTask(location).run().listen(
       defaultRunConfig({
-        onResolved: response => {
-          // Sort to make each pair alphabetical
-          expect(R.map(R.sortBy(R.identity), response)).toEqual([
-            [
-              'Grand Avenue', 'Perkins Street'
-            ],
-            [
-              'Grand Avenue', 'Lee Street'
-            ]
-          ]);
-          done();
-        }
+        onResolved: responseResult => responseResult.map(
+          response => {
+            // Sort to make each pair alphabetical
+            expect(R.map(R.sortBy(R.identity), response)).toEqual([
+              [
+                'Grand Avenue', 'Perkins Street'
+              ],
+              [
+                'Grand Avenue', 'Lee Street'
+              ]
+            ]);
+            done();
+          }
+        )
       })
     );
   });
@@ -293,7 +295,7 @@ describe('googleHelpers', () => {
         }
       )
     });
-  }, 2000);
+  }, 20000);
 
   test('resolveGeojsonFromApi', (done) => {
     // Goes to the api to resolve

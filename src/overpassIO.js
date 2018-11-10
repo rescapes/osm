@@ -14,7 +14,7 @@ import * as R from 'ramda';
 import * as Result from 'folktale/result';
 import {
   compact,
-  findOneThrowing,
+  findOneThrowing, mapKeys,
   mergeAllWithKey, removeDuplicateObjectsByProp,
   reqStrPathThrowing, traverseReduceWhile
 } from 'rescape-ramda';
@@ -1023,6 +1023,17 @@ const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
 };
 
 /**
+ * One problem with OSM data is it returns feature.properties.tags with tag keys in the form 'a:b' like 'maxspeed:type'
+ * This is a tough key to handle in graphql, so we convert it to a__b
+ * @param feature
+ * @private
+ */
+export const _cleanGeojson = feature => {
+  const tagsLens = R.lensPath(['properties', 'tags']);
+  return R.over(tagsLens, mapKeys(R.when(R.contains(':'), R.replace(':', '__'))), feature);
+};
+
+/**
  * Given a location with an osmId included, query the Overpass API and cleanup the results to get a single block
  * of geojson representing the location's two intersections and the block
  * @param locationWithOsm
@@ -1031,24 +1042,24 @@ const _queryOverpassForBlockTask = locationWithOsm => {
   return R.composeK(
     // Finally get the features from the response
     ([wayResponse, nodeResponse]) => of(getFeaturesOfBlock(
-      wayResponse.features,
-      nodeResponse.features
-    )),
-    // Then perform the queries in parallel
-    queries => waitAll(
-      // Wait 2 seconds for the second call, Overpass is super picky
-      R.addIndex(R.map)((query, i) => fetchOsmRawTask({
-        overpassUrl: roundRobinOsmServers(),
-        sleepBetweenCalls: i * 2000
-      }, query), queries)
-    ),
-    // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
-    // the geojson if we request them together
-    locationWithOsm => of(
-      R.map(
-        type => constructIdQuery({type}, locationWithOsm),
-        ['way', 'node']
+      R.map(feature => _cleanGeojson(feature), wayResponse.features),
+      R.map(feature => _cleanGeojson(feature), nodeResponse.features
+      )),
+      // Then perform the queries in parallel
+      queries => waitAll(
+        // Wait 2 seconds for the second call, Overpass is super picky
+        R.addIndex(R.map)((query, i) => fetchOsmRawTask({
+          overpassUrl: roundRobinOsmServers(),
+          sleepBetweenCalls: i * 2000
+        }, query), queries)
+      ),
+      // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
+      // the geojson if we request them together
+      locationWithOsm => of(
+        R.map(
+          type => constructIdQuery({type}, locationWithOsm),
+          ['way', 'node']
+        )
       )
-    )
-  )(locationWithOsm);
+    )(locationWithOsm))
 };

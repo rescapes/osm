@@ -9,7 +9,10 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {fetchOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocationOsm, getFeaturesOfBlock} from './overpassIO';
+import {
+  fetchOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocationOsm, getFeaturesOfBlock,
+  _cleanGeojson
+} from './overpassIO';
 import {defaultRunConfig, removeDuplicateObjectsByProp, reqStrPathThrowing} from 'rescape-ramda';
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
 import * as R from 'ramda';
@@ -191,6 +194,48 @@ describe('otherOverpassHelpers', () => {
     // Expect the feature is sliced down two 2 points
     expect(R.length(reqStrPathThrowing('ways.0.geometry.coordinates', features))).toEqual(2);
   });
+
+  test('cleanGeojson', () => {
+    const feature =
+      {
+        type: "Feature",
+        id: "way/24461945",
+        properties: {
+          type: "way",
+          id: 24461945,
+          tags: {
+            highway: "tertiary",
+            maxspeed: "30",
+            // Offending tag. This needs to be converted
+            'maxspeed:type': "sign",
+            name: "Hospitalsgata",
+            surface: "asphalt"
+          },
+          relations: [],
+          meta: {}
+        },
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [
+              5.7362284,
+              58.9702788
+            ],
+            [
+              5.7356397,
+              58.9703641
+            ]
+          ]
+        }
+      };
+    expect(_cleanGeojson(feature)).toEqual(
+      R.over(
+        R.lensPath(['properties', 'tags']),
+        obj => R.set(R.lensProp('maxspeed__type'), 'sign', R.omit(['maxspeed:type'], obj)),
+        feature
+      )
+    )
+  });
 });
 
 
@@ -289,19 +334,19 @@ describe('overpassHelpersUnmocked', () => {
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
-      intersections: [['Langgata', 'Pedersgata'], ['Vinkelgata', 'Pedersgata']],
+      intersections: [['Langgata', 'Pedersgata'], ['Vinkelgata', 'Pedersgata']]
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
           response => {
-            throw new Error("We should have gotten a Result.Error")
+            throw new Error("We should have gotten a Result.Error");
           }
         ).orElse(
           response => {
             // Expect it to be
             expect(
               reqStrPathThrowing('error', response)
-            ).toBeTruthy()
+            ).toBeTruthy();
             done();
           }
         )
@@ -329,8 +374,8 @@ describe('overpassHelpersUnmocked', () => {
           response => {
             expect(
               R.length(reqStrPathThrowing('ways', response))
-            ).toEqual(1)
-            done()
+            ).toEqual(1);
+            done();
           }
         )
       }));

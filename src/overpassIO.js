@@ -1043,23 +1043,23 @@ const _queryOverpassForBlockTask = locationWithOsm => {
     // Finally get the features from the response
     ([wayResponse, nodeResponse]) => of(getFeaturesOfBlock(
       R.map(feature => _cleanGeojson(feature), wayResponse.features),
-      R.map(feature => _cleanGeojson(feature), nodeResponse.features
-      )),
-      // Then perform the queries in parallel
-      queries => waitAll(
-        // Wait 2 seconds for the second call, Overpass is super picky
-        R.addIndex(R.map)((query, i) => fetchOsmRawTask({
-          overpassUrl: roundRobinOsmServers(),
-          sleepBetweenCalls: i * 2000
-        }, query), queries)
-      ),
-      // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
-      // the geojson if we request them together
-      locationWithOsm => of(
-        R.map(
-          type => constructIdQuery({type}, locationWithOsm),
-          ['way', 'node']
-        )
+      R.map(feature => _cleanGeojson(feature), nodeResponse.features)
+    )),
+    // Then perform the queries in parallel
+    queries => waitAll(
+      // Wait 2 seconds for the second call, Overpass is super picky
+      R.addIndex(R.map)((query, i) => fetchOsmRawTask({
+        overpassUrl: roundRobinOsmServers(),
+        sleepBetweenCalls: i * 2000
+      }, query), queries)
+    ),
+    // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
+    // the geojson if we request them together
+    locationWithOsm => of(
+      R.map(
+        type => constructIdQuery({type}, locationWithOsm),
+        ['way', 'node']
       )
-    )(locationWithOsm))
+    )
+  )(locationWithOsm);
 };

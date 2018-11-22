@@ -9,7 +9,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import * as R from 'ramda';
-import {task, of} from 'folktale/concurrency/task';
+import {task, of, waitAll} from 'folktale/concurrency/task';
 import rhumbDistance from '@turf/rhumb-distance';
 import {featureCollection} from '@turf/helpers';
 import center from '@turf/center';
@@ -160,7 +160,10 @@ export const geocodeBlockAddresses = R.curry((location, locationPair) => {
           // Multiple results, figure out the closest to the the closest of the previous,
           // or if this is the origin there won't be any previous yet
           results => previousResultsResult.chain(previousResults => Result.of(handleResults(previousResults, results))),
-          () => Result.Error(response)
+          () => {
+            console.warn(`Failed to geocode 1 or both of ${R.join(' and ', locationPair)}`);
+            return Result.Error(response);
+          }
         )(R.propOr([], 'results', response))
       );
     },
@@ -252,9 +255,9 @@ export const findClosest = (firstResultSet, secondResultSet) => {
  * @param {Object} destination The destination location object
  * @param {Object} origin.geometry The destination geometry object
  * @param {Object} destination.geometry.location The lat, lon origin
- * @return {Task} resolves with response if the status is OK, else rejects
+ * @return {Task} resolves with Google Directions Route Response if the status is OK, else rejects
  */
-export const calculateRoute = R.curry((directionsService, origin, destination) => {
+export const calculateRouteTask = R.curry((directionsService, origin, destination) => {
   return task(resolver => {
     directionsService({
       origin: originDestinationToLatLngString(origin),
@@ -264,18 +267,50 @@ export const calculateRoute = R.curry((directionsService, origin, destination) =
       if (response && response.status === OK_STATUS) {
         console.debug(`Successfully resolved ${origin.formatted_address} to ${destination.formatted_address} to
         ${R.length(response.json.routes)} route(s)`);
-        resolver.resolve(R.head(response.json.routes));
+        resolver.resolve(response);
       } else {
         console.warn(`Failed to resolve ${origin.formatted_address} to ${destination.formatted_address}`);
-        resolver.reject({error: error.json.error_message});
+        resolver.reject(Result.Error({error: error.json.error_message}));
       }
     });
-  });
+    // Wrap the response in a Result.Ok
+  }).map(routeResponse => Result.of(routeResponse));
+});
+
+/**
+ * Create two tasks, one directions from the origin to destination and the reverse directions.
+ * This matters for wide streets that have streetviews taken from both sides.
+ * @param {Object} directionsService Google API direction service
+ * @param {Object} origin The origin location object
+ * @param {Object} origin.geometry The origin geometry object
+ * @param {Object} origin.geometry.location The lat, lon origin
+ * @param {Object} destination The destination location object
+ * @param {Object} origin.geometry The destination geometry object
+ * @param {Object} destination.geometry.location The lat, lon origin
+ * @return {Task<Result<[Object]>>} resolves with two Google Directions Route Responses
+ * if the status is OK. The response is wrapped in a Result.Ok. Task rejections send a Result.Error
+ */
+export const calculateOpposingRoutesTask = R.curry((directionsService, origin, destination) => {
+  return waitAll(
+    R.map(
+      odPair => calculateRouteTask(directionsService, ...odPair),
+      [[origin, destination], [destination, origin]]
+    )
+  ).map(
+    // Combine the Results into a single Result.Ok or Result.Error
+    // [Result] -> Result.Ok<[Object]> | Result.Error<[Object]>
+    routeResponseResults => R.ifElse(
+      R.all(R.is(Result.Ok)),
+      R.sequence(Result.of),
+      R.sequence(Result.Error)
+    )(routeResponseResults)
+  );
 });
 
 
 /***
  * Given an origin and destination street address, calculates a route using the Google API
+ * @param {object} directionService Google Direction Service
  * @param {object} location The location to use as context. This is currently just used to help resolve the addresses.
  * If the origin destination pair spans more than a single location just specify minimum info like the country,
  * state, city or a blank object.
@@ -284,26 +319,21 @@ export const calculateRoute = R.curry((directionsService, origin, destination) =
  * origin and destination address geocode. Otherwise returns an Result.Error with one or both
  * Result.Error geocode results
  */
-export const createRouteFromOriginAndDestination = R.curry((directionService, location, originDestinationPair) => {
+export const createOpposingRoutesFromOriginAndDestination = R.curry((directionService, location, originDestinationPair) => {
   // geocode the pair. By coding together we can resolve ambiguous locations by finding the closest
   // two locations between the ambiguous results in the origin and destination
   const geocodeTask = geocodeBlockAddresses(location, originDestinationPair);
-  // chain the Task sending the two lat/lng locations to calculateRoute, which itself returns a Task
+  // chain the Task sending the two lat/lng locations to calculateRouteTask, which itself returns a Task
   return R.chain(
-    // geocodePairResult is a Result that we chain to call calculateRoute
-    // calculateRoute returns a Task whose value we convert to a Result, yielding Task<Result>
+    // geocodePairResult is a Result that we chain to call calculateRouteTask
+    // calculateRouteTask returns a Task whose value we convert to a Result, yielding Task<Result>
     geocodePairResult => {
       return geocodePairResult.chain(
-        ([originGeocode, destinationGeocode]) => calculateRoute(
-          directionService, originGeocode, destinationGeocode
-        ).map(result => Result.of(result))
-      ).orElse(
-        // If we have a Result.Error just wrap it in a Task to match the Result.Ok condition
-        errorValue => {
-          console.warn(`Skipping ${R.join(' and ', originDestinationPair)} because geocode resolve failed on one or both`);
-          // This is filtered out later
-          return of(Result.Error(errorValue));
-        }
+        ([originGeocode, destinationGeocode]) => calculateOpposingRoutesTask(
+          directionService,
+          originGeocode,
+          destinationGeocode
+        )
       );
     },
     geocodeTask
@@ -321,7 +351,7 @@ export const initDirectionsService = () => {
 /**
  * Shortcut to create a route from origin and destination with a predefined Google directions service
  */
-export const routeFromOriginAndDestination = createRouteFromOriginAndDestination(initDirectionsService());
+export const routeFromOriginAndDestination = createOpposingRoutesFromOriginAndDestination(initDirectionsService());
 
 
 /**

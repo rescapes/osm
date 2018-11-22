@@ -18,7 +18,7 @@ import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
 import * as R from 'ramda';
 
 const mock = true;
-//jest.unmock('query-overpass');
+// jest.unmock('query-overpass');
 jest.mock('query-overpass');
 
 

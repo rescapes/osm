@@ -10,10 +10,10 @@
  */
 import {
   initDirectionsService,
-  createRouteFromOriginAndDestination,
+  createOpposingRoutesFromOriginAndDestination,
   geocodeAddress,
   geojsonCenterOfBlockAddress, fullStreetNamesOfLocationTask, resolveGeojsonTask, resolveGeoLocationTask,
-  geocodeBlockAddresses
+  geocodeBlockAddresses, createRouteFromOriginDestinationGeocodes, calculateRouteTask
 } from './googleLocation';
 import * as R from 'ramda';
 import {defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
@@ -175,15 +175,91 @@ describe('googleHelpers', () => {
     );
   });
 
-  test('createRouteFromOriginAndDestination', done => {
-    createRouteFromOriginAndDestination(
+  test('createOpposingRoutesFromOriginAndDestination', done => {
+    createOpposingRoutesFromOriginAndDestination(
       initDirectionsService(),
       {country: 'USA', state: 'Texas', city: 'Austin'},
       [austinOrigin, austinDestination]).run().listen(
       defaultRunConfig({
+        onResolved: routesResult => {
+          routesResult.map(routes => {
+            expect(R.map(
+              route => R.head(route.json.routes).summary, routes)
+            ).toMatchSnapshot();
+            done();
+          });
+        }
+      })
+    );
+  });
+
+  test('calculateRouteTask', done => {
+    const origin = {
+      "formatted_address": "Salina St & E 21st St, Austin, TX 78722, USA",
+      "geometry": {
+        "location": {
+          "lat": 30.2816082,
+          "lng": -97.72263489999999
+        },
+        "viewport": {
+          "northeast": {
+            "lat": 30.2829571802915,
+            "lng": -97.72128591970849
+          },
+          "southwest": {
+            "lat": 30.2802592197085,
+            "lng": -97.7239838802915
+          }
+        }
+      },
+      "geojson": {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -97.72263489999999,
+            30.2816082
+          ]
+        }
+      }
+    };
+    const destination = {
+      "formatted_address": "E 21st St & Leona St, Austin, TX 78722, USA",
+      "geometry": {
+        "location": {
+          "lat": 30.2814621,
+          "lng": -97.72360929999999
+        },
+        "location_type": "GEOMETRIC_CENTER",
+        "viewport": {
+          "northeast": {
+            "lat": 30.2828110802915,
+            "lng": -97.72226031970848
+          },
+          "southwest": {
+            "lat": 30.2801131197085,
+            "lng": -97.7249582802915
+          }
+        }
+      },
+      "geojson": {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -97.72360929999999,
+            30.2814621
+          ]
+        }
+      }
+    };
+    calculateRouteTask(initDirectionsService(), origin, destination).run().listen(
+      defaultRunConfig({
         onResolved: routeResult => {
           routeResult.map(route => {
-            expect(route.summary).toMatchSnapshot();
+            expect(R.head(route.json.routes).summary).toMatchSnapshot();
             done();
           });
         }

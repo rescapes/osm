@@ -13,7 +13,7 @@ export {fetchOsm, queryLocationOsm} from './overpassIO'
 export {searchLocation, nominatimTask, mapboxGeocodeTask} from './searchIO'
 export {addressString, addressPair, streetAddressString, removeStateFromSomeCountriesForSearch} from './locationHelpers'
 export {
-  calculateRoute,
+  calculateRouteTask,
   findClosest,
   geocodeAddress,
   geocodeBlockAddresses,
@@ -23,5 +23,5 @@ export {
   initDirectionsService,
   resolveGeoLocationTask,
   resolveGeojsonTask,
-  createRouteFromOriginAndDestination
+  createOpposingRoutesFromOriginAndDestination
 } from './googleLocation'

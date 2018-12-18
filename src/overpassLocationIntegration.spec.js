@@ -58,7 +58,7 @@ describe('overpassIntegration', () => {
           }
         )
       }));
-  }, 20000);
+  }, 50000);
 
   test('fetchOsmBlockStavangerError', done => {
     // This gives a Result.Error because it can't resolve the correct number of intersections
@@ -88,7 +88,7 @@ describe('overpassIntegration', () => {
 
 
   test('fetchOsmBlockStavangerError2', done => {
-    // This gives a Result.Error because it can't resolve the correct number of intersections
+    // This gives a Result.Error because it can't resolve any ways and nodes.
     expect.assertions(1);
     queryLocationOsm({
       country: 'Norway',

@@ -13,8 +13,8 @@
 import * as R from 'ramda';
 import {JSDOM} from 'jsdom';
 
-process.env.ENABLE_INTEGRATION_TESTS = true;
 // Set this to false to skip integration tests
+process.env.ENABLE_INTEGRATION_TESTS = true;
 if (process.env.ENABLE_INTEGRATION_TESTS) {
   jest.unmock('query-overpass');
 }

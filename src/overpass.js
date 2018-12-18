@@ -16,7 +16,7 @@ import {
   compact,
   findOneThrowing, mapKeys,
   mergeAllWithKey, removeDuplicateObjectsByProp,
-  reqStrPathThrowing, traverseReduceWhile, resultToTaskNeedingResult
+  reqStrPathThrowing, traverseReduceWhile, resultToTaskNeedingResult, resultToTask, resultToTaskWithResult
 } from 'rescape-ramda';
 import os from 'os';
 import squareGrid from '@turf/square-grid';
@@ -877,13 +877,13 @@ export const queryLocationOsm = location => {
   // This long chain of Task reads bottom to top. Only the functions marked Task are actually async calls.
   // Everything else is wrapped in a Task to match the expected type
   return R.composeK(
-    locationResult => locationResult.chain(
-      // Chain the Result since this returns a Task<result>
-      location => _locationToQueryResults(location)
-    ).orElse(
-      // Just wrap the Result.Error in a Task
-      error => of(Result.Error(error))
-    ),
+    // Task (Result.Ok Object | Result.Error) -> Task Result.Ok Object | Task Result.Error
+    locationResult => {
+      return resultToTaskWithResult(
+        location => _locationToQueryResults(location),
+        locationResult
+      );
+    },
     // OSM needs full street names (Avenue not Ave), so use Google to resolve them
     location => R.cond([
       // If we defined explicitly OSM intersections set the intersections to them
@@ -977,7 +977,7 @@ const _locationToQueryResults = location => {
  * Queries the location with the OverPass API for its given street block. Querying happens once or twice, first
  * with the neighborhood specified (faster) and then without if no results return. The neighborhood is
  * also be omitted in a first and only query if the location doesn't have one
- * @param locationsWithOsm
+ * @param {[Object]} locationsWithOsm One or more locations with OSM
  * @returns Task<Result<Object>> A Result.Ok with the geojson object or a Result.Error
  */
 const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
@@ -1001,7 +1001,7 @@ const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
     locations => traverseReduceWhile(
       {
         // Keep searching until we have a Result.Ok
-        predicate: (previousResult, result) => result.isOk,
+        predicate: (previousResult, result) => Result.Ok.hasInstance(result),
         accumulateAfterPredicateFail: true
       },
 

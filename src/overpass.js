@@ -16,15 +16,23 @@ import {
   compact,
   findOneThrowing, mapKeys,
   mergeAllWithKey, removeDuplicateObjectsByProp,
-  reqStrPathThrowing, traverseReduceWhile
+  reqStrPathThrowing, traverseReduceWhile, resultToTaskNeedingResult
 } from 'rescape-ramda';
 import os from 'os';
 import squareGrid from '@turf/square-grid';
 import bbox from '@turf/bbox';
 import {concatFeatures} from 'rescape-helpers';
 import {fullStreetNamesOfLocationTask} from './googleLocation';
-import {nominatimTask} from './searchIO';
+import {nominatimTask} from './search';
 
+const predicate = R.allPass([
+  // Not null
+  R.complement(R.isNil),
+  // 2 nodes
+  R.compose(R.equals(2), R.length, R.prop('nodes')),
+  // >0 ways
+  R.compose(R.lt(0), R.length, R.prop('ways'))
+]);
 
 const servers = [
   //'https://lz4.overpass-api.de/api/interpreter',
@@ -167,21 +175,87 @@ const taskQuery = (options, query) => {
  * The conditions apply to all types given
  * @param {[Number]} conditions.bounds Required [lat_min, lon_min, lat_max, lon_max] to limit all conditions
  * @param {[String]} types List of OSM type sto query by e.g. ['way', 'node', relation']
- * @returns {Object} Task to fetchOsm the data
+ * @returns {Object} Task to fetchTransitOsm the data
  */
-export const fetchOsm = R.curry((options, conditions, types) => {
+export const fetchTransitOsm = R.curry((options, conditions, types) => {
   // Default settings
   const settings = options.settings || [`[out:json]`];
   const defaultOptions = R.merge(options, {settings});
 
   if (options.cellSize) {
-    return fetchOsmCelled(defaultOptions, conditions, types);
+    return fetchOsmTransitCelled(defaultOptions, conditions, types);
   }
   // Build the query
   const query = buildFilterQuery(defaultOptions.settings, conditions, types);
   // Create a Task to run the query. Settings are already added to the query, so omit here
   return taskQuery(R.omit(['settings'], options), query);
 });
+
+/**
+ * fetches transit data in squares sequentially from OpenStreetMap using the Overpass API.
+ * (concurrent calls were triggering API throttle limits)
+ * @param {Number} cellSize Splits query-overpass into separate requests, by splitting
+ * the bounding box by the number of kilometers specified here. Example, if 200 is specified,
+ * 200 by 200km bounding boxes will be created and sent to query-overpass. Any remainder will
+ * be queried separately. The results from all queries are merged by feature id so that no
+ * duplicates are returned.
+ * @param {[Number]} bounds [lat_min, lon_min, lat_max, lon_max]
+ * @param {String} options.overpassUrl server to query
+ * @param {Number} options.sleepBetweenCalls Pause this many milliseconds between calls to avoid the request rate limit
+ * @param {Object} options.testBounds Used only for testing
+ * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
+ * @param {Array} conditions.filters List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
+ * The conditions apply to all types given
+ * @param {[Number]} conditions.bounds Required [lat_min, lon_min, lat_max, lon_max] to limit all conditions
+ * @param {[String]} types List of OSM type sto query by e.g. ['way', 'node', relation']
+ * @returns {Task} Chained Tasks to fetchTransitOsm the data
+ */
+const fetchOsmTransitCelled = ({cellSize, ...options}, conditions, types) => {
+  const squareGridOptions = {units: 'kilometers'};
+  // Use turf's squareGrid function to break up the bbox by cellSize squares
+  const squareBoundaries = R.map(
+    polygon => bbox(polygon),
+    squareGrid(reqStrPathThrowing('bounds', conditions), cellSize, squareGridOptions).features);
+
+  // Create a fetchTransitOsm Task for reach square boundary
+  // fetchTasks :: Array (Task Object)
+  const fetchTasks = R.map(
+    boundary => fetchTransitOsm(
+      options,
+      R.merge(conditions, {boundary}),
+      types
+    ),
+    squareBoundaries);
+
+  // chainedTasks :: Array (Task Object) -> Task.chain(Task).chain(Task)...
+  // We want each request to overpass to run after the previous is finished
+  // so as to not exceed the permitted request rate. Chain the tasks and reduce
+  // them using map to combine all previous Task results.
+  const chainedTasks = R.reduce(
+    (prevChainedTasks, fetchTask) => prevChainedTasks.chain(results =>
+      fetchTask.map(result =>
+        R.concat(results.length ? results : [results], [result])
+      )
+    ),
+    R.head(fetchTasks),
+    R.tail(fetchTasks));
+
+
+  // This combines the results of all the fetchTransitOsm calls and removes duplicate results
+  // sequenced :: Task (Array Object)
+  // const sequenced = R.sequence(Task.of, fetchTasks);
+  return chainedTasks.map(results =>
+    R.compose(
+      // Lastly remove features with the same id
+      R.over(
+        R.lens(R.prop('features'), R.assoc('features')),
+        removeDuplicateObjectsByProp('id')
+      ),
+      // First combine the results into one obj with concatinated features
+      mergeAllWithKey(concatFeatures)
+    )(results)
+  );
+};
 
 /**
  * Run a provided query in osm. This assumes a complete query that doesn't need to be split into smaller calls.
@@ -208,72 +282,6 @@ export const fetchOsmRawTask = R.curry((options, query) => {
   // Create a Task to run the query. Settings are already added to the query, so omit here
   return taskQuery(options, `${appliedSettings}${query}`);
 });
-
-/**
- * fetches transit data in squares sequentially from OpenStreetMap using the Overpass API.
- * (concurrent calls were triggering API throttle limits)
- * @param {Number} cellSize Splits query-overpass into separate requests, by splitting
- * the bounding box by the number of kilometers specified here. Example, if 200 is specified,
- * 200 by 200km bounding boxes will be created and sent to query-overpass. Any remainder will
- * be queried separately. The results from all queries are merged by feature id so that no
- * duplicates are returned.
- * @param {[Number]} bounds [lat_min, lon_min, lat_max, lon_max]
- * @param {String} options.overpassUrl server to query
- * @param {Number} options.sleepBetweenCalls Pause this many milliseconds between calls to avoid the request rate limit
- * @param {Object} options.testBounds Used only for testing
- * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
- * @param {Array} conditions.filters List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
- * The conditions apply to all types given
- * @param {[Number]} conditions.bounds Required [lat_min, lon_min, lat_max, lon_max] to limit all conditions
- * @param {[String]} types List of OSM type sto query by e.g. ['way', 'node', relation']
- * @returns {Task} Chained Tasks to fetchOsm the data
- */
-const fetchOsmCelled = ({cellSize, ...options}, conditions, types) => {
-  const squareGridOptions = {units: 'kilometers'};
-  // Use turf's squareGrid function to break up the bbox by cellSize squares
-  const squareBoundaries = R.map(
-    polygon => bbox(polygon),
-    squareGrid(reqStrPathThrowing('bounds', conditions), cellSize, squareGridOptions).features);
-
-  // Create a fetchOsm Task for reach square boundary
-  // fetchTasks :: Array (Task Object)
-  const fetchTasks = R.map(
-    boundary => fetchOsm(
-      options,
-      R.merge(conditions, {boundary}),
-      types
-    ),
-    squareBoundaries);
-
-  // chainedTasks :: Array (Task Object) -> Task.chain(Task).chain(Task)...
-  // We want each request to overpass to run after the previous is finished
-  // so as to not exceed the permitted request rate. Chain the tasks and reduce
-  // them using map to combine all previous Task results.
-  const chainedTasks = R.reduce(
-    (prevChainedTasks, fetchTask) => prevChainedTasks.chain(results =>
-      fetchTask.map(result =>
-        R.concat(results.length ? results : [results], [result])
-      )
-    ),
-    R.head(fetchTasks),
-    R.tail(fetchTasks));
-
-
-  // This combines the results of all the fetchOsm calls and removes duplicate results
-  // sequenced :: Task (Array Object)
-  // const sequenced = R.sequence(Task.of, fetchTasks);
-  return chainedTasks.map(results =>
-    R.compose(
-      // Lastly remove features with the same id
-      R.over(
-        R.lens(R.prop('features'), R.assoc('features')),
-        removeDuplicateObjectsByProp('id')
-      ),
-      // First combine the results into one obj with concatinated features
-      mergeAllWithKey(concatFeatures)
-    )(results)
-  );
-};
 
 /**
  * Query Overpass when we know the node and/or way ids ahead of time. This is done when the regular resolution
@@ -783,8 +791,8 @@ const shortenToNodeFeaturesIfNeeded = (nodeMatches, nodeFeatures, wayFeature) =>
 
 /***
  * Sorts the features by connecting them at their start/ends
- * @param {[Object]} wayFeatures List of way feaures to sort
- * @param {[Object]} nodeFeatures Two node features respresenting the block intersection
+ * @param {[Object]} wayFeatures List of way features to sort
+ * @param {[Object]} nodeFeatures Two node features representing the block intersection
  * @param {Object} Object contains keys nodes and ways. Nodes must always be the two node Features of the4 block.
  * ways must be at least on way Feature, possibly shortened to match the block and up to n way features with at
  * most the first and last possibly shortened to match the block
@@ -973,49 +981,33 @@ const _locationToQueryResults = location => {
  * @returns Task<Result<Object>> A Result.Ok with the geojson object or a Result.Error
  */
 const _queryOverpassForBlockTaskUntilFound = locationsWithOsm => {
-  const predicate = R.allPass([
-    // Not null
-    R.complement(R.isNil),
-    // 2 nodes
-    R.compose(R.equals(2), R.length, R.prop('nodes')),
-    // >0 ways
-    R.compose(R.lt(0), R.length, R.prop('ways'))
-  ]);
 
   return R.composeK(
-    // Run the predicate once more to make sure we got a result. Return a Result.ok or Result.error
     result => of(
-      R.ifElse(
-        result => predicate(result),
-        result => Result.Ok(result),
-        () => {
-          return Result.Error(
-            {
-              error: `Unable to resolve block using the given locations with OpenStreetMap. Take a look at the results. 
+      // If we had no results report the error
+      result.mapError(
+        () => (
+          {
+            error: `Unable to resolve block using the given locations with OpenStreetMap. Take a look at the results. 
             If there are more than two nodes you need to query them manually and figure the correct two. Then update
             the location field osmIntersections with the two ids. e.g. ([351103238', 367331193])`,
-              result,
-              locations: locationsWithOsm
-            }
-          );
-        }
-      )(result)
+            result,
+            locations: locationsWithOsm
+          }
+        )
+      )
     ),
     // A chained Task that runs 1 or 2 queries as needed
     locations => traverseReduceWhile(
       {
-        // Keep searching until we have a result
-        predicate: (previousResult, result) => {
-          // We have good results when we have exactly 2 nodes and at least 1 way
-          // Return false if all conditions are met
-          return R.complement(predicate)(result);
-        },
+        // Keep searching until we have a Result.Ok
+        predicate: (previousResult, result) => result.isOk,
         accumulateAfterPredicateFail: true
       },
 
-      // No merge, we just want the first legit result, which the predicate will determine
-      (previousResult, result) => R.merge(previousResult, result),
-      of({}),
+      // No actual merge. The final call is going to be the first Result.Ok or final Result.Error
+      (previousResult, result) => result,
+      of(Result.Error({})),
       // Create a list of Tasks. We'll only run as many as needed
       R.map(locationWithOsm => _queryOverpassForBlockTask(locationWithOsm), locations)
     )
@@ -1037,14 +1029,29 @@ export const _cleanGeojson = feature => {
  * Given a location with an osmId included, query the Overpass API and cleanup the results to get a single block
  * of geojson representing the location's two intersections and the block
  * @param locationWithOsm
+ * @returns {Task<Result<Object>>} The Geojson 2 nodes and way features in a Result.Ok. If an error occurs,
+ * namely no that the nodes or ways aren't found, a Result.Error is returned
  */
 const _queryOverpassForBlockTask = locationWithOsm => {
   return R.composeK(
     // Finally get the features from the response
-    ([wayResponse, nodeResponse]) => of(getFeaturesOfBlock(
-      R.map(feature => _cleanGeojson(feature), wayResponse.features),
-      R.map(feature => _cleanGeojson(feature), nodeResponse.features)
-    )),
+    resultToTaskNeedingResult(
+      ({wayResponse, nodeResponse}) => of(getFeaturesOfBlock(
+        // Clean the features of each first
+        ...R.map(response => R.map(_cleanGeojson, reqStrPathThrowing('features', response)), [wayResponse, nodeResponse])
+      ))
+    ),
+
+    // If our predicate fails, give up with a Response.Error
+    // Task [Object] -> Task (Result.Ok (Object) | Result.Error (Object)
+    ([wayResponse, nodeResponse]) => of(
+      R.ifElse(
+        predicate,
+        R.always(Result.Ok({nodeResponse, wayResponse})),
+        R.always(Result.Error({nodeResponse, wayResponse}))
+      )(R.map(reqStrPathThrowing('features'), {nodes: nodeResponse, ways: wayResponse}))
+    ),
+
     // Then perform the queries in parallel
     queries => waitAll(
       // Wait 2 seconds for the second call, Overpass is super picky

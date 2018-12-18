@@ -76,8 +76,19 @@ export const geocodeAddress = R.curry((location, address) => {
               R.has('intersections', location),
               R.length(R.prop('intersections', location))
             )),
-            // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE location
-            r => R.contains(r.geometry.location_type, ['GEOMETRIC_CENTER'])
+            r => R.allPass([
+              // The first address component must be 'intersection'
+              r => reqStrPath('address_components.0.types.0', r).matchWith({
+                Ok: ({value}) => R.equals('intersection', value),
+                Error: R.F
+              }),
+              // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE location
+              r => R.contains(r.geometry.location_type, ['GEOMETRIC_CENTER']),
+              // No partial matches allowed. TODO this seems to give ok results
+              // r => R.not(R.prop('partial_match', r)),
+              // It must be an intersection, thus have & in the address
+              r => R.contains('&', r.formatted_address)
+            ])(r)
           )(result),
           response.json.results
         );
@@ -114,7 +125,7 @@ export const geocodeAddress = R.curry((location, address) => {
 
 /**
  * Given a pair of locations that represents two intersections of a block,
- * Returns then geocode locations of the pair. This is different that
+ * Returns then geocode locations of the pair. This is different than
  * geocoding each of the two locations separately because it can resolve
  * ambiguous locations by finding the two locations that are closest together.
  * Thus one or both locations of the locationPair might resolve ambiguously

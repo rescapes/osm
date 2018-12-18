@@ -60,7 +60,7 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
       // Check if the intersection pair exists
       R.complement(R.isNil),
       // If so we can put it between and, like 'Maple St and Chestnut St'
-      R.join(' and '),
+      R.join(' & '),
       // Otherwise put the blockname and/or neighborhood. If this is null it's filtered out
       R.always(blockname ? `${blockname}, ${neighborhood}` : neighborhood)
     )(resolvedIntersectionPair),

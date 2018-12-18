@@ -8,8 +8,8 @@ const env = process.env.NODE_ENV;
 const config = {
   input: [
     'src/index.js',
-    'src/overpassIO.js',
-    'src/searchIO.js',
+    'src/overpass.js',
+    'src/search.js',
     'src/googleLocation.js',
     'src/locationHelpers.js'
   ],

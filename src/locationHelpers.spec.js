@@ -1,5 +1,4 @@
 import * as R from 'ramda';
-import {reqStrPathThrowing} from 'rescape-ramda';
 import {
   resolveGeoLocationTask, resolveGeojsonTask, addressPair, intersectionsFromLocation,
   locationWithIntersections
@@ -27,10 +26,11 @@ describe('LocationSelector', () => {
         ]
       })
     )).toEqual([
-      "Main St and First St, Anytown, Anystate, USA",
-      "Main St and Second St, Anytown, Anystate, USA"
+      "Main St & First St, Anytown, Anystate, USA",
+      "Main St & Second St, Anytown, Anystate, USA"
     ]);
   });
+
   test('addressPair with a lan,lng', () => {
     expect(addressPair(
       R.merge(location, {
@@ -44,7 +44,7 @@ describe('LocationSelector', () => {
       })
     )).toEqual([
       "54,-120",
-      "Main St and Second St, Anytown, Anystate, USA"
+      "Main St & Second St, Anytown, Anystate, USA"
     ]);
   });
 

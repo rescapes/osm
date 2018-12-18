@@ -10,17 +10,15 @@
  */
 
 import {
-  fetchOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocationOsm, getFeaturesOfBlock,
+  fetchTransitOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocationOsm, getFeaturesOfBlock,
   _cleanGeojson
-} from './overpassIO';
+} from './overpass';
 import {defaultRunConfig, removeDuplicateObjectsByProp, reqStrPathThrowing} from 'rescape-ramda';
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
 import * as R from 'ramda';
 
-const mock = true;
-// jest.unmock('query-overpass');
+// See jestsetup.js
 jest.mock('query-overpass');
-
 
 const conditions = [
   osmAlways("railway"),
@@ -32,15 +30,11 @@ const types = [
 ];
 
 describe('overpassHelpers', () => {
-  if (!mock) {
-    return;
-  }
-
   const bounds = LA_BOUNDS;
-  test('fetchOsm', done => {
+  test('fetchTransitOsm', done => {
     expect.assertions(1);
     // Pass bounds in the options. Our mock query-overpass uses is to avoid parsing the query
-    fetchOsm(
+    fetchTransitOsm(
       {
         // Used by the mock
         testBounds: bounds
@@ -58,9 +52,9 @@ describe('overpassHelpers', () => {
     );
   });
 
-  test('fetchOsm in cells', done => {
+  test('fetchTransitOsm in cells', done => {
     expect.assertions(1);
-    fetchOsm(
+    fetchTransitOsm(
       {
         cellSize: 200,
         // Used by the mock
@@ -79,9 +73,6 @@ describe('overpassHelpers', () => {
       })
     );
   });
-});
-
-describe('otherOverpassHelpers', () => {
 
   test('getFeaturesOfBlockOakland', () => {
     const wayFeatures = [
@@ -236,148 +227,4 @@ describe('otherOverpassHelpers', () => {
       )
     )
   });
-});
-
-
-// Integration testing. Unmocked tests
-// requires are used below since the jest includes aren't available at compile time
-describe('overpassHelpersUnmocked', () => {
-  if (mock) {
-    return;
-  }
-  const realBounds = [-118.24031352996826, 34.04298753935195, -118.21018695831297, 34.065209887879476];
-
-  test('unmockedFetchTransit', done => {
-    expect.assertions(1);
-    // Unmocked integration test
-    // We expect over 500 results. I'll leave it fuzzy in case the source dataset changes
-    fetchOsm(
-      {},
-      {bounds: realBounds, filters: conditions},
-      types
-    ).run().listen(defaultRunConfig(
-      {
-        onResolved:
-          response => {
-            expect(response.features.length).toBeGreaterThan(500);
-            done();
-          }
-      }
-    ));
-  }, 1000000);
-
-  test('unmockedFetchTransitCelled', done => {
-    expect.assertions(1);
-    // Wrap the Task in a Promise for jest's sake
-    fetchOsm({
-        // 1 meter cells!
-        cellSize: 1,
-        sleepBetweenCalls: 1000
-      },
-      {bounds: realBounds, filters: conditions},
-      types
-    ).run().listen(defaultRunConfig(
-      {
-        onResolved:
-          response => {
-            expect(response.features.length).toBeGreaterThan(500);
-            done();
-          }
-      }
-    ));
-  }, 1000000);
-
-
-  test('fetchOsmOaklandBlock', done => {
-    expect.assertions(1);
-    queryLocationOsm({
-      country: 'USA',
-      state: 'California',
-      city: 'Oakland',
-      // Intentionally put Grand Ave a different positions
-      intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
-    }).run().listen(defaultRunConfig(
-      {
-        onResolved: responseResult => responseResult.map(
-          response => {
-            // Expect it to be two ways
-            expect(R.map(R.prop('id'), R.prop('ways', response))).toEqual(['way/417728789', 'way/417728790']);
-            done();
-          }
-        )
-      }));
-  }, 1000000);
-
-  test('fetchOsmBlockOslo', done => {
-    expect.assertions(1);
-    queryLocationOsm({
-      country: 'Norway',
-      city: 'Oslo',
-      neighborhood: 'Sentrum',
-      intersections: [['Kongens gate', 'Myntgata'], ['Kongens gate', 'Revierstredet']]
-    }).run().listen(defaultRunConfig(
-      {
-        onResolved: responseResult => responseResult.map(
-          response => {
-            // Expect it to be one way
-            expect(R.map(R.prop('id'), R.prop('ways', response))).toEqual(['way/5089101']);
-            done();
-          }
-        )
-      }));
-  }, 20000);
-
-  test('fetchOsmBlockStavangerError', done => {
-    // This gives a Result.Error because it can't resolve the correct number of intersections
-    expect.assertions(1);
-    queryLocationOsm({
-      country: 'Norway',
-      city: 'Stavanger',
-      neighborhood: 'Stavanger Sentrum',
-      intersections: [['Langgata', 'Pedersgata'], ['Vinkelgata', 'Pedersgata']]
-    }).run().listen(defaultRunConfig(
-      {
-        onResolved: responseResult => responseResult.map(
-          response => {
-            throw new Error("We should have gotten a Result.Error");
-          }
-        ).orElse(
-          response => {
-            // Expect it to be
-            expect(
-              reqStrPathThrowing('error', response)
-            ).toBeTruthy();
-            done();
-          }
-        )
-      }));
-  }, 20000);
-
-  test('fetchOsmBlockStavanger', done => {
-    expect.assertions(1);
-    queryLocationOsm({
-      country: 'Norway',
-      city: 'Stavanger',
-      neighborhood: 'Stavanger Sentrum',
-      intersections: [['Langgata', 'Pedersgata'], ['Vinkelgata', 'Pedersgata']],
-      data: {
-        osmOverrides: {
-          // We have to override OSM names because they differ from Google
-          intersections: [['Langgata', 'Nytorget'], ['Vinkelgata', 'Nytorget']],
-          // Hard code node ids because there are two Nytorget streets that intersect
-          nodes: [351103238, 367331193]
-        }
-      }
-    }).run().listen(defaultRunConfig(
-      {
-        onResolved: responseResult => responseResult.map(
-          response => {
-            expect(
-              R.length(reqStrPathThrowing('ways', response))
-            ).toEqual(1);
-            done();
-          }
-        )
-      }));
-  }, 10000);
 });

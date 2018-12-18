@@ -57,8 +57,8 @@
     "query-overpass": "^1.5.3",
     "ramda": "^0.25.0",
     "request": "^2.88.0",
-    "rescape-helpers": "^1.1.62",
-    "rescape-ramda": "^1.4.58"
+    "rescape-helpers": "^1.1.68",
+    "rescape-ramda": "^1.4.85"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",

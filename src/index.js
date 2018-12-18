@@ -9,11 +9,13 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-export {fetchOsm, queryLocationOsm} from './overpassIO'
-export {searchLocation, nominatimTask, mapboxGeocodeTask} from './searchIO'
+export {fetchTransitOsm, queryLocationOsm} from './overpass'
+export {searchLocation, nominatimTask, mapboxGeocodeTask} from './search'
 export {addressString, addressPair, streetAddressString, removeStateFromSomeCountriesForSearch} from './locationHelpers'
 export {
   calculateRouteTask,
+  calculateOpposingRoutesTask,
+  createOpposingRoutesFromOriginAndDestination,
   findClosest,
   geocodeAddress,
   geocodeBlockAddresses,
@@ -23,5 +25,5 @@ export {
   initDirectionsService,
   resolveGeoLocationTask,
   resolveGeojsonTask,
-  createOpposingRoutesFromOriginAndDestination
+
 } from './googleLocation'

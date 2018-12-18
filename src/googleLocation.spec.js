@@ -22,7 +22,7 @@ import {turfPointToLocation} from 'rescape-helpers';
 const austinOrigin = 'Salina St and E 21st St, Austin, TX, USA';
 const austinDestination = 'Leona St and E 21st St, Austin, TX, USA';
 
-describe('googleHelpers', () => {
+describe('googleLocation', () => {
   test('geocodeAddress', done => {
       geocodeAddress({
         country: 'USA',
@@ -151,6 +151,21 @@ describe('googleHelpers', () => {
       })
     );
   });
+
+  test('geocodeBadAddress', done => {
+    const intersections = [
+      'C St NE and Delaware Ave',
+      'C St NE and N Capitol St',
+    ];
+    geocodeBlockAddresses({country: 'USA', state: 'DC', city: 'Washington', intersections}, intersections).run().listen(
+      defaultRunConfig({
+        onResolved: resultsResult => resultsResult.mapError(error => {
+          expect(error.error).toEqual('Did not receive exactly one location')
+          done();
+        })
+      })
+    );
+  })
 
 
   test('geojsonCenterOfBlockAddress', done => {

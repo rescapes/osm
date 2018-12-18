@@ -3478,7 +3478,7 @@ graphql@^0.10.0:
   dependencies:
     iterall "^1.1.0"
 
-"graphql@git://github.com/graphql/graphql-js.git#npm":
+graphql@^14.0.2, "graphql@git://github.com/graphql/graphql-js.git#npm":
   version "14.0.2"
   resolved "git://github.com/graphql/graphql-js.git#adf4a29b739c3d39fbdc9c35fee9a4e6644d1665"
   dependencies:
@@ -5703,7 +5703,7 @@ rescape-helpers-test@^0.0.4:
     rescape-validate "^1.2.10"
     util "^0.11.0"
 
-rescape-helpers@^1.1.49, rescape-helpers@^1.1.55, rescape-helpers@^1.1.57, rescape-helpers@^1.1.62:
+rescape-helpers@^1.1.49, rescape-helpers@^1.1.55, rescape-helpers@^1.1.57:
   version "1.1.62"
   resolved "https://registry.yarnpkg.com/rescape-helpers/-/rescape-helpers-1.1.62.tgz#ee533090f6aa5873d99e925cf07f1c2cea571a68"
   dependencies:
@@ -5743,6 +5743,44 @@ rescape-helpers@^1.1.49, rescape-helpers@^1.1.55, rescape-helpers@^1.1.57, resca
     rescape-validate "^1.2.10"
     reselect "^3.0.1"
 
+rescape-helpers@^1.1.68:
+  version "1.1.68"
+  resolved "https://registry.yarnpkg.com/rescape-helpers/-/rescape-helpers-1.1.68.tgz#ef769903612399de847ba83efe12741038f6bb3e"
+  dependencies:
+    "@turf/bbox" "^6.0.1"
+    "@turf/bbox-polygon" "^6.0.1"
+    "@turf/center" "^6.0.1"
+    "@turf/helpers" "^6.1.4"
+    "@turf/meta" "^6.0.2"
+    "@turf/rhumb-bearing" "^6.0.1"
+    "@turf/rhumb-distance" "^6.0.1"
+    "@turf/transform-translate" "^5.1.5"
+    apollo-client-preset "^1.0.8"
+    babel-plugin-transform-es2015-modules-commonjs-simple "^6.7.4"
+    d3-scale "^2.1.2"
+    folktale "^2.3.0"
+    graphql "^14.0.2"
+    graphql-geojson "^1.0.0"
+    graphql-tools "^3.1.1"
+    immutable "^4.0.0-rc.9"
+    jsdom "^12.0.0"
+    longjohn "^0.2.12"
+    memoize-immutable "^3.0.0"
+    moment "^2.22.2"
+    moment-duration-format "^2.2.2"
+    namedtuplemap "^1.0.0"
+    numeral "^2.0.6"
+    parse-decimal-number "^1.0.0"
+    prop-types "^15.6.2"
+    ramda "^0.25.0"
+    redux "^4.0.0"
+    redux-debounced "^0.5.0"
+    redux-logger "^3.0.6"
+    redux-thunk "^2.3.0"
+    rescape-ramda "^1.4.85"
+    rescape-validate "^1.2.10"
+    reselect "^3.0.1"
+
 rescape-ramda@^1.4.50, rescape-ramda@^1.4.51, rescape-ramda@^1.4.52:
   version "1.4.52"
   resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.4.52.tgz#678ea5c62755cd20810a25c3baa35dc3cfe76de9"
@@ -5754,9 +5792,9 @@ rescape-ramda@^1.4.50, rescape-ramda@^1.4.51, rescape-ramda@^1.4.52:
     ramda-maybe "^0.18.0"
     util "^0.11.0"
 
-rescape-ramda@^1.4.58:
-  version "1.4.58"
-  resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.4.58.tgz#8647fb3c4e08b8d23c5d1305d404b84f96ec98f4"
+rescape-ramda@^1.4.85:
+  version "1.4.85"
+  resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.4.85.tgz#76fa3393d310eceb079e6de329f8a87aa6f721ae"
   dependencies:
     folktale "^2.3.0"
     fs-extra "^7.0.0"

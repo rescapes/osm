@@ -20,7 +20,7 @@ export {
   geocodeAddress,
   geocodeBlockAddresses,
   geojsonCenterOfBlockAddress,
-  fullStreetNamesOfLocationTask,
+  googleIntersectionTask,
   routeFromOriginAndDestination,
   initDirectionsService,
   resolveGeoLocationTask,

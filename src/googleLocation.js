@@ -366,25 +366,24 @@ export const routeFromOriginAndDestination = createOpposingRoutesFromOriginAndDe
 
 
 /**
- * Get the long names of the intersections of location
+ * Get the intersectoin data from Google including the long names of streets
  * @param location
  * @return {Result<[[String]]|Result.Error} Two arrays containing the long names of each intersection.
  * If either intersection can't be resolved a Result.Error is returned
  */
-export const fullStreetNamesOfLocationTask = location => {
+export const googleIntersectionTask = location => {
   return R.composeK(
-    // result is a Result.Ok/Error, so chain them if Result.Ok
-    results => of(
-      results.map(
+    // results is a Result.Ok/Error. Result.Ok contains two address objects
+    responsesResult => of(
+      responsesResult.map(
         // Result has two values, each address
-        values => R.map(
-          R.compose(
-            // Split at &
-            longName => R.split(' & ', longName),
+        responses => R.map(
+          response => R.merge({
             // Get the long name version
-            value => reqStrPathThrowing('address_components.0.long_name', value)
-          ),
-          values
+            // Split at &
+            intersection: R.split(' & ', reqStrPathThrowing('address_components.0.long_name', response)),
+          }, response),
+          responses
         )
       )
     ),

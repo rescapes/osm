@@ -9,7 +9,7 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import { queryLocationOsm } from './overpass';
+import {queryLocationOsm} from './overpass';
 import {defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
 import * as R from 'ramda';
 
@@ -17,7 +17,8 @@ import * as R from 'ramda';
 // requires are used below since the jest includes aren't available at compile time
 describe('overpassIntegration', () => {
   if (!process.env.ENABLE_INTEGRATION_TESTS) {
-    test('No tests enabled', () => {})
+    test('No tests enabled', () => {
+    });
     return;
   }
 
@@ -60,35 +61,9 @@ describe('overpassIntegration', () => {
       }));
   }, 50000);
 
-  test('fetchOsmBlockStavangerError', done => {
-    // This gives a Result.Error because it can't resolve the correct number of intersections
-    expect.assertions(1);
-    queryLocationOsm({
-      country: 'Norway',
-      city: 'Stavanger',
-      neighborhood: 'Stavanger Sentrum',
-      intersections: [['Langgata', 'Pedersgata'], ['Vinkelgata', 'Pedersgata']]
-    }).run().listen(defaultRunConfig(
-      {
-        onResolved: responseResult => responseResult.map(
-          response => {
-            throw new Error("We should have gotten a Result.Error");
-          }
-        ).orElse(
-          response => {
-            // Expect it to be
-            expect(
-              reqStrPathThrowing('error', response)
-            ).toBeTruthy();
-            done();
-          }
-        )
-      }));
-  }, 20000);
-
-
-  test('fetchOsmBlockStavangerError2', done => {
-    // This gives a Result.Error because it can't resolve any ways and nodes.
+  test('fetchOsmBlockStavangerBadStreetnameRelyOnGooglePoints', done => {
+    // This fails on the intersection match because OSM uses Nytorget instead of Pedersgata
+    // However Google geocoding gives us points so we eventually resolve the way
     expect.assertions(1);
     queryLocationOsm({
       country: 'Norway',
@@ -99,14 +74,7 @@ describe('overpassIntegration', () => {
       {
         onResolved: responseResult => responseResult.map(
           response => {
-            throw new Error("We should have gotten a Result.Error");
-          }
-        ).orElse(
-          response => {
-            // Expect it to be
-            expect(
-              reqStrPathThrowing('error', response)
-            ).toBeTruthy();
+            expect(R.map(R.prop('id'), R.prop('ways', response))).toEqual(['way/24382524']);
             done();
           }
         )

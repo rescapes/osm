@@ -12,7 +12,7 @@ import {
   initDirectionsService,
   createOpposingRoutesFromOriginAndDestination,
   geocodeAddress,
-  geojsonCenterOfBlockAddress, fullStreetNamesOfLocationTask, resolveGeojsonTask, resolveGeoLocationTask,
+  geojsonCenterOfBlockAddress, googleIntersectionTask, resolveGeojsonTask, resolveGeoLocationTask,
   geocodeBlockAddresses, createRouteFromOriginDestinationGeocodes, calculateRouteTask
 } from './googleLocation';
 import * as R from 'ramda';
@@ -282,7 +282,7 @@ describe('googleLocation', () => {
     );
   });
 
-  test('fullStreetNamesOfLocationTask', done => {
+  test('googleIntersectionTask', done => {
     const location = {
       country: 'USA',
       state: 'California',
@@ -290,12 +290,12 @@ describe('googleLocation', () => {
       // Intentionally put Grand Ave a different positions
       intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
     };
-    fullStreetNamesOfLocationTask(location).run().listen(
+    googleIntersectionTask(location).run().listen(
       defaultRunConfig({
         onResolved: responseResult => responseResult.map(
-          response => {
+          responses => {
             // Sort to make each pair alphabetical
-            expect(R.map(R.sortBy(R.identity), response)).toEqual([
+            expect(R.map(response => R.sortBy(R.identity, response.intersection), responses)).toEqual([
               [
                 'Grand Avenue', 'Perkins Street'
               ],

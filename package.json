@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.0.36",
+  "version": "0.0.37",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "main": "lib/index.js",
   "module": "es/index.js",
@@ -58,7 +58,7 @@
     "ramda": "^0.25.0",
     "request": "^2.88.0",
     "rescape-helpers": "^1.1.68",
-    "rescape-ramda": "^1.4.90"
+    "rescape-ramda": "^1.4.91"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",

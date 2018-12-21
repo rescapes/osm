@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.0.38",
+  "version": "0.1.0",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "main": "lib/index.js",
   "module": "es/index.js",

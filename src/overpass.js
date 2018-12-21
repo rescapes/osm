@@ -326,7 +326,7 @@ const _createIntersectionQueryNodesDeclarations = function (nodes, orderedBlocks
       // The 5 indicates 5 meters from the point. I'm assuming that Google and OSM are within 5 meters
       // otherwise we can't trust they are the same intersection
       // Extracts the coordinates from the geojson point. Reverse since lat, lng is expected
-      geojsonPoint => `around: 5, ${R.join(', ', R.reverse(reqStrPathThrowing('geometry.coordinates', geojsonPoint)))}`,
+      geojsonPoint => `(around: 5, ${R.join(', ', R.reverse(reqStrPathThrowing('geometry.coordinates', geojsonPoint)))})`,
       geojsonPoints
     ),
     R.always(['', ''])
@@ -340,8 +340,8 @@ const _createIntersectionQueryNodesDeclarations = function (nodes, orderedBlocks
     // We have no orderedBlocks but we have geojsonPoints
     [R.always(R.isNil(orderedBlocks)), () => {
 
-      return `node(${around2}) -> .nodes1;
-node(${around3}) -> .nodes2;
+      return `node${around2} -> .nodes1;
+node${around3} -> .nodes2;
 (.nodes1; .nodes2;)->.nodes;`;
     }
     ],
@@ -959,7 +959,9 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
  * Query the given locations
  * @param {Object} location A Location object
  * @param {[String]} location.intersections Two pairs of strings representing the intersections cross-streets
- * @returns {Task<Result>} Result.Ok with the geojson results or a Result.Error
+ * @returns {Task<Result>} Result.Ok with the geojson results and the location in the form {results, location}
+ * or a Result.Error in the form {error, location}. The location has a new property googleIntersctionObjs if Result.Ok,
+ * which is the result of the google geocodings
  * The data contains nodes and ways, where there should always be exactly 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
  */
@@ -970,7 +972,10 @@ export const queryLocationOsm = location => {
     // Task (Result.Ok Object | Result.Error) -> Task Result.Ok Object | Task Result.Error
     locationResult => {
       return resultToTaskWithResult(
-        location => _locationToQueryResults(location),
+        location => mapMDeep(2,
+          results => ({location, results}),
+          _locationToQueryResults(location)
+        ),
         locationResult
       );
     },
@@ -1087,15 +1092,17 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
     result => of(
       // If we had no results report the errors of each query
       result.mapError(errors => ({
-          errors: R.zipWith((error, location) => R.merge(error, {location}), errors, locationVariationsOfOsm)
+          errors: R.map(location => ({errors, location}), locationVariationsOfOsm),
+          location: R.head(locationVariationsOfOsm)
         })
       )
     ),
     // A chained Task that runs 1 or 2 queries as needed
-    locations => traverseReduceWhile(
+    locationVariationsOfOsm => traverseReduceWhile(
       {
+        // We stop when the predicate fails
         // Keep searching until we have a Result.Ok
-        predicate: (previousResult, result) => Result.Ok.hasInstance(result),
+        predicate: (previousResult, result) => R.complement(Result.Ok.hasInstance)(result),
         accumulateAfterPredicateFail: true
       },
 
@@ -1127,7 +1134,7 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
             ])(geojsonPoints)
           );
         },
-        locations
+        locationVariationsOfOsm
       )
     )
   )(locationVariationsOfOsm);

@@ -33,9 +33,9 @@ describe('overpassIntegration', () => {
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
-          response => {
+          ({results, location}) => {
             // Expect it to be two ways
-            expect(R.map(R.prop('id'), R.prop('ways', response))).toEqual(['way/417728789', 'way/417728790']);
+            expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/417728789', 'way/417728790']);
             done();
           }
         )
@@ -52,9 +52,9 @@ describe('overpassIntegration', () => {
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
-          response => {
+          ({results, location}) => {
             // Expect it to be one way
-            expect(R.map(R.prop('id'), R.prop('ways', response))).toEqual(['way/5089101']);
+            expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/5089101']);
             done();
           }
         )
@@ -73,14 +73,34 @@ describe('overpassIntegration', () => {
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
-          response => {
-            expect(R.map(R.prop('id'), R.prop('ways', response))).toEqual(['way/24382524']);
+          ({results, location}) => {
+            expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/24382524']);
             done();
           }
         )
       }));
   }, 20000);
 
+  test('fetschOsmBlockStavangerError', done => {
+
+    // This fails on the intersection match because OSM uses Nytorget instead of Pedersgata
+    // Even Google can't save us
+    expect.assertions(1);
+    queryLocationOsm({
+      country: 'Norway',
+      city: 'Stavanger',
+      neighborhood: 'Stavanger Sentrum',
+      intersections: [['Pedersgata', 'Nykirkebakken'], ['Pedersgata', 'A.B.C Gata']]
+    }).run().listen(defaultRunConfig(
+      {
+        onResolved: responseResult => responseResult.mapError(
+          ({errors, location}) => {
+            expect(errors).toBeTruthy();
+            done();
+          }
+        )
+      }));
+  }, 20000);
 
   test('fetchOsmBlockStavanger', done => {
     expect.assertions(1);
@@ -100,9 +120,9 @@ describe('overpassIntegration', () => {
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
-          response => {
+          ({results, location}) => {
             expect(
-              R.length(reqStrPathThrowing('ways', response))
+              R.length(reqStrPathThrowing('ways', results))
             ).toEqual(1);
             done();
           }

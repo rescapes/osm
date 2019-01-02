@@ -102,6 +102,27 @@ describe('overpassIntegration', () => {
       }));
   }, 20000);
 
+  test('fetschOsmBlockWithWeirdWayKeys', done => {
+
+    // This fails on the intersection match because OSM uses Nytorget instead of Pedersgata
+    // Even Google can't save us
+    expect.assertions(1);
+    queryLocationOsm({
+      country: 'USA',
+      city: 'Los Angleles',
+      neighborhood: 'Boyle Heights',
+      intersections: [['East 1st St', 'North Savannah Street'], ['East 1st St', 'North Saratoga Street"']]
+    }).run().listen(defaultRunConfig(
+      {
+        onResolved: responseResult => responseResult.mapError(
+          ({errors, location}) => {
+            expect(errors).toBeTruthy();
+            done();
+          }
+        )
+      }));
+  }, 20000);
+
   test('fetchOsmBlockStavanger', done => {
     expect.assertions(1);
     queryLocationOsm({

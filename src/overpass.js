@@ -1148,7 +1148,7 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
  */
 export const _cleanGeojson = feature => {
   const tagsLens = R.lensPath(['properties', 'tags']);
-  return R.over(tagsLens, mapKeys(R.when(R.contains(':'), R.replace(':', '__'))), feature);
+  return R.over(tagsLens, mapKeys(R.when(R.contains(':'), R.replace(/:/g, '__'))), feature);
 };
 
 /**

@@ -79,6 +79,34 @@ describe('googleLocation', () => {
     },
     5000);
 
+  test('geocodeIntersectionWithNoIntersectionResult', done => {
+      // This request for a city returns an approximate location, which is ok. It's not okay for intersections
+      // to be approximate
+      geocodeAddress({
+        country: 'USA',
+        state: 'IL',
+        city: 'Peoria',
+        intersections: [['Main St', 'N North St']]
+      }, null).run().listen(
+        defaultRunConfig({
+          onResolved:
+            result => result.mapError(
+              errorValue => {
+                // This should not happen
+                expect(R.length(errorValue.results)).toEqual(1);
+                done();
+              }
+            ).map(
+              resultValue => {
+                expect(resultValue.formatted_address).toEqual('Peroia, IL USA');
+                done();
+              }
+            )
+        })
+      );
+    },
+    20000);
+
   test('geocodeAddressWithLatLng', done => {
       const somewhereSpecial = [60.004471, -44.663669];
       // Leave the location blank since we don't need it when we use a lat/lng

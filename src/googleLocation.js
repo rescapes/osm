@@ -56,6 +56,8 @@ const addGeojsonToGoogleResult = result => {
  * if the request goes through Google. If the address is already a lat,lon Google isn't used
  */
 export const geocodeAddress = R.curry((location, address) => {
+  // Since we are starting to remove address in favor of location, allow it to be null
+  address = address || addressString(location);
   if (isLatLng(address)) {
     // Convert the lat lng string to a geojson object. Wrap in a Task and Result to match the normal flow
     return of(Result.of(
@@ -95,7 +97,7 @@ export const geocodeAddress = R.curry((location, address) => {
         if (R.equals(1, R.length(results))) {
           const result = R.head(results);
           // Result to indicate success
-          console.debug(`Successfully geocoded ${address}`);
+          console.debug(`Successfully geocoded location ${R.propOr('(no id given)', 'id', location)}, ${address}`);
           // If an error occurs here Google swallows it, so catch it
           resolver.resolve(
             Result.of(addGeojsonToGoogleResult(result))
@@ -103,7 +105,7 @@ export const geocodeAddress = R.curry((location, address) => {
         }
         else {
           // Ambiguous or no results. We can potentially resolve ambiguous ones
-          console.warn(`Failed to exact geocode ${address}. ${R.length(results)} results`);
+          console.warn(`Failed to exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${address}. ${R.length(results)} results`);
           resolver.resolve(Result.Error({
             error: 'Did not receive exactly one location',
             results: R.map(
@@ -172,7 +174,7 @@ export const geocodeBlockAddresses = R.curry((location, locationPair) => {
           // or if this is the origin there won't be any previous yet
           results => previousResultsResult.chain(previousResults => Result.of(handleResults(previousResults, results))),
           () => {
-            console.warn(`Failed to geocode 1 or both of ${R.join(' and ', locationPair)}`);
+            console.warn(`Failed to geocode 1 or both of ${R.join(' & ', locationPair)}`);
             return Result.Error(response);
           }
         )(R.propOr([], 'results', response))
@@ -422,7 +424,7 @@ export const resolveGeoLocationTask = location => {
   }
   // Otherwise create the most precise address string that is possible
   else {
-    return geocodeAddress(location, addressString(removeStateFromSomeCountriesForSearch(location)), location).map(responseResult => {
+    return geocodeAddress(location, addressString(removeStateFromSomeCountriesForSearch(location))).map(responseResult => {
       // Chain the either to a new Result that resolves geometry.location
       return responseResult.chain(response =>
         // This returns a Maybe

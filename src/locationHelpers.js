@@ -8,12 +8,22 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import {compactEmpty} from 'rescape-ramda';
+import {compactEmpty, mapMDeep} from 'rescape-ramda';
 import * as R from 'ramda';
 
 // The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
 // Switzerland for example doesn't resolve correctly if the canton abbreviation is included
 const EXCLUDE_STATES_FROM_COUNTRIES = ['Switzerland'];
+
+// List of partial functions that replace words in streetname
+// Normally our data already has the correct abbreviation for Google, but exceptions happen for street like
+// N North St which google can't handle. However Google can handle N N St
+const GOOGLE_STREET_REPLACEMENTS = [
+  R.replace(/North/g, 'N'),
+  R.replace(/South/g, 'S'),
+  R.replace(/East/g, 'E'),
+  R.replace(/West/g, 'W'),
+];
 
 /***
  * Some countries don't resolve locations well in Google with their states, provinces, cantons, etc
@@ -28,7 +38,16 @@ export const removeStateFromSomeCountriesForSearch = location => {
       EXCLUDE_STATES_FROM_COUNTRIES
     ),
     R.omit(['state'])
-  )(location)
+  )(location);
+};
+
+/**
+ * Replaces words in streetnames that Google can't handle, like 'North'
+ * @param streetName
+ * @return {*}
+ */
+const fixWordsThatTripUpGoogle = streetName => {
+  return R.reduce((name, r) => r(name), streetName, GOOGLE_STREET_REPLACEMENTS);
 };
 
 /**
@@ -50,7 +69,7 @@ export const removeStateFromSomeCountriesForSearch = location => {
  */
 export const addressString = ({country, state, city, neighborhood, blockname, intersections, intersectionPair}) => {
   // Take either value. Only one should ever be specified
-  const resolvedIntersectionPair = intersectionPair || R.head(intersections || []);
+  const resolvedIntersectionPair = R.map(fixWordsThatTripUpGoogle, intersectionPair || R.head(intersections || []));
   return R.compose(
     R.join(', '),
     // Remove nulls and empty strings
@@ -60,7 +79,7 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
       // Check if the intersection pair exists
       R.complement(R.isNil),
       // If so we can put it between and, like 'Maple St and Chestnut St'
-      R.join(' & '),
+      R.join(' and '),
       // Otherwise put the blockname and/or neighborhood. If this is null it's filtered out
       R.always(blockname ? `${blockname}, ${neighborhood}` : neighborhood)
     )(resolvedIntersectionPair),

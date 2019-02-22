@@ -70,8 +70,9 @@ export const geocodeAddress = R.curry((location, address) => {
     const promise = googleMaps.geocode({
       address
     }).asPromise();
-    promise.then(response => {
-        // Only accept exact results, not approximate, if the location search involves intersections
+    promise.then(
+      // Only accept exact results, not approximate, if the location search involves intersections
+      response => {
         const results = R.filter(
           result => R.when(
             R.always(R.and(
@@ -121,7 +122,8 @@ export const geocodeAddress = R.curry((location, address) => {
         // Error to give up
         console.warn(`Failed to geocode ${R.propOr('(no id given)', 'id', location)}, ${address}. Error ${err.json.error_message}`);
         resolver.resolve(Result.Error({error: err.json.error_message, response: err}));
-      });
+      }
+    );
   });
 });
 
@@ -157,10 +159,10 @@ export const geocodeBlockAddresses = R.curry((location, locationPair) => {
     // The first time through previousResultsResult will have a null value
     (previousResultsResult, responseResult) => {
       return responseResult.chain(
-        // If responseResult is a Result, the response is the one result.
+        // If responseResult is a Result.Ok, the response is the one result.
         // Chain it to produce a new Result that combines previousResult (if any) with result
         // If there is no previousResults, this will return [result]
-        // If there is a previousResults, this will return the [closest previousResult, closest result],
+        // If there is a previousResultsResult, this will return the [closest previousResult, closest result],
         // i.e. a 2 element array of the closest points from the previous and current result
         result => previousResultsResult.map(previousResults => {
           return handleResults(previousResults, R.of(result));
@@ -368,7 +370,7 @@ export const routeFromOriginAndDestination = createOpposingRoutesFromOriginAndDe
 
 
 /**
- * Get the intersectoin data from Google including the long names of streets
+ * Get the intersection data from Google including the long names of streets
  * @param location
  * @return {Result<[[String]]|Result.Error} Two arrays containing the long names of each intersection.
  * If either intersection can't be resolved a Result.Error is returned
@@ -383,7 +385,7 @@ export const googleIntersectionTask = location => {
           response => R.merge({
             // Get the long name version
             // Split at &
-            intersection: R.split(' & ', reqStrPathThrowing('address_components.0.long_name', response)),
+            intersection: R.split(' & ', reqStrPathThrowing('address_components.0.long_name', response))
           }, response),
           responses
         )

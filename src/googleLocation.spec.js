@@ -80,12 +80,12 @@ describe('googleLocation', () => {
     5000);
 
   test('geocodeIntersectionWithNoIntersectionResult', done => {
-      // This request for a city returns an approximate location, which is ok. It's not okay for intersections
-      // to be approximate
       geocodeAddress({
         country: 'USA',
         state: 'IL',
         city: 'Peoria',
+        // Google can't handle North North St even though it returns that.
+        // Our code overrides values like North that google doesn't like
         intersections: [['Main St', 'N North St']]
       }, null).run().listen(
         defaultRunConfig({
@@ -98,7 +98,7 @@ describe('googleLocation', () => {
               }
             ).map(
               resultValue => {
-                expect(resultValue.formatted_address).toEqual('Peroia, IL USA');
+                expect(resultValue.formatted_address).toEqual('North North Street & Main St, Peoria, IL 61602, USA');
                 done();
               }
             )

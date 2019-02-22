@@ -29,9 +29,10 @@ import {nominatimTask} from './search';
 const predicate = R.allPass([
   // Not null
   R.complement(R.isNil),
-  // 2 nodes
-  R.compose(R.equals(2), R.length, R.prop('nodes')),
-  // >0 ways
+  // We'd normally limit nodes to 2, but there can be 4 if we have a divided road
+  // There might be cases where a divided road merges into a nondivided road, so we'll allow 2-4
+  R.compose(R.both(R.lte(2), R.gte(4)), R.length, R.prop('nodes')),
+  // >0 ways:w
   R.compose(R.lt(0), R.length, R.prop('ways'))
 ]);
 

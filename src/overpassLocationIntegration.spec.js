@@ -150,5 +150,36 @@ describe('overpassIntegration', () => {
         )
       }));
   }, 10000);
+
+  // Make sure we only get nodes back that are intersections, not things like traffic light
+  // This road is divided and one side of one intersection intersects Bulfinch Road but the other
+  // side intersects a service road, so we add extraWays.intersection2: [16702952] for the service road's way id
+  test('fetchOsmBlockCharlotteWithSeparatedLanesAndTrafficSignalNodes', done => {
+    expect.assertions(1);
+    queryLocationOsm({
+      country: 'USA',
+      state: 'NC',
+      city: 'Charlotte',
+      neighborhood: 'South Park',
+      intersections: [['Barclay Downs Drive', 'Carnegie Boulevard'], ['Barclay Downs Drive', 'Bulfinch Road']],
+      data: {
+        osmOverrides: {
+          extraWays: {
+            intersection2: [16702952]
+          }
+        }
+      }
+    }).run().listen(defaultRunConfig(
+      {
+        onResolved: responseResult => responseResult.map(
+          ({results, location}) => {
+            expect(
+              R.length(reqStrPathThrowing('nodes', results))
+            ).toEqual(4);
+            done();
+          }
+        )
+      }));
+  }, 50000);
 });
 

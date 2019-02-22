@@ -119,7 +119,7 @@ export const geocodeAddress = R.curry((location, address) => {
       err => {
         // Handle error
         // Error to give up
-        console.warn(`Failed to geocode ${address}. Error ${err.json.error_message}`);
+        console.warn(`Failed to geocode ${R.propOr('(no id given)', 'id', location)}, ${address}. Error ${err.json.error_message}`);
         resolver.resolve(Result.Error({error: err.json.error_message, response: err}));
       });
   });

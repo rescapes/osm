@@ -78,6 +78,13 @@ export const osmNotEqual = (prop, value) => osmCondition('!=', prop, value);
 export const osmEquals = (prop, value) => osmCondition('=', prop, value);
 
 /**
+ * Translates to OSM equals condition
+ * @param {object} id The id to match
+ * @return {string} '(id)'
+ */
+export const osmIdEquals = id => `(${id})`;
+
+/**
  * Translates to OSM (in)equality condition
  * @param {string} operator Anything that osm supports '=', '!=', '>', '<', '>=', '<=', etc
  * @param {string} prop The feature property that must not be euqal to the value
@@ -288,13 +295,19 @@ export const fetchOsmRawTask = R.curry((options, query) => {
  * Creates OSM Overpass query syntax to declare ways for a give OSM area id.
  * @param {Number} areaId Represents an OSM neighborhood or city
  * @param {[String]} [ways] Way ids if known ahead of time. Otherwise we'll query by the ordered blocks
+ * @param {Object} [extraWays] Extra way ids if known ahead of time to add to the ways that the query finds.
+ * Object can have any of 3 keys 'blockname', 'intersection1', 'intersection2' where each contains a list of extra
+ * way ids to use for that street
  * @param {[[String]]} [orderedBlocks] Two pairs of street intersections used if we don't have way ids.
  * These are optional if geojson points will be used to instead find the nodes of all possible ways
  * @returns {String} Overpass query syntax string that declares the way variables, or an empty string
  * if no ways or orderedBlocks are specified
  * @private
  */
-const _createIntersectionQueryWaysDeclarations = (areaId, ways, orderedBlocks) => {
+const _createIntersectionQueryWaysDeclarations = (areaId, ways, extraWays, orderedBlocks) => {
+  const wayFilters = R.join('', [osmAlways('highway'), osmNotEqual('footway', 'crossing')]);
+  // Convert extra ways to a 3 item array, each containing a list of extra way ids
+  const extraWaysForBlocks = R.props(['blockname', 'intersection1', 'intersection2'], R.defaultTo({}, extraWays));
   return R.cond([
     // We have hard-coded way ids, just set the first and last to a variable, we don't need w3 because
     // we know for sure that these two ways touch our intersection nodes
@@ -309,15 +322,22 @@ const _createIntersectionQueryWaysDeclarations = (areaId, ways, orderedBlocks) =
 
     // We don't have hard-coded way ids, so search for these values by querying
     [R.T, () => R.join('\n',
-      R.addIndex(R.map)(
-        (block, i) => `way(area:${areaId})[highway][name="${block}"][footway!="crossing"]->.w${i + 1};`,
-        orderedBlocks
+      R.addIndex(R.zipWith)(
+        (block, extraWaysForBlock, i) => {
+          const wayQuery = `way(area:${areaId})${osmEquals('name', block)}${wayFilters}`;
+          // For this block if there are extra ways add them to the union
+          const extraWays = R.map(id => `way${osmIdEquals(id)}`, R.defaultTo([], extraWaysForBlock));
+          const wayUnion = `(${R.join(';', R.concat([wayQuery], extraWays))};)`;
+          return `${wayUnion}->.w${i + 1};`;
+        },
+        orderedBlocks,
+        extraWaysForBlocks
       )
     )]
   ])(orderedBlocks);
 };
 
-const _createIntersectionQueryNodesDeclarations = function (nodes, orderedBlocks, geojsonPoints) {
+const _createIntersectionQueryNodesDeclarations = function (nodes, extraNodes, orderedBlocks, geojsonPoints) {
 
   // If geojsonPoints are given we can use them to constrain the 2 nodes
   const [around2, around3] = R.ifElse(
@@ -331,6 +351,9 @@ const _createIntersectionQueryNodesDeclarations = function (nodes, orderedBlocks
     ),
     R.always(['', ''])
   )(geojsonPoints);
+
+  // Limitations on nodes. For instance they can't be tagged as traffic signals!
+  const nodeFilters = R.join('', [osmNotEqual('highway', 'traffic_signals')]);
 
   // Declare the node variables
   // Get the two intersection nodes
@@ -349,8 +372,8 @@ node${around3} -> .nodes2;
     // Otherwise search for the nodes by searching for the nodes contained in both w1 and w2 and both w1 and w3
     [R.T, () => {
 
-      return `(node(w.w1)(w.w2)${around2};
-        node(w.w1)(w.w3)${around3};
+      return `(node(w.w1)(w.w2)${nodeFilters}${around2};
+        node(w.w1)(w.w3)${nodeFilters}${around3};
         )->.nodes;
         `;
     }]
@@ -439,6 +462,16 @@ const constructInstersectionsQuery = ({type}, {country, state, city, intersectio
   // If we have hard-coded node and/or ways
   const nodes = R.view(R.lensPath(['osmOverrides', 'nodes']), data);
   const ways = R.view(R.lensPath(['osmOverrides', 'ways']), data);
+  // If we want to add nodes or ways to what Overpass find itself they are in these structures extraNodes and extraWays
+  // Object of nodes to add. Keyed with 'intersection1' and 'intersection2' to add nodes to the respective intersection that
+  // OSM can't find itself. 0, 1, or both of the keys can be specified
+  const extraNodes = R.view(R.lensPath(['osmOverrides', 'extraNodes']), data);
+  // Object of ways to add. Keyed with 'blockname', 'intersection1' and 'intersection2' to add ways to the respective
+  // roads that OSM can't find itself. 0, 1, or both of the keys can be specified. This was created because sometimes
+  // at an intersection two different streets are the meeting and often one is an unnamed road like a service road
+  // or foot path. Since our data collection only supports one street name for an intersection, this allows us to
+  // specify the way of the other side of the intersection and add it to the way of the named street
+  const extraWays = R.view(R.lensPath(['osmOverrides', 'extraWays']), data);
   // Get the ordered blocks, unless we have hard-coded way ids
   const orderedBlocks = R.cond([
     // If we have hard-coded ways, we have no ordered blocks
@@ -452,6 +485,7 @@ const constructInstersectionsQuery = ({type}, {country, state, city, intersectio
   /*
 
 // This search constrains the nodes to those near where Google thinks they are and the ways that match the names
+// Examples
 [out:json];
   way(area:3600384615)[highway][name="Nytorget"][footway!="crossing"]->.w1;
 way(area:3600384615)[highway][name="Langgata"][footway!="crossing"]->.w2;
@@ -493,11 +527,11 @@ node.nodes2(w.singleway)->.nodes2OfSingleWay;
   const query = `
     ${
     // Declare the way variables if needed
-    _createIntersectionQueryWaysDeclarations(areaId, ways, orderedBlocks)
+    _createIntersectionQueryWaysDeclarations(areaId, ways, extraWays, orderedBlocks)
     }
     ${
     // Declare the node variables
-    _createIntersectionQueryNodesDeclarations(nodes, orderedBlocks, geojsonPoints)
+    _createIntersectionQueryNodesDeclarations(nodes, extraNodes, orderedBlocks, geojsonPoints)
     }
     ${
     // Constrain the declared ways to the declared nodes, producing the .ways variable
@@ -1091,6 +1125,21 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
   return R.composeK(
     result => of(
       // If we had no results report the errors of each query
+      // We create this somewhat strange format so that we know what variation of the location was used for each
+      // query. So the Result.Error looks like:
+      // {
+      //  errors: [
+      //    {
+      //       errors: [
+      //        { error: error message about the query, nodeQuery: the osm way query },
+      //        { error: error message about the query, nodeQuery: the osm node query},
+      //       ]
+      //       location: the variation of the location for this query
+      //    },
+      //    ... other location variations that were tried
+      //  ]
+      //  location: arbitrary first variation of the location
+      // }
       result.mapError(errors => ({
           errors: R.map(location => ({errors, location}), locationVariationsOfOsm),
           location: R.head(locationVariationsOfOsm)

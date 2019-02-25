@@ -22,7 +22,7 @@ const GOOGLE_STREET_REPLACEMENTS = [
   R.replace(/North/g, 'N'),
   R.replace(/South/g, 'S'),
   R.replace(/East/g, 'E'),
-  R.replace(/West/g, 'W'),
+  R.replace(/West/g, 'W')
 ];
 
 /***
@@ -88,6 +88,26 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
     country]
   );
 };
+
+/**
+ * Given a location with 2 pairs of intersections, returns the address string for each intersection
+ * @param {Object} location The loctation
+ * @param {[[String]]} location.intersections Two pairs of intersection names
+ */
+export const addressStrings = location => {
+  return R.map(addressString, oneLocationIntersectionsFromLocation(location))
+};
+
+/**
+ * Given a location with 2 paris of intersections, returns two locations that each have a one element intersections array.
+ * Each of the two locations has one of the intersections
+ * @param location
+ * @return {*}
+ */
+export const oneLocationIntersectionsFromLocation = location => R.map(
+  intersection => ({intersections: [intersection], ...R.omit(['intersections'], location)}),
+  location.intersections
+);
 
 /**
  * Just returns the street "address" e.g. Perkins Ave, Oakland, CA, USA

@@ -13,14 +13,17 @@ import {task, of, waitAll} from 'folktale/concurrency/task';
 import rhumbDistance from '@turf/rhumb-distance';
 import {featureCollection} from '@turf/helpers';
 import center from '@turf/center';
-import {reqStrPath, reqStrPathThrowing, traverseReduce} from 'rescape-ramda';
+import {reqStrPath, reqStrPathThrowing, traverseReduce, traverseReduceWhile} from 'rescape-ramda';
 import googleMapsClient from './googleMapsClient';
 import {
   googleLocationToLocation,
   googleLocationToTurfLineString,
   googleLocationToTurfPoint, locationToTurfPoint, originDestinationToLatLngString, turfPointToLocation
 } from 'rescape-helpers';
-import {addressPair, addressString, removeStateFromSomeCountriesForSearch} from './locationHelpers';
+import {
+  addressPair, addressString, addressStrings, oneLocationIntersectionsFromLocation,
+  removeStateFromSomeCountriesForSearch
+} from './locationHelpers';
 import * as Result from 'folktale/result';
 import {lineString} from '@turf/helpers';
 
@@ -34,7 +37,7 @@ const OK_STATUS = 200;
 
 const latLngRegExp = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
 export const isLatLng = address => {
-  return R.length(R.match(latLngRegExp, address));
+  return R.lt(0, R.length(R.match(latLngRegExp, address)));
 };
 
 const addGeojsonToGoogleResult = result => {
@@ -55,8 +58,9 @@ const addGeojsonToGoogleResult = result => {
  * contains a geojson that is a Turf Point. Other info from Google like formatted_address is returned
  * if the request goes through Google. If the address is already a lat,lon Google isn't used
  */
-export const geocodeAddress = R.curry((location, address) => {
+export const geocodeAddressTask = R.curry((location, address) => {
   // Since we are starting to remove address in favor of location, allow it to be null
+  // address is useful if we need to choose which intersection of the location we need when their are two
   address = address || addressString(location);
   if (isLatLng(address)) {
     // Convert the lat lng string to a geojson object. Wrap in a Task and Result to match the normal flow
@@ -138,13 +142,12 @@ export const geocodeAddress = R.curry((location, address) => {
  * NW, SW and thus result to two different places.
  * @param {object} location The location of the locationPair. In the future we might get rid of locationPair
  * and simply derive it from location
- * @param {[String]} locationPair Two address strings
  * @returns {Task<[Result<Object>]>} Task to return the two matching geolocations
  * in a Result. Each object contains a geojson property which is a point. Other information might be in the
  * object if the address was resolved through Google, but don't count on it. If either intersection cannot
  * be goecoded by Google, a Task<Result.Error> is returned
  */
-export const geocodeBlockAddresses = R.curry((location, locationPair) => {
+export const geocodeBlockAddressesTask = location => {
   const handleResults = (previousResults, currentResults) => R.ifElse(
     R.identity,
     // The second time through we have results from both, so find closest
@@ -176,7 +179,7 @@ export const geocodeBlockAddresses = R.curry((location, locationPair) => {
           // or if this is the origin there won't be any previous yet
           results => previousResultsResult.chain(previousResults => Result.of(handleResults(previousResults, results))),
           () => {
-            console.warn(`Failed to geocode 1 or both of ${R.join(' & ', locationPair)}`);
+            console.warn(`Failed to geocode 1 or both of ${R.join(', ', addressStrings(location))}`);
             return Result.Error(response);
           }
         )(R.propOr([], 'results', response))
@@ -186,9 +189,49 @@ export const geocodeBlockAddresses = R.curry((location, locationPair) => {
     of(Result.of()),
     // Each location is resolved to a Task<Result>, where the Result if a Ok if a single address was
     // resolved and an Error otherwise
-    R.map(geocodeAddress(location), locationPair)
+    R.map(
+      locationWithOneIntersection => geocodeAddressWithBothIntersectionOrdersTask(locationWithOneIntersection),
+      oneLocationIntersectionsFromLocation(location)
+    )
   );
-});
+};
+
+/**
+ * Geocodes the location with the intersection streets in each order until one returns a result
+ * @param {Object} locationWithOneIntersectionPair Location with only one intersection pair
+ * @param {[[String]|String]} locationWithOneIntersectionPair.intersections one item array with a pair of
+ * intersections names or just a lat/lon string
+ * @return {Task<Result>} Result.Ok if one ordering succeeds. Result.Error if neither succeeds
+ */
+export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneIntersectionPair => {
+  return traverseReduceWhile(
+    {
+      // Return false when it's not an error to stop
+      predicate: (accumulated, value) => value.isError,
+      // After a task returns false still add it to the accumulation since it's the answer we want
+      accumulateAfterPredicateFail: true
+    },
+    // Always the lastest returned value, either the Result.Ok or last Result.Error
+    (accum, value) => value,
+    of(),
+    R.map(
+      // Seek the geocode of each intersection ordering if we have named intersections
+      // Since this creates 2 tasks we only run as many as are needed to get a definitive answer from Google
+      locationAddress => geocodeAddressTask(locationWithOneIntersectionPair, locationAddress),
+      R.ifElse(
+        location => R.both(R.is(String), isLatLng)(reqStrPathThrowing('intersections.0', location)),
+        // If the intersection is a lat/lon, just use that for the address
+        location => [reqStrPathThrowing('intersections.0', location)],
+        // Else create two addresses with the intersection names ordered in both ways
+        // Google can sometimes only handle one ordering
+        location => [
+          addressString(location),
+          addressString(R.over(R.lensPath(['intersections', '0']), R.reverse, location))
+        ]
+      )(locationWithOneIntersectionPair)
+    )
+  );
+};
 
 /**
  * Returns the geographical center point of a location pair, meaning the center
@@ -196,10 +239,9 @@ export const geocodeBlockAddresses = R.curry((location, locationPair) => {
  * centering
  * @param {object} location Location object of the location pair. Provides context for resolving the pair. In
  * the future we might just pass the location and derive the locationPair from it
- * @param {[String]} locationPair Two address strings
  * @returns {Task<Result>} Task to return the center points
  */
-export const geojsonCenterOfBlockAddress = (location, locationPair) => R.composeK(
+export const geojsonCenterOfBlockAddress = location => R.composeK(
   // Find the center of the two points
   featureCollectionResult => of(featureCollectionResult.map(featureCollection => {
     return center(featureCollection);
@@ -217,8 +259,8 @@ export const geojsonCenterOfBlockAddress = (location, locationPair) => R.compose
   )),
   // First resolve the geocode for the two ends fo the block.
   // This returns and a Result for success, Error for failure
-  geocodeBlockAddresses(location)
-)(locationPair);
+  location => geocodeBlockAddressesTask(location)
+)(location);
 
 
 /**
@@ -334,10 +376,10 @@ export const calculateOpposingRoutesTask = R.curry((directionsService, origin, d
  * origin and destination address geocode. Otherwise returns an Result.Error with one or both
  * Result.Error geocode results
  */
-export const createOpposingRoutesFromOriginAndDestination = R.curry((directionService, location, originDestinationPair) => {
+export const createOpposingRoutesFromOriginAndDestination = R.curry((directionService, location) => {
   // geocode the pair. By coding together we can resolve ambiguous locations by finding the closest
   // two locations between the ambiguous results in the origin and destination
-  const geocodeTask = geocodeBlockAddresses(location, originDestinationPair);
+  const geocodeTask = geocodeBlockAddressesTask(location);
   // chain the Task sending the two lat/lng locations to calculateRouteTask, which itself returns a Task
   return R.chain(
     // geocodePairResult is a Result that we chain to call calculateRouteTask
@@ -391,10 +433,8 @@ export const googleIntersectionTask = location => {
         )
       )
     ),
-    // Geocode the intersection
-    addresses => geocodeBlockAddresses(location, addresses),
-    // Create the intersection address string
-    location => of(addressPair(location))
+    // Geocode the location
+    location => geocodeBlockAddressesTask(location)
   )(location);
 };
 
@@ -420,13 +460,13 @@ export const resolveGeoLocationTask = location => {
   // If we have both intersection pairs, resolve the center point between them.
   // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
   else if (R.equals(2, R.length(location.intersections))) {
-    return geojsonCenterOfBlockAddress(location, addressPair(location)).map(
+    return geojsonCenterOfBlockAddress(location).map(
       centerResult => centerResult.map(center => turfPointToLocation(center))
     );
   }
   // Otherwise create the most precise address string that is possible
   else {
-    return geocodeAddress(location, addressString(removeStateFromSomeCountriesForSearch(location))).map(responseResult => {
+    return geocodeAddressTask(location, addressString(removeStateFromSomeCountriesForSearch(location))).map(responseResult => {
       // Chain the either to a new Result that resolves geometry.location
       return responseResult.chain(response =>
         // This returns a Maybe
@@ -453,7 +493,7 @@ export const resolveGeojsonTask = location => {
     return of(Result.Ok(location.geojson));
   }
   // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
-  return geocodeBlockAddresses(location, addressPair(location)).map(
+  return geocodeBlockAddressesTask(location).map(
     responsesResult => {
       // Map each response in result to a simple lat, lon
       // We chain the Result with two responses by traversing the two

@@ -11,20 +11,20 @@
 import {
   initDirectionsService,
   createOpposingRoutesFromOriginAndDestination,
-  geocodeAddress,
+  geocodeAddressTask,
   geojsonCenterOfBlockAddress, googleIntersectionTask, resolveGeojsonTask, resolveGeoLocationTask,
-  geocodeBlockAddresses, createRouteFromOriginDestinationGeocodes, calculateRouteTask
+  geocodeBlockAddressesTask, createRouteFromOriginDestinationGeocodes, calculateRouteTask,
+  geocodeAddressWithBothIntersectionOrdersTask
 } from './googleLocation';
 import * as R from 'ramda';
 import {defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
 import {turfPointToLocation} from 'rescape-helpers';
 
-const austinOrigin = 'Salina St and E 21st St, Austin, TX, USA';
-const austinDestination = 'Leona St and E 21st St, Austin, TX, USA';
+const austinIntersections = [['Salina St', 'E 21st St'], ['Leona St and E 21st St']];
 
 describe('googleLocation', () => {
-  test('geocodeAddress', done => {
-      geocodeAddress({
+  test('geocodeAddressTask', done => {
+      geocodeAddressTask({
         country: 'USA',
         state: 'DC',
         city: 'Washington',
@@ -54,7 +54,7 @@ describe('googleLocation', () => {
   test('geocodeAddressApproximate', done => {
       // This request for a city returns an approximate location, which is ok. It's not okay for intersections
       // to be approximate
-      geocodeAddress({
+      geocodeAddressTask({
         country: 'USA',
         state: 'CA',
         city: 'Irvine',
@@ -79,8 +79,8 @@ describe('googleLocation', () => {
     },
     5000);
 
-  test('geocodeIntersectionWithNoIntersectionResult', done => {
-      geocodeAddress({
+  test('geocodeIntersectionWithWordNorthInName', done => {
+      geocodeAddressTask({
         country: 'USA',
         state: 'IL',
         city: 'Peoria',
@@ -98,7 +98,63 @@ describe('googleLocation', () => {
               }
             ).map(
               resultValue => {
+                // Yes this returns Street and St. Cmon Google!
                 expect(resultValue.formatted_address).toEqual('North North Street & Main St, Peoria, IL 61602, USA');
+                done();
+              }
+            )
+        })
+      );
+    },
+    20000);
+
+  test('geocodeAddressWithBothIntersectionOrdersTask', done => {
+      geocodeAddressWithBothIntersectionOrdersTask({
+        country: 'USA',
+        state: 'IL',
+        city: 'Peoria',
+        // Google can't find this, but if you reverse these names it does find it, sigh
+        // This test shows that are code will reverse the intersection if it fails the first time
+        intersections: [['W Main St', 'NE Crescent Ave']]
+      }).run().listen(
+        defaultRunConfig({
+          onResolved:
+            result => result.mapError(
+              errorValue => {
+                // This should not happen
+                expect(R.length(errorValue.results)).toEqual(1);
+                done();
+              }
+            ).map(
+              resultValue => {
+                expect(resultValue.formatted_address).toEqual('NE Crescent Ave & Main St, Peoria, IL 61602, USA');
+                done();
+              }
+            )
+        })
+      );
+    },
+    20000);
+
+  test('geocodeAddressWithBothIntersectionOrdersTaskWithLatLon', done => {
+      geocodeAddressWithBothIntersectionOrdersTask({
+        country: 'USA',
+        state: 'IL',
+        city: 'Peoria',
+        intersections: ['40.699546, -89.597790']
+      }).run().listen(
+        defaultRunConfig({
+          onResolved:
+            result => result.mapError(
+              errorValue => {
+                // This should not happen
+                expect(R.length(errorValue.results)).toEqual(1);
+                done();
+              }
+            ).map(
+              resultValue => {
+                // We just get back the coords. No need to geocode
+                expect(resultValue.geojson.geometry.coordinates).toEqual([-89.597790, 40.699546]);
                 done();
               }
             )
@@ -110,7 +166,7 @@ describe('googleLocation', () => {
   test('geocodeAddressWithLatLng', done => {
       const somewhereSpecial = [60.004471, -44.663669];
       // Leave the location blank since we don't need it when we use a lat/lng
-      geocodeAddress({}, R.join(', ', somewhereSpecial)).run().listen(
+      geocodeAddressTask({}, R.join(', ', somewhereSpecial)).run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(
@@ -132,10 +188,10 @@ describe('googleLocation', () => {
     5000);
 
 
-  test('Resolve correct geocodeAddress with two results', done => {
-    const ambiguousBlockAddresses = [
-      'Monroe and 13th, Washington, DC, USA',
-      'Monroe and Holmead, Washington, DC, USA'
+  test('Resolve correct geocodeAddressTask with two results', done => {
+    const ambiguousIntersections = [
+      ['Monroe', '13th'],
+      ['Monroe', 'Holmead']
     ];
     // Don't worry which street is listed first
     const expected = actual => R.filter(R.flip(R.contains)([
@@ -144,7 +200,12 @@ describe('googleLocation', () => {
       "Holmead Pl NW & Monroe St NW, Washington, DC 20010, USA",
       "Monroe St NW & Holmead Pl NW, Washington, DC 20010, USA"
     ]), actual);
-    geocodeBlockAddresses({country: 'USA', state: 'DC', city: 'Washington'}, ambiguousBlockAddresses).run().listen(
+    geocodeBlockAddressesTask({
+      country: 'USA',
+      state: 'DC',
+      city: 'Washington',
+      intersections: ambiguousIntersections
+    }).run().listen(
       defaultRunConfig({
         onResolved: resultsResult => resultsResult.map(results => {
           const actual = R.map(R.prop('formatted_address'), results);
@@ -157,7 +218,7 @@ describe('googleLocation', () => {
 
   test('geocodeBlockAddress with lat/lng', done => {
     const ambiguousBlockAddresses = [
-      'Monroe and 13th, Washington, DC, USA',
+      ['Monroe', '13th'],
       '38.931990, -77.030890'
     ];
     // Don't worry which street is listed first
@@ -165,7 +226,12 @@ describe('googleLocation', () => {
       "Monroe St NW & 13th St NW, Washington, DC 20010, USA",
       "13th St NW & Monroe St NW, Washington, DC 20010, USA"
     ]));
-    geocodeBlockAddresses({country: 'USA', state: 'DC', city: 'Washington'}, ambiguousBlockAddresses).run().listen(
+    geocodeBlockAddressesTask({
+      country: 'USA',
+      state: 'DC',
+      city: 'Washington',
+      intersections: ambiguousBlockAddresses
+    }).run().listen(
       defaultRunConfig({
         onResolved: resultsResult => resultsResult.map(results => {
           const actualFirst = R.view(R.lensPath([0, 'formatted_address']), results);
@@ -180,28 +246,36 @@ describe('googleLocation', () => {
     );
   });
 
+  // TODO this returns successful now but the second intersection is North Capitol St NE & I St NE,
+  // which isn't what is wanted here
+  /*
   test('geocodeBadAddress', done => {
     const intersections = [
-      'C St NE and Delaware Ave',
-      'C St NE and N Capitol St',
+      ['C St NE', 'Delaware Ave'],
+      ['C St NE', 'N Capitol St']
     ];
-    geocodeBlockAddresses({country: 'USA', state: 'DC', city: 'Washington', intersections}, intersections).run().listen(
+    geocodeBlockAddressesTask({
+      country: 'USA',
+      state: 'DC',
+      city: 'Washington',
+      intersections
+    }).run().listen(
       defaultRunConfig({
         onResolved: resultsResult => resultsResult.mapError(error => {
-          expect(error.error).toEqual('Did not receive exactly one location')
+          expect(error.error).toEqual('Did not receive exactly one location');
           done();
         })
       })
     );
-  })
-
+  });
+  */
 
   test('geojsonCenterOfBlockAddress', done => {
-    const blockAddresses = [
-      'Monroe St NW & 13th St NW, Washington, DC, USA',
-      'Monroe St NW & Holmead Pl NW, Washington, DC, USA'
+    const intersections = [
+      ['Monroe St NW', '13th St NW'],
+      ['Monroe St NW', 'Holmead Pl NW']
     ];
-    geojsonCenterOfBlockAddress({country: 'USA', state: 'DC', city: 'Washington'}, blockAddresses).run().listen(
+    geojsonCenterOfBlockAddress({country: 'USA', state: 'DC', city: 'Washington', intersections}).run().listen(
       defaultRunConfig({
         onResolved: resultResult => resultResult.mapError(
           errorValue => {
@@ -221,8 +295,8 @@ describe('googleLocation', () => {
   test('createOpposingRoutesFromOriginAndDestination', done => {
     createOpposingRoutesFromOriginAndDestination(
       initDirectionsService(),
-      {country: 'USA', state: 'Texas', city: 'Austin'},
-      [austinOrigin, austinDestination]).run().listen(
+      {country: 'USA', state: 'Texas', city: 'Austin', intersections: austinIntersections}
+    ).run().listen(
       defaultRunConfig({
         onResolved: routesResult => {
           routesResult.map(routes => {

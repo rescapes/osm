@@ -57,19 +57,23 @@ const fixWordsThatTripUpGoogle = streetName => {
  * @param {String} city The city
  * @param {String} neighborhood Optional the neighborhood
  * @param {String} blockname Optional specify if there is a blockname but not intersections yet known
- * @param {[String]} intersectionPair Optional array of two street names representing an intersection
- * If intersectionPair is specified neighborhood is omitted form the search, since the former is more precise
- * @param {[String]} intersections Optional array of one pair of street names. This is the same
- * as intersectionPair but in the form [pair] to match our Location object when it only has one of its
- * two intersections resolved
- * If intersectionPair is specified neighborhood is omitted from the search, since the former is more precise
+ * @param {[[String]]} intersections Optional array of one pair of street names.
+ * This matches the Location object when it only has one of its locations
+ * If intersections is specified neighborhood is omitted from the search, since the former is more precise
  * @returns {String} The address string with neighborhood and state optional
  * Example: Main St and Chestnut St, Anytown, Anystate, USA which will resolve to an intersection
  * or Downtown District, Anytown, Anystate, USA, which will resolve to a district/neighborhood center point
  */
-export const addressString = ({country, state, city, neighborhood, blockname, intersections, intersectionPair}) => {
-  // Take either value. Only one should ever be specified
-  const resolvedIntersectionPair = R.map(fixWordsThatTripUpGoogle, intersectionPair || R.head(intersections || []));
+export const addressString = ({country, state, city, neighborhood, blockname, intersections}) => {
+  // Extract the one intersection pair with corrections for Google if it exists
+  const resolvedIntersectionPair = R.unless(
+    R.either(
+      R.isNil,
+      R.compose(R.equals(0), R.length)
+    ),
+    R.compose(R.map(fixWordsThatTripUpGoogle), R.head)
+  )(intersections);
+
   return R.compose(
     R.join(', '),
     // Remove nulls and empty strings
@@ -91,7 +95,7 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
 
 /**
  * Given a location with 2 pairs of intersections, returns the address string for each intersection
- * @param {Object} location The loctation
+ * @param {Object} location The location
  * @param {[[String]]} location.intersections Two pairs of intersection names
  */
 export const addressStrings = location => {

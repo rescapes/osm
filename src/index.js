@@ -11,7 +11,7 @@
 
 export {fetchTransitOsm, queryLocationOsm} from './overpass'
 export {searchLocation, nominatimTask, mapboxGeocodeTask} from './search'
-export {addressString, addressPair, streetAddressString, removeStateFromSomeCountriesForSearch} from './locationHelpers'
+export {addressString, addressPair, addressStrings, streetAddressString, removeStateFromSomeCountriesForSearch} from './locationHelpers'
 export {
   calculateRouteTask,
   calculateOpposingRoutesTask,
@@ -19,11 +19,11 @@ export {
   findClosest,
   geocodeAddressTask,
   geocodeBlockAddressesTask,
+  geocodeAddressWithBothIntersectionOrdersTask,
   geojsonCenterOfBlockAddress,
   googleIntersectionTask,
   routeFromOriginAndDestination,
   initDirectionsService,
   resolveGeoLocationTask,
   resolveGeojsonTask,
-
 } from './googleLocation'

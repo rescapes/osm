@@ -450,7 +450,8 @@ describe('googleLocation', () => {
         throw new Error(reject);
       },
       onResolved: responseResult => responseResult.map(response => {
-        expect(R.map(f => f.toFixed(2), response)).toEqual(["37.81", "-122.26"]);
+
+        expect(R.map(f => f.toFixed(4), response)).toEqual(["37.8107", "-122.2614"]);
         done();
       }).mapError(reject => {
         throw new Error(reject);
@@ -458,9 +459,7 @@ describe('googleLocation', () => {
     });
   });
 
-  test('resolveGeoLocationFromApi', (done) => {
-    // Goes to the api to resolve
-    // Resolves synchronously
+  test('resolveGeoLocationTask with 1 intersections', done => {
     const location = {
       id: 1,
       country: 'USA',
@@ -468,9 +467,30 @@ describe('googleLocation', () => {
       city: 'Oakland',
       neighborhood: 'Adams Point',
       intersections: [
-        ['Grand Ave', 'Bay Pl'],
-        ['Grand Ave', 'Harrison St']
+        ['Grand Ave', 'Bay Pl']
       ]
+    };
+    resolveGeoLocationTask(location).run().listen({
+      onRejected: reject => {
+        throw new Error(reject);
+      },
+      onResolved: responseResult => responseResult.map(response => {
+
+        expect(R.map(f => f.toFixed(4), response)).toEqual( ["37.8105", "-122.2604"]);
+        done();
+      }).mapError(reject => {
+        throw new Error(reject);
+      })
+    });
+  });
+
+  test('resolveGeoLocationWithoutIntersections', done => {
+    const location = {
+      id: 1,
+      country: 'USA',
+      state: 'California',
+      city: 'Oakland',
+      neighborhood: 'Adams Point'
     };
     // Resolves asynchronously
     resolveGeoLocationTask(location).run().listen({
@@ -479,7 +499,7 @@ describe('googleLocation', () => {
       },
       onResolved: responseResult => responseResult.map(
         response => {
-          expect(R.map(f => f.toFixed(2), response)).toEqual(["37.81", "-122.26"]);
+          expect(R.map(f => f.toFixed(4), response)).toEqual(["37.8116", "-122.2555"]);
           done();
         }
       ).mapError(

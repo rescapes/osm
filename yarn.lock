@@ -5803,12 +5803,13 @@ rescape-ramda@^1.4.85:
     ramda-maybe "^0.18.0"
     util "^0.11.0"
 
-rescape-ramda@^1.4.91:
-  version "1.4.91"
-  resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.4.91.tgz#e1bb4b50464093bdcfbbd158fe7c38c2ececcd3d"
+rescape-ramda@^1.5.17:
+  version "1.5.17"
+  resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.5.17.tgz#edf4fe86ee134e9d917b660f74fa37ae198ea73b"
   dependencies:
     folktale "^2.3.0"
     fs-extra "^7.0.0"
+    namedtuplemap "^1.0.0"
     ramda "^0.25.0"
     ramda-fantasy "^0.8.0"
     ramda-maybe "^0.18.0"

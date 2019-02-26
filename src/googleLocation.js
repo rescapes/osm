@@ -13,7 +13,14 @@ import {task, of, waitAll} from 'folktale/concurrency/task';
 import rhumbDistance from '@turf/rhumb-distance';
 import {featureCollection} from '@turf/helpers';
 import center from '@turf/center';
-import {reqStrPath, reqStrPathThrowing, traverseReduce, traverseReduceWhile} from 'rescape-ramda';
+import {
+  reqStrPath,
+  reqStrPathThrowing,
+  traverseReduce,
+  traverseReduceWhile,
+  mapMDeep,
+  mapToNamedResponseAndInputs
+} from 'rescape-ramda';
 import googleMapsClient from './googleMapsClient';
 import {
   googleLocationToLocation,
@@ -250,7 +257,7 @@ export const geojsonCenterOfBlockAddress = location => R.composeK(
   featuresResult => of(featuresResult.map(features => {
     return featureCollection(features);
   })),
-  // If Result continue by converting eatch location to a Turf Point
+  // If Result continue by taking the geojson of each
   resultsResult => of(resultsResult.map(
     results => R.map(
       result => result.geojson,
@@ -460,22 +467,46 @@ export const resolveGeoLocationTask = location => {
   // If we have both intersection pairs, resolve the center point between them.
   // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
   else if (R.equals(2, R.length(location.intersections))) {
-    return geojsonCenterOfBlockAddress(location).map(
-      centerResult => centerResult.map(center => turfPointToLocation(center))
+    // Task Result -> Task Result
+    return mapMDeep(2,
+      center => turfPointToLocation(center),
+      geojsonCenterOfBlockAddress(location)
     );
   }
-  // Otherwise create the most precise address string that is possible
   else {
-    return geocodeAddressTask(location, addressString(removeStateFromSomeCountriesForSearch(location))).map(responseResult => {
-      // Chain the either to a new Result that resolves geometry.location
-      return responseResult.chain(response =>
-        // This returns a Maybe
-        reqStrPath('geometry.location', response)
-      ).map(
-        // Map the Maybe value
-        googleLocationToLocation
-      );
-    });
+    return R.composeK(
+      // Map the Result value
+      // Task Result Object -> Task Result Object
+      locationResult => of(R.map(
+        location => googleLocationToLocation(location),
+        locationResult
+      )),
+      // Task Result Object -> Task Result Object.
+      responseResult => of(R.chain(
+        response => reqStrPath('geometry.location', response),
+        responseResult
+      )),
+      // Task Object -> Task Result Object
+      ({location, address}) => {
+        return R.ifElse(
+          // If we have 1 intersection pair, resolve that intersection.
+          // We try the intersection name with both name orderings because sometimes Google only knows one
+          // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
+          ({location}) => R.equals(2, R.length(location.intersections)),
+          // Otherwise take whatever is in the location, maybe just country or also state, city, neighborhood, etc
+          // and give a center point
+          ({location}) => geocodeAddressWithBothIntersectionOrdersTask(location),
+          ({location, address}) => geocodeAddressTask(location, address)
+        )({location, address});
+      },
+      // Task Object -> Task Object
+      mapToNamedResponseAndInputs('address',
+        ({location}) => of(addressString(location))
+      ),
+      // Remove states from some countries like Switzerland that mess up the search
+      // Object -> Task Object
+      location => of({location: removeStateFromSomeCountriesForSearch(location)})
+    )(location);
   }
 };
 

@@ -214,7 +214,7 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
   return traverseReduceWhile(
     {
       // Return false when it's not an error to stop
-      predicate: (accumulated, value) => value.isError,
+      predicate: (accumulated, value) => Result.Error.hasInstance(value),
       // After a task returns false still add it to the accumulation since it's the answer we want
       accumulateAfterPredicateFail: true
     },

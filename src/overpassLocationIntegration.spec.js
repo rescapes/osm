@@ -69,7 +69,7 @@ describe('overpassIntegration', () => {
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
-      intersections: [['Pedersgata', 'A. B. C. Gata'], ['Pedersgata', 'Vinkelgata"']]
+      intersections: [['Pedersgata', 'A. B. C. Gata'], ['Pedersgata', 'Vinkelgata']]
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
@@ -111,7 +111,7 @@ describe('overpassIntegration', () => {
       country: 'USA',
       city: 'Los Angleles',
       neighborhood: 'Boyle Heights',
-      intersections: [['East 1st St', 'North Savannah Street'], ['East 1st St', 'North Saratoga Street"']]
+      intersections: [['East 1st St', 'North Savannah Street'], ['East 1st St', 'North Saratoga Street']]
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.mapError(
@@ -176,6 +176,31 @@ describe('overpassIntegration', () => {
             expect(
               R.length(reqStrPathThrowing('nodes', results))
             ).toEqual(4);
+            done();
+          }
+        )
+      }));
+  }, 50000);
+
+  // Here East Columbia Avenue becomes West Columbia Avenue
+  test('fetchOSMBlockWhereMainBlockChangesName', done => {
+    expect.assertions(1);
+    queryLocationOsm({
+      country: 'USA',
+      state: 'IL',
+      city: 'Champaign',
+      neighborhood: 'Downtown Champaign',
+      intersections: [
+        ['East Columbia Avenue', 'North Neil Street'],
+        ['West Columbia Avenue', 'North Randolph Street']
+      ]
+    }).run().listen(defaultRunConfig(
+      {
+        onResolved: responseResult => responseResult.map(
+          ({results, location}) => {
+            expect(
+              R.length(reqStrPathThrowing('nodes', results))
+            ).toEqual(2);
             done();
           }
         )

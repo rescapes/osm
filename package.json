@@ -58,7 +58,8 @@
     "ramda": "^0.25.0",
     "request": "^2.88.0",
     "rescape-helpers": "^1.1.68",
-    "rescape-ramda": "^1.5.17"
+    "rescape-ramda": "^1.5.17",
+    "string-similarity": "^3.0.0"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",

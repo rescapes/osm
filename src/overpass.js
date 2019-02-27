@@ -25,6 +25,7 @@ import bbox from '@turf/bbox';
 import {concatFeatures} from 'rescape-helpers';
 import {googleIntersectionTask} from './googleLocation';
 import {nominatimTask} from './search';
+import {compareTwoStrings} from 'string-similarity'
 
 const predicate = R.allPass([
   // Not null
@@ -308,7 +309,9 @@ export const fetchOsmRawTask = R.curry((options, query) => {
 const _createIntersectionQueryWaysDeclarations = (areaId, ways, extraWays, orderedBlocks) => {
   const wayFilters = R.join('', [osmAlways('highway'), osmNotEqual('footway', 'crossing')]);
   // Convert extra ways to a 3 item array, each containing a list of extra way ids
-  const extraWaysForBlocks = R.props(['blockname', 'intersection1', 'intersection2'], R.defaultTo({}, extraWays));
+  // The extraBlockname accounts for the rare case where the blockname is different for each intersection,
+  // like E Main St to W Main St
+  const extraWaysForBlocks = R.props(['blockname', 'intersection1', 'intersection2', 'extraBlockname'], R.defaultTo({}, extraWays));
   return R.cond([
     // We have hard-coded way ids, just set the first and last to a variable, we don't need w3 because
     // we know for sure that these two ways touch our intersection nodes
@@ -363,16 +366,20 @@ const _createIntersectionQueryNodesDeclarations = function (nodes, extraNodes, o
     [R.length, nodes => `(${R.join(' ', R.map(node => `node(${node});`, nodes))})->.nodes;`],
     // We have no orderedBlocks but we have geojsonPoints
     [R.always(R.isNil(orderedBlocks)), () => {
-
       return `node${around2} -> .nodes1;
 node${around3} -> .nodes2;
 (.nodes1; .nodes2;)->.nodes;`;
     }
     ],
-    // We
+    // If we have 4 different blocks we change the query to accomodate them
+    [R.always(R.compose(R.equals(4), R.length)(orderedBlocks)), () => {
+      return `(node(w.w1)(w.w2)${nodeFilters}${around2};
+        node(w.w3)(w.w4)${nodeFilters}${around3};
+        )->.nodes;
+        `;
+    }],
     // Otherwise search for the nodes by searching for the nodes contained in both w1 and w2 and both w1 and w3
     [R.T, () => {
-
       return `(node(w.w1)(w.w2)${nodeFilters}${around2};
         node(w.w1)(w.w3)${nodeFilters}${around3};
         )->.nodes;
@@ -386,6 +393,10 @@ const _createIntersectionQueryConstrainWaysToNodes = (ways, orderedBlocks) => {
     [R.length, ways => `(${R.map(way => `way(${way});`, ways)})->.ways;`],
     // We have no orderedBlocks but have geojsonPoints, search for all ways matching our nodes
     [R.always(R.isNil(orderedBlocks)), () => 'way[highway][footway!="crossing"](bn.nodes)->.ways;'],
+    // If we had two different main block names handle it here
+    [R.always(R.compose(R.equals(4), R.length)(orderedBlocks)),
+      () => `(.w1; .w3;) -> .wx; way.wx(bn.nodes)->.ways;`
+    ],
     // Otherwise get all w1 ways containing one or both nodes
     [R.T, () => `way.w1(bn.nodes)->.ways;`]
   ])(ways);
@@ -429,7 +440,7 @@ const _createIntersectionQueryOutput = (type, orderedBlocks) => {
 
 /**
  * Query Overpass when we optionally know the node and/or way ids ahead of time.
- * Explicit OSM ids are requred when the regular resolution using intersections would return the wrong data because of duplicate street names
+ * Explicit OSM ids are required when the regular resolution using intersections would return the wrong data because of duplicate street names
  * @param type
  * @param country
  * @param state
@@ -474,6 +485,8 @@ const constructInstersectionsQuery = ({type}, {country, state, city, intersectio
   // specify the way of the other side of the intersection and add it to the way of the named street
   const extraWays = R.view(R.lensPath(['osmOverrides', 'extraWays']), data);
   // Get the ordered blocks, unless we have hard-coded way ids
+  // This normally produces 3 blocks: The main block and the two intersecting blocks
+  // If there is no common block it returns 4 blocks where the first two are intersections and the second two are intersections
   const orderedBlocks = R.cond([
     // If we have hard-coded ways, we have no ordered blocks
     [R.always(R.length(ways)), R.always(null)],
@@ -521,8 +534,6 @@ node.nodes2(w.singleway)->.nodes2OfSingleWay;
  way.singleway(bn.nodesOfSingleWay)(if:nodes1OfSingleWay.count(nodes) == 1)(if:nodes2OfSingleWay.count(nodes) == 1)->.matchingWay;
 (.matchingWay)->.outputSet
 );
-
-
  */
 
   const query = `
@@ -582,7 +593,7 @@ const hashWay = way => {
  * @returns {[String]} The three blocks
  * @private
  */
-const _extractOrderedBlocks = (intersections) => {
+const _extractOrderedBlocks = intersections => {
 
   // Find the common street
   const streetCount = R.reduce(
@@ -594,17 +605,21 @@ const _extractOrderedBlocks = (intersections) => {
     {},
     R.flatten(intersections)
   );
-  // This should never happen
+  // This happens when the block name changes at one intersection. As long as the first blockname of each
+  // intersection is the common block, this will still work with OSM
   if (!R.find(R.equals(2), R.values(streetCount))) {
-    throw Error(`No common block in intersections: ${JSON.stringify(intersections)}`);
+    console.warn(`No common block in intersections: ${JSON.stringify(intersections)}. Will return all four streets`);
+    return R.flatten(intersections);
   }
-  // Sort each intersection, putting the common block first
-  const modifiedIntersections = R.map(
-    intersection => R.reverse(R.sortBy(street => R.prop(street, streetCount), intersection)),
-    intersections
-  );
-  // List the 3 blocks: common block and then other two blocks
-  return [R.head(R.head(modifiedIntersections)), ...R.map(R.last, modifiedIntersections)];
+  else {
+    // Sort each intersection, putting the common block first
+    const modifiedIntersections = R.map(
+      intersection => R.reverse(R.sortBy(street => R.prop(street, streetCount), intersection)),
+      intersections
+    );
+    // List the 3 blocks: common block and then other two blocks
+    return [R.head(R.head(modifiedIntersections)), ...R.map(R.last, modifiedIntersections)];
+  }
 };
 
 /***
@@ -1033,13 +1048,32 @@ export const queryLocationOsm = location => {
         // Task Result -> Task Result
         location => mapMDeep(2,
           // Replace the intersections with the fully qualified names
-          googleIntersectionObjs => R.merge(
-            location,
-            {
-              intersections: R.map(R.prop('intersection'), googleIntersectionObjs),
-              googleIntersectionObjs
-            }
-          ),
+          googleIntersectionObjs => {
+            return R.merge(
+              location,
+              {
+                intersections: R.zipWith(
+                  (googleIntersectionObj, locationIntersection) => {
+                    const googleIntersection = R.prop('intersection', googleIntersectionObj);
+                    // Make sure the order of the googleIntersection streets match the original, even though
+                    // the Google one might be different to correct the name
+                    return R.sort(
+                      // Use compareTwoStrings to rank the similarity and subtract from 1 so the most similar
+                      // wins
+                      googleIntersectionStreetname => 1 - compareTwoStrings(
+                        googleIntersectionStreetname,
+                        reqStrPathThrowing('0', locationIntersection)
+                      ),
+                      googleIntersection
+                    )
+                  },
+                  googleIntersectionObjs,
+                  R.prop('intersections', location)
+                ),
+                googleIntersectionObjs
+              }
+            );
+          },
           googleIntersectionTask(location)
         )
       ]

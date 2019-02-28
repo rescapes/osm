@@ -17,7 +17,6 @@ import {
   findOneThrowing, mapKeys,
   mergeAllWithKey, removeDuplicateObjectsByProp,
   reqStrPathThrowing, traverseReduceWhile, resultToTaskNeedingResult, resultToTask, resultToTaskWithResult, mapMDeep
-
 } from 'rescape-ramda';
 import os from 'os';
 import squareGrid from '@turf/square-grid';
@@ -25,7 +24,7 @@ import bbox from '@turf/bbox';
 import {concatFeatures} from 'rescape-helpers';
 import {googleIntersectionTask} from './googleLocation';
 import {nominatimTask} from './search';
-import {compareTwoStrings} from 'string-similarity'
+import {compareTwoStrings} from 'string-similarity';
 
 const predicate = R.allPass([
   // Not null
@@ -357,7 +356,7 @@ const _createIntersectionQueryNodesDeclarations = function (nodes, extraNodes, o
   )(geojsonPoints);
 
   // Limitations on nodes. For instance they can't be tagged as traffic signals!
-  const nodeFilters = R.join('', [osmNotEqual('highway', 'traffic_signals')]);
+  const nodeFilters = R.join('', [osmNotEqual('traffic_signals', 'signal')]);
 
   // Declare the node variables
   // Get the two intersection nodes
@@ -623,7 +622,7 @@ const _extractOrderedBlocks = intersections => {
 };
 
 /***
- * Reduces a LineString feature by it's head and last point
+ * Reduces a LineString feature by its head and last point
  * @param {Object} result The accumulating result. This might already be filled with other features.
  * The return value adds this features head and last points to the result. The form of this is
  * {
@@ -985,6 +984,7 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
     R.values
   )(modified_lookup);
 
+  // Reduce a LineString feature by its head and last point
   const finalLookup = R.reduce(
     (result, feature) => {
       return _reduceFeaturesByHeadAndLast(result, feature);
@@ -1065,7 +1065,7 @@ export const queryLocationOsm = location => {
                         reqStrPathThrowing('0', locationIntersection)
                       ),
                       googleIntersection
-                    )
+                    );
                   },
                   googleIntersectionObjs,
                   R.prop('intersections', location)
@@ -1232,7 +1232,16 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
  */
 export const _cleanGeojson = feature => {
   const tagsLens = R.lensPath(['properties', 'tags']);
-  return R.over(tagsLens, mapKeys(R.when(R.contains(':'), R.replace(/:/g, '__'))), feature);
+  return R.over(
+    tagsLens,
+    mapKeys(
+      R.when(
+        R.contains(':'),
+        R.replace(/:/g, '__')
+      )
+    ),
+    feature
+  );
 };
 
 /**
@@ -1279,7 +1288,15 @@ const _queryOverpassForBlockTask = queries => {
     resultToTaskNeedingResult(
       ({wayResponse, nodeResponse}) => of(getFeaturesOfBlock(
         // Clean the features of each first
-        ...R.map(response => R.map(_cleanGeojson, reqStrPathThrowing('features', response)), [wayResponse, nodeResponse])
+        ...R.compose(
+          ({wayResponse, nodeResponse}) => R.map(
+            response => R.map(
+              _cleanGeojson,
+              reqStrPathThrowing('features', response)
+            ),
+            [wayResponse, nodeResponse]
+          ),
+        )({wayResponse, nodeResponse})
       ))
     ),
 

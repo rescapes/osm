@@ -28,6 +28,7 @@ describe('overpassIntegration', () => {
       country: 'USA',
       state: 'California',
       city: 'Oakland',
+      neighborhood: 'Adams Point',
       // Intentionally put Grand Ave a different positions
       intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
     }).run().listen(defaultRunConfig(
@@ -154,7 +155,7 @@ describe('overpassIntegration', () => {
   // Make sure we only get nodes back that are intersections, not things like traffic light
   // This road is divided and one side of one intersection intersects Bulfinch Road but the other
   // side intersects a service road, so we add extraWays.intersection2: [16702952] for the service road's way id
-  test('fetchOsmBlockCharlotteWithSeparatedLanesAndTrafficSignalNodes', done => {
+  test('fetchOsmBlockWithSeparatedLanesAndTrafficSignalNodes', done => {
     expect.assertions(1);
     queryLocationOsm({
       country: 'USA',
@@ -180,7 +181,7 @@ describe('overpassIntegration', () => {
           }
         )
       }));
-  }, 50000);
+  }, 500000);
 
   // Here East Columbia Avenue becomes West Columbia Avenue
   test('fetchOSMBlockWhereMainBlockChangesName', done => {

@@ -136,6 +136,27 @@ describe('googleLocation', () => {
     },
     20000);
 
+  test('geocodeAddressWithBothIntersectionOrdersFailesTask', done => {
+      geocodeAddressWithBothIntersectionOrdersTask({
+        country: 'USA',
+        state: 'IL',
+        city: 'Peoria',
+        // Google can't find this, but if you reverse these names it does find it, sigh
+        // This test shows that are code will reverse the intersection if it fails the first time
+        intersections: [['W Main St', 'N Maplewood Ave']]
+      }).run().listen(
+        defaultRunConfig({
+          onResolved:
+            result => result.mapError(
+              errorValue => {
+                expect(errorValue.error).toBeTruthy()
+                done();
+              }
+            )
+        })
+      );
+    },
+    20000);
   test('geocodeAddressWithBothIntersectionOrdersTaskWithLatLon', done => {
       geocodeAddressWithBothIntersectionOrdersTask({
         country: 'USA',
@@ -246,29 +267,7 @@ describe('googleLocation', () => {
     );
   });
 
-  // TODO this returns successful now but the second intersection is North Capitol St NE & I St NE,
-  // which isn't what is wanted here
-  /*
-  test('geocodeBadAddress', done => {
-    const intersections = [
-      ['C St NE', 'Delaware Ave'],
-      ['C St NE', 'N Capitol St']
-    ];
-    geocodeBlockAddressesTask({
-      country: 'USA',
-      state: 'DC',
-      city: 'Washington',
-      intersections
-    }).run().listen(
-      defaultRunConfig({
-        onResolved: resultsResult => resultsResult.mapError(error => {
-          expect(error.error).toEqual('Did not receive exactly one location');
-          done();
-        })
-      })
-    );
-  });
-  */
+
 
   test('geojsonCenterOfBlockAddress', done => {
     const intersections = [

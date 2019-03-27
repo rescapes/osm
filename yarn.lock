@@ -2988,6 +2988,10 @@ estree-walker@^0.5.1, estree-walker@^0.5.2:
   version "0.5.2"
   resolved "https://registry.yarnpkg.com/estree-walker/-/estree-walker-0.5.2.tgz#d3850be7529c9580d815600b53126515e146dd39"
 
+estree-walker@^0.6.0:
+  version "0.6.0"
+  resolved "https://registry.yarnpkg.com/estree-walker/-/estree-walker-0.6.0.tgz#5d865327c44a618dde5699f763891ae31f257dae"
+
 esutils@^2.0.2:
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/esutils/-/esutils-2.0.2.tgz#0abf4f1caa5bcb1f7a9d8acc6dea4faaa04bac9b"
@@ -3237,6 +3241,10 @@ flat-cache@^1.2.1:
 folktale@^2.1.0, folktale@^2.3.0:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/folktale/-/folktale-2.3.0.tgz#1c2bd731236662dc6928417e99542395c40f74cb"
+
+folktale@^2.3.2:
+  version "2.3.2"
+  resolved "https://registry.yarnpkg.com/folktale/-/folktale-2.3.2.tgz#38231b039e5ef36989920cbf805bf6b227bf4fd4"
 
 follow-redirects@^1.2.3, follow-redirects@^1.5.8:
   version "1.5.8"
@@ -5743,9 +5751,9 @@ rescape-helpers@^1.1.49, rescape-helpers@^1.1.55, rescape-helpers@^1.1.57:
     rescape-validate "^1.2.10"
     reselect "^3.0.1"
 
-rescape-helpers@^1.1.68:
-  version "1.1.68"
-  resolved "https://registry.yarnpkg.com/rescape-helpers/-/rescape-helpers-1.1.68.tgz#ef769903612399de847ba83efe12741038f6bb3e"
+rescape-helpers@^1.1.78:
+  version "1.1.78"
+  resolved "https://registry.yarnpkg.com/rescape-helpers/-/rescape-helpers-1.1.78.tgz#6aa835bbe98bc4d2152565caf583447807277d78"
   dependencies:
     "@turf/bbox" "^6.0.1"
     "@turf/bbox-polygon" "^6.0.1"
@@ -5765,10 +5773,8 @@ rescape-helpers@^1.1.68:
     immutable "^4.0.0-rc.9"
     jsdom "^12.0.0"
     longjohn "^0.2.12"
-    memoize-immutable "^3.0.0"
     moment "^2.22.2"
     moment-duration-format "^2.2.2"
-    namedtuplemap "^1.0.0"
     numeral "^2.0.6"
     parse-decimal-number "^1.0.0"
     prop-types "^15.6.2"
@@ -5777,8 +5783,8 @@ rescape-helpers@^1.1.68:
     redux-debounced "^0.5.0"
     redux-logger "^3.0.6"
     redux-thunk "^2.3.0"
-    rescape-ramda "^1.4.85"
-    rescape-validate "^1.2.10"
+    rescape-ramda "^1.5.24"
+    rescape-validate "^1.2.14"
     reselect "^3.0.1"
 
 rescape-ramda@^1.4.50, rescape-ramda@^1.4.51, rescape-ramda@^1.4.52:
@@ -5792,20 +5798,9 @@ rescape-ramda@^1.4.50, rescape-ramda@^1.4.51, rescape-ramda@^1.4.52:
     ramda-maybe "^0.18.0"
     util "^0.11.0"
 
-rescape-ramda@^1.4.85:
-  version "1.4.85"
-  resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.4.85.tgz#76fa3393d310eceb079e6de329f8a87aa6f721ae"
-  dependencies:
-    folktale "^2.3.0"
-    fs-extra "^7.0.0"
-    ramda "^0.25.0"
-    ramda-fantasy "^0.8.0"
-    ramda-maybe "^0.18.0"
-    util "^0.11.0"
-
-rescape-ramda@^1.5.17:
-  version "1.5.17"
-  resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.5.17.tgz#edf4fe86ee134e9d917b660f74fa37ae198ea73b"
+rescape-ramda@^1.5.24:
+  version "1.5.24"
+  resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.5.24.tgz#d5911c14deae8e1f09a4088c2c355879c458a164"
   dependencies:
     folktale "^2.3.0"
     fs-extra "^7.0.0"
@@ -5844,6 +5839,18 @@ rescape-validate@^1.2.10:
     ramda-fantasy-validation "^0.2.0"
     rescape-ramda "^1.4.50"
     rollup-plugin-json "^3.0.0"
+
+rescape-validate@^1.2.14:
+  version "1.2.14"
+  resolved "https://registry.yarnpkg.com/rescape-validate/-/rescape-validate-1.2.14.tgz#42cd475a06b0819b8c9c4ed93e4a5c226109cf68"
+  dependencies:
+    folktale "^2.3.2"
+    prop-types "^15.6.2"
+    ramda "^0.25.0"
+    ramda-fantasy "^0.8.0"
+    ramda-fantasy-validation "^0.2.0"
+    rescape-ramda "^1.5.24"
+    rollup-plugin-json "^4.0.0"
 
 reselect@^3.0.1:
   version "3.0.1"
@@ -5948,6 +5955,12 @@ rollup-plugin-json@^3.0.0, rollup-plugin-json@^3.1.0:
   dependencies:
     rollup-pluginutils "^2.3.1"
 
+rollup-plugin-json@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/rollup-plugin-json/-/rollup-plugin-json-4.0.0.tgz#a18da0a4b30bf5ca1ee76ddb1422afbb84ae2b9e"
+  dependencies:
+    rollup-pluginutils "^2.5.0"
+
 rollup-plugin-node-resolve@^3.4.0:
   version "3.4.0"
   resolved "https://registry.yarnpkg.com/rollup-plugin-node-resolve/-/rollup-plugin-node-resolve-3.4.0.tgz#908585eda12e393caac7498715a01e08606abc89"
@@ -5985,6 +5998,13 @@ rollup-pluginutils@^2.0.1, rollup-pluginutils@^2.3.1:
   resolved "https://registry.yarnpkg.com/rollup-pluginutils/-/rollup-pluginutils-2.3.2.tgz#78d99a0a4baa281c80e23e5d911251ed5ab27d4f"
   dependencies:
     estree-walker "^0.5.2"
+    micromatch "^3.1.10"
+
+rollup-pluginutils@^2.5.0:
+  version "2.5.0"
+  resolved "https://registry.yarnpkg.com/rollup-pluginutils/-/rollup-pluginutils-2.5.0.tgz#23be0f05ac3972ea7b08fc7870cb91fde5b23a09"
+  dependencies:
+    estree-walker "^0.6.0"
     micromatch "^3.1.10"
 
 rollup@^0.66.2:

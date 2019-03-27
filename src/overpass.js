@@ -1000,7 +1000,7 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
   // Finally remove the __reversed__ tags from the ways (we could leave them on for debugging if needed)
   return R.over(
     R.lensProp('ways'),
-    ways => R.map(R.omit('__reversed__'), ways),
+    ways => R.map(R.omit(['__reversed__']), ways),
     linkedFeatures
   );
 };

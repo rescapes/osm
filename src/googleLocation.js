@@ -211,33 +211,55 @@ export const geocodeBlockAddressesTask = location => {
  * @return {Task<Result>} Result.Ok if one ordering succeeds. Result.Error if neither succeeds
  */
 export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneIntersectionPair => {
-  return traverseReduceWhile(
-    {
-      // Return false when it's not an error to stop
-      predicate: (accumulated, value) => Result.Error.hasInstance(value),
-      // After a task returns false still add it to the accumulation since it's the answer we want
-      accumulateAfterPredicateFail: true
-    },
-    // Always the lastest returned value, either the Result.Ok or last Result.Error
-    (accum, value) => value,
-    of(),
-    R.map(
-      // Seek the geocode of each intersection ordering if we have named intersections
-      // Since this creates 2 tasks we only run as many as are needed to get a definitive answer from Google
-      locationAddress => geocodeAddressTask(locationWithOneIntersectionPair, locationAddress),
-      R.ifElse(
-        location => R.both(R.is(String), isLatLng)(reqStrPathThrowing('intersections.0', location)),
-        // If the intersection is a lat/lon, just use that for the address
-        location => [reqStrPathThrowing('intersections.0', location)],
-        // Else create two addresses with the intersection names ordered in both ways
-        // Google can sometimes only handle one ordering
-        location => [
-          addressString(location),
-          addressString(R.over(R.lensPath(['intersections', '0']), R.reverse, location))
-        ]
-      )(locationWithOneIntersectionPair)
-    )
-  );
+  return R.composeK(
+    result => of(result.mapError(errorObj => {
+      // Augment the error from the geocoding, which only accounts for the failure of the second ordering
+      const modifiedErrorObj = R.over(
+        R.lensProp('error'),
+        error => R.join('\n', [
+          error,
+          `Failed to resolve the intersection after trying both orderings ${
+            R.join(' and ', reqStrPathThrowing('intersections.0', locationWithOneIntersectionPair))
+            } and ${
+            R.join(' and ', R.reverse(reqStrPathThrowing('intersections.0', locationWithOneIntersectionPair)))
+            }`,
+          `To resolve, set the intersection lat/lons manually for location ${location.id}`
+        ]),
+        errorObj);
+      console.warn(modifiedErrorObj.error);
+      return modifiedErrorObj
+    })),
+    locationAddressStrings => traverseReduceWhile(
+      {
+        // Return false when it's not an error to stop
+        predicate: (accumulated, value) => Result.Error.hasInstance(value),
+        // After a task returns false still add it to the accumulation since it's the answer we want
+        accumulateAfterPredicateFail: true
+      },
+      // Always the lastest returned value, either the Result.Ok or last Result.Error
+      // TODO we could combine the two errors here (when both directions fail) if it mattered
+      (accum, value) => value,
+      of(),
+      R.map(
+        // Seek the geocode of each intersection ordering if we have named intersections
+        // Since this creates 2 tasks we only run as many as are needed to get a definitive answer from Google
+        locationAddress => geocodeAddressTask(locationWithOneIntersectionPair, locationAddress),
+        locationAddressStrings
+      )
+    ),
+    // Produce the two intersection name orderings if the intersections are named and we don't have lat/lons
+    locationWithOneIntersectionPair => of(R.ifElse(
+      location => R.both(R.is(String), isLatLng)(reqStrPathThrowing('intersections.0', location)),
+      // If the intersection is a lat/lon, just use that for the address
+      location => [reqStrPathThrowing('intersections.0', location)],
+      // Else create two addresses with the intersection names ordered in both ways
+      // Google can sometimes only handle one ordering
+      location => [
+        addressString(location),
+        addressString(R.over(R.lensPath(['intersections', '0']), R.reverse, location))
+      ]
+    )(locationWithOneIntersectionPair))
+  )(locationWithOneIntersectionPair);
 };
 
 /**
@@ -494,7 +516,9 @@ export const resolveGeoLocationTask = location => {
           // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
           ({location}) => R.equals(2, R.length(location.intersections)),
           // Otherwise take whatever is in the location, maybe just country or also state, city, neighborhood, etc
-          // and give a center point
+          // and give a center point. If we have a named intersection this task will try to resolve the intersection
+          // by trying names in both orders until one resolves. E.g. it tries Main St and Elm St and then Elm St and Main St
+          // if the former fails
           ({location}) => geocodeAddressWithBothIntersectionOrdersTask(location),
           ({location, address}) => geocodeAddressTask(location, address)
         )({location, address});

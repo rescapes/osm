@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "main": "lib/index.js",
   "module": "es/index.js",
@@ -57,7 +57,7 @@
     "query-overpass": "^1.5.3",
     "ramda": "^0.25.0",
     "request": "^2.88.0",
-    "rescape-helpers": "^1.1.78",
+    "rescape-helpers": "^1.1.79",
     "rescape-ramda": "^1.5.24",
     "string-similarity": "^3.0.0"
   },

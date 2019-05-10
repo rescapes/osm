@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "repository": {
     "type": "git",
@@ -148,7 +148,8 @@
           [
             "@babel/plugin-transform-runtime",
             {
-              "helpers": true
+              "helpers": true,
+              "regenerator": true
             }
           ]
         ]

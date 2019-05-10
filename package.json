@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "repository": {
     "type": "git",
@@ -53,7 +53,6 @@
     "rescape-helpers": "^1.1.83",
     "rescape-ramda": "^1.5.38",
     "string-similarity": "^3.0.0",
-    "whatwg-fetch": "^3.0.0",
     "xhr": "^2.5.0"
   },
   "devDependencies": {

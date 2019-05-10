@@ -10,52 +10,33 @@
  */
 
 // Enzyme setup
-import * as R from 'ramda';
-import {JSDOM} from 'jsdom';
+// Makes locaalStorage available in node to Apollo
+import 'localstorage-polyfill'
 
-// Set this to false to skip integration tests
-process.env.ENABLE_INTEGRATION_TESTS = true;
-if (process.env.ENABLE_INTEGRATION_TESTS) {
-  jest.unmock('query-overpass');
-}
-
-global.navigator = {
-  userAgent: 'node.js'
-};
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== 'production'){
   require('longjohn');
 }
 
-global.jsdom = new JSDOM('<!doctype html><html><body></body></html>');
-const {window} = jsdom;
-global.window = window;
-global.document = window.document;
-global.navigator = {
-  userAgent: 'node.js'
-};
-
-// jsdom, window, document, navigator setup
-// http://airbnb.io/enzyme/docs/guides/jsdom.html
-function copyProps(src, target) {
-  const props = Object.getOwnPropertyNames(src)
-    .filter(prop => typeof target[prop] === 'undefined')
-    .reduce((result, prop) => R.merge(
-      result,
-      {
-        [prop]: Object.getOwnPropertyDescriptor(src, prop)
-      }),
-      {});
-  Object.defineProperties(target, props);
-}
-
-copyProps(window, global);
-window.URL = window.URL || {};
-window.URL.createObjectURL = () => {
-};
-
 Error.stackTraceLimit = Infinity;
 
-// https://github.com/facebook/jest/issues/3251
-process.on('unhandledRejection', reason => {
-  throw reason
-});
+class LocalStorageMock {
+  constructor() {
+    this.store = {};
+  }
+
+  clear() {
+    this.store = {};
+  }
+
+  getItem(key) {
+    return this.store[key] || null;
+  }
+
+  setItem(key, value) {
+    this.store[key] = value.toString();
+  }
+
+  removeItem(key) {
+    delete this.store[key];
+  }
+};

@@ -11,40 +11,48 @@
 import {nominatimTask, mapboxGeocodeTask} from './search';
 import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import * as R from 'ramda';
+import {rejected} from 'folktale/concurrency/task';
 
 describe('search', () => {
-  test('something', () => {
-  });
-
   test('nominatimTask', done => {
-    nominatimTask({country: 'USA', state: 'New York', city: 'New York City'}).run().listen(defaultRunConfig(
+    const errors = [];
+    nominatimTask({country: 'USA', state: 'New York', city: 'New York City'}).orElse(reason => {
+      // Our task reject handler takes the reason and pushes it too, then rejects again
+      errors.push(reason);
+      // This reason is the error that goes to defaultOnRejected
+      return rejected(reason);
+    }).run().listen(defaultRunConfig(
       {
         onResolved:
           result => result.map(value => {
             expect(
               R.props(['osm_id', 'osm_type'], value)
             ).toEqual(
-              ['175905', 'relation']
+              [175905, 'relation']
             );
-            done();
           })
-      })
+      }, errors, done)
     );
   }, 100000);
 
   test('nominatimTaskNoState', done => {
-    nominatimTask({country: 'Norway', city: 'Stavanger'}).run().listen(defaultRunConfig(
+    const errors = [];
+    nominatimTask({country: 'Norway', city: 'Stavanger'}).orElse(reason => {
+      // Our task reject handler takes the reason and pushes it too, then rejects again
+      errors.push(reason);
+      // This reason is the error that goes to defaultOnRejected
+      return rejected(reason);
+    }).run().listen(defaultRunConfig(
       {
         onResolved:
           result => result.map(value => {
             expect(
               R.props(['osm_id', 'osm_type'], value)
             ).toEqual(
-              ['384615', 'relation']
+              [384615, 'relation']
             );
-            done();
           })
-      })
+      }, errors, done)
     );
   }, 100000);
 

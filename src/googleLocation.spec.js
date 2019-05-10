@@ -19,6 +19,7 @@ import {
 import * as R from 'ramda';
 import {defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
 import {turfPointToLocation} from 'rescape-helpers';
+import {rejected} from 'folktale/concurrency/task';
 
 const austinIntersections = [['Salina St', 'E 21st St'], ['Leona St and E 21st St']];
 
@@ -136,7 +137,8 @@ describe('googleLocation', () => {
     },
     20000);
 
-  test('geocodeAddressWithBothIntersectionOrdersFailesTask', done => {
+  test('geocodeAddressWithBothIntersectionOrdersFailsTask', done => {
+      const errors = [];
       geocodeAddressWithBothIntersectionOrdersTask({
         country: 'USA',
         state: 'IL',
@@ -144,16 +146,20 @@ describe('googleLocation', () => {
         // Google can't find this, but if you reverse these names it does find it, sigh
         // This test shows that are code will reverse the intersection if it fails the first time
         intersections: [['W Main St', 'N Maplewood Ave']]
+      }).orElse(reason => {
+        // Our task reject handler takes the reason and pushes it too, then rejects again
+        errors.push(reason);
+        // This reason is the error that goes to defaultOnRejected
+        return rejected(reason);
       }).run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(
               errorValue => {
-                expect(errorValue.error).toBeTruthy()
-                done();
+                expect(errorValue.error).toBeTruthy();
               }
             )
-        })
+        }, errors, done)
       );
     },
     20000);
@@ -266,7 +272,6 @@ describe('googleLocation', () => {
       })
     );
   });
-
 
 
   test('geojsonCenterOfBlockAddress', done => {
@@ -475,7 +480,7 @@ describe('googleLocation', () => {
       },
       onResolved: responseResult => responseResult.map(response => {
 
-        expect(R.map(f => f.toFixed(4), response)).toEqual( ["37.8105", "-122.2604"]);
+        expect(R.map(f => f.toFixed(4), response)).toEqual(["37.8105", "-122.2604"]);
         done();
       }).mapError(reject => {
         throw new Error(reject);

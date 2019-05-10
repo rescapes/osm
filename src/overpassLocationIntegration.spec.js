@@ -16,7 +16,7 @@ import * as R from 'ramda';
 // Integration testing. Unmocked tests
 // requires are used below since the jest includes aren't available at compile time
 describe('overpassIntegration', () => {
-  if (!process.env.ENABLE_INTEGRATION_TESTS) {
+  if (process.env.ENABLE_INTEGRATION_TESTS == 'false') {
     test('No tests enabled', () => {
     });
     return;

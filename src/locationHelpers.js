@@ -149,7 +149,7 @@ export const addressPair = location => {
     // Just skip address creation and use the lat,lng.
     R.unless(
       R.is(String),
-      intersectionPair => addressString(removeStateFromSomeCountriesForSearch(R.merge(locationProps, {intersectionPair})))
+      intersectionPair => addressString(removeStateFromSomeCountriesForSearch(R.merge(locationProps, {intersections: [intersectionPair]})))
     ),
     location.intersections
   );

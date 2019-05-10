@@ -97,7 +97,7 @@
   "peerDependencies": {},
   "jest": {
     "setupFilesAfterEnv": [
-      "<rootDir>/jestsetup.js"
+      "<rootDir>/config/jestsetup.js"
     ],
     "modulePaths": [
       "<rootDir>/src"

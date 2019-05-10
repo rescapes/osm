@@ -10,33 +10,18 @@
  */
 
 // Enzyme setup
-// Makes locaalStorage available in node to Apollo
-import 'localstorage-polyfill'
 
-if (process.env.NODE_ENV !== 'production'){
+// Set this to false to skip integration tests
+process.env.ENABLE_INTEGRATION_TESTS = 'false';
+if (process.env.ENABLE_INTEGRATION_TESTS) {
+  jest.unmock('query-overpass');
+}
+
+global.navigator = {
+  userAgent: 'node.js'
+};
+if (process.env.NODE_ENV !== 'production') {
   require('longjohn');
 }
 
 Error.stackTraceLimit = Infinity;
-
-class LocalStorageMock {
-  constructor() {
-    this.store = {};
-  }
-
-  clear() {
-    this.store = {};
-  }
-
-  getItem(key) {
-    return this.store[key] || null;
-  }
-
-  setItem(key, value) {
-    this.store[key] = value.toString();
-  }
-
-  removeItem(key) {
-    delete this.store[key];
-  }
-};

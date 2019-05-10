@@ -225,6 +225,6 @@ describe('overpassHelpers', () => {
         obj => R.set(R.lensProp('maxspeed__type'), 'sign', R.omit(['maxspeed:type'], obj)),
         feature
       )
-    )
+    );
   });
 });

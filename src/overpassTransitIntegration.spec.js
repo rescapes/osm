@@ -9,18 +9,14 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {
-  fetchTransitOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocationOsm, getFeaturesOfBlock,
-  _cleanGeojson
-} from './overpass';
-import {defaultRunConfig, removeDuplicateObjectsByProp, reqStrPathThrowing} from 'rescape-ramda';
-import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
-import * as R from 'ramda';
 
-// Set this to false to skip integration tests
-const enableIntegrationTests = true;
-jest.unmock('query-overpass');
-//jest.mock('query-overpass');
+
+import {
+  fetchTransitOsm, osmAlways, osmNotEqual
+} from './overpass';
+import {defaultRunConfig} from 'rescape-ramda';
+import {rejected} from 'folktale/concurrency/task'
+
 
 const conditions = [
   osmAlways("railway"),
@@ -35,13 +31,15 @@ const types = [
 // Integration testing. Unmocked tests
 // requires are used below since the jest includes aren't available at compile time
 describe('overpassTransitIntegration', () => {
-  if (!process.env.ENABLE_INTEGRATION_TESTS) {
-    test('No tests enabled', () => {})
+  if (process.env.ENABLE_INTEGRATION_TESTS == 'false') {
+    test('No tests enabled', () => {
+    });
     return;
   }
   const realBounds = [-118.24031352996826, 34.04298753935195, -118.21018695831297, 34.065209887879476];
 
   test('unmockedFetchTransit', done => {
+    const errors = [];
     expect.assertions(1);
     // Unmocked integration test
     // We expect over 500 results. I'll leave it fuzzy in case the source dataset changes
@@ -49,15 +47,19 @@ describe('overpassTransitIntegration', () => {
       {},
       {bounds: realBounds, filters: conditions},
       types
-    ).run().listen(defaultRunConfig(
+    ).orElse(reason => {
+      // Our task reject handler takes the reason and pushes it too, then rejects again
+      errors.push(reason);
+      // This reason is the error that goes to defaultOnRejected
+      return rejected(reason);
+    }).run().listen(defaultRunConfig(
       {
         onResolved:
           response => {
             expect(response.features.length).toBeGreaterThan(500);
-            done();
           }
       }
-    ));
+    ), errors, done);
   }, 1000000);
 
   test('unmockedFetchTransitCelled', done => {

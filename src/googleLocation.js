@@ -223,7 +223,7 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
             } and ${
             R.join(' and ', R.reverse(reqStrPathThrowing('intersections.0', locationWithOneIntersectionPair)))
             }`,
-          `To resolve, set the intersection lat/lons manually for location ${location.id}`
+          `To resolve, set the intersection lat/lons manually for location ${locationWithOneIntersectionPair.id}`
         ]),
         errorObj);
       console.warn(modifiedErrorObj.error);

@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "repository": {
     "type": "git",
@@ -48,10 +48,10 @@
     "nominatim-geocoder": "^0.1.4",
     "path": "^0.12.7",
     "query-overpass": "^1.5.3",
-    "ramda": "^0.25.0",
+    "ramda": "^0.26.1",
     "request": "^2.88.0",
-    "rescape-helpers": "^1.1.79",
-    "rescape-ramda": "^1.5.36",
+    "rescape-helpers": "^1.1.82",
+    "rescape-ramda": "^1.5.37",
     "string-similarity": "^3.0.0",
     "whatwg-fetch": "^3.0.0",
     "xhr": "^2.5.0"
@@ -69,19 +69,19 @@
     "babel-plugin-transform-es2015-modules-commonjs-simple": "^6.7.4",
     "babelrc-rollup": "^3.0.0",
     "cross-env": "^5.2.0",
-    "dotenv": "6.0.0",
-    "eslint": "5.6.1",
-    "eslint-loader": "2.1.1",
-    "eslint-plugin-import": "2.14.0",
+    "dotenv": "8.0.0",
+    "eslint": "5.16.0",
+    "eslint-loader": "2.1.2",
+    "eslint-plugin-import": "2.17.2",
     "eslint-plugin-react": "^7.11.1",
-    "file-loader": "2.0.0",
-    "fs-extra": "7.0.0",
+    "file-loader": "3.0.1",
+    "fs-extra": "7.0.1",
     "jest": "^24.7.1",
     "jsdoc-babel": "^0.5.0",
     "longjohn": "^0.2.12",
-    "promise": "8.0.2",
-    "rescape-helpers-test": "^0.0.4",
-    "rescape-sample-data": "^1.2.36",
+    "promise": "8.0.3",
+    "rescape-helpers-test": "^0.0.18",
+    "rescape-sample-data": "^1.2.53",
     "rimraf": "^2.6.2",
     "rollup": "^1.10.1",
     "rollup-plugin-babel": "^4.3.2",
@@ -96,14 +96,17 @@
   },
   "peerDependencies": {},
   "jest": {
+    "setupFilesAfterEnv": [
+      "<rootDir>/jestsetup.js"
+    ],
     "modulePaths": [
       "<rootDir>/src"
     ],
     "collectCoverageFrom": [
       "src/**/*.{js,jsx,mjs}"
     ],
-    "setupFilesAfterEnv": [
-      "<rootDir>/config/jestsetup.js"
+    "setupFiles": [
+      "<rootDir>/config/polyfills.js"
     ],
     "testMatch": [
       "<rootDir>/src/**/__tests__/**/*.{js,jsx,mjs}",
@@ -113,6 +116,7 @@
     "testURL": "http://localhost",
     "transform": {
       "^.+\\.(js|jsx|mjs)$": "<rootDir>/node_modules/babel-jest",
+      "^.+\\.css$": "<rootDir>/config/jest/cssTransform.js",
       "^(?!.*\\.(js|jsx|mjs|css|json)$)": "<rootDir>/config/jest/fileTransform.js"
     },
     "transformIgnorePatterns": [
@@ -127,8 +131,7 @@
       "json",
       "web.jsx",
       "jsx",
-      "node",
-      "mjs"
+      "node"
     ]
   },
   "babel": {

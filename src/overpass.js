@@ -25,6 +25,7 @@ import {concatFeatures} from 'rescape-helpers';
 import {googleIntersectionTask} from './googleLocation';
 import {nominatimTask} from './search';
 import {compareTwoStrings} from 'string-similarity';
+import 'regenerator-runtime'
 
 const predicate = R.allPass([
   // Not null

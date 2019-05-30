@@ -16,6 +16,8 @@ import {compactEmpty, promiseToTask} from 'rescape-ramda';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
+import {loggers} from 'rescape-log'
+const log = loggers.get('rescapeDefault');
 
 /**
  * Uses Mapbox to resolve locations based on a search string
@@ -68,7 +70,7 @@ export const nominatimTask = location => {
     secure: true, // enables ssl
     host
   });
-  console.debug(`Nominatim query: http://${host}?q=${query}&addressDetails=1&format=json&limit=3`);
+  log.debug(`Nominatim query: http://${host}?q=${query}&addressDetails=1&format=json&limit=3`);
   return promiseToTask(geocoder.search({q: query, addressDetails: 1}).then(
     results => {
       const matches = R.filter(

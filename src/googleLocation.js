@@ -33,10 +33,12 @@ import {
 } from './locationHelpers';
 import * as Result from 'folktale/result';
 import {lineString} from '@turf/helpers';
+import {loggers} from 'rescape-log'
+const log = loggers.get('rescapeDefault');
 
 // Make sure that the key here is enabled to convert addresses to geocode and to use streetview
-// https://console.developers.google.com/apis/api/geocoding_backend?project=_
-// https://console.developers.google.com/apis/api/directions_backend?project=_
+// https://log.developers.google.com/apis/api/geocoding_backend?project=_
+// https://log.developers.google.com/apis/api/directions_backend?project=_
 const apiKey = 'AIzaSyD_M7p8y3-3PUMgodb-9SJ4TtoJFLKDj6U';
 const googleMaps = googleMapsClient(apiKey);
 // HTTP OK response
@@ -109,7 +111,7 @@ export const geocodeAddressTask = R.curry((location, address) => {
         if (R.equals(1, R.length(results))) {
           const result = R.head(results);
           // Result to indicate success
-          console.debug(`Successfully geocoded location ${R.propOr('(no id given)', 'id', location)}, ${address}`);
+          log.debug(`Successfully geocoded location ${R.propOr('(no id given)', 'id', location)}, ${address}`);
           // If an error occurs here Google swallows it, so catch it
           resolver.resolve(
             Result.of(addGeojsonToGoogleResult(result))
@@ -117,7 +119,7 @@ export const geocodeAddressTask = R.curry((location, address) => {
         }
         else {
           // Ambiguous or no results. We can potentially resolve ambiguous ones
-          console.warn(`Failed to exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${address}. ${R.length(results)} results`);
+          log.warn(`Failed to exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${address}. ${R.length(results)} results`);
           resolver.resolve(Result.Error({
             error: 'Did not receive exactly one location',
             results: R.map(
@@ -131,7 +133,7 @@ export const geocodeAddressTask = R.curry((location, address) => {
       err => {
         // Handle error
         // Error to give up
-        console.warn(`Failed to geocode ${R.propOr('(no id given)', 'id', location)}, ${address}. Error ${err.json.error_message}`);
+        log.warn(`Failed to geocode ${R.propOr('(no id given)', 'id', location)}, ${address}. Error ${err.json.error_message}`);
         resolver.resolve(Result.Error({error: err.json.error_message, response: err}));
       }
     );
@@ -186,7 +188,7 @@ export const geocodeBlockAddressesTask = location => {
           // or if this is the origin there won't be any previous yet
           results => previousResultsResult.chain(previousResults => Result.of(handleResults(previousResults, results))),
           () => {
-            console.warn(`Failed to geocode 1 or both of ${R.join(', ', addressStrings(location))}`);
+            log.warn(`Failed to geocode 1 or both of ${R.join(', ', addressStrings(location))}`);
             return Result.Error(response);
           }
         )(R.propOr([], 'results', response))
@@ -226,7 +228,7 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
           `To resolve, set the intersection lat/lons manually for location ${locationWithOneIntersectionPair.id}`
         ]),
         errorObj);
-      console.warn(modifiedErrorObj.error);
+      log.warn(modifiedErrorObj.error);
       return modifiedErrorObj
     })),
     locationAddressStrings => traverseReduceWhile(
@@ -351,11 +353,11 @@ export const calculateRouteTask = R.curry((directionsService, origin, destinatio
       mode: 'walking'
     }, (error, response) => {
       if (response && response.status === OK_STATUS) {
-        console.debug(`Successfully resolved ${origin.formatted_address} to ${destination.formatted_address} to
+        log.debug(`Successfully resolved ${origin.formatted_address} to ${destination.formatted_address} to
         ${R.length(response.json.routes)} route(s)`);
         resolver.resolve(response);
       } else {
-        console.warn(`Failed to resolve ${origin.formatted_address} to ${destination.formatted_address}`);
+        log.warn(`Failed to resolve ${origin.formatted_address} to ${destination.formatted_address}`);
         resolver.reject(Result.Error({error: error.json.error_message}));
       }
     });

@@ -26,6 +26,8 @@ import {googleIntersectionTask} from './googleLocation';
 import {nominatimTask} from './search';
 import {compareTwoStrings} from 'string-similarity';
 import 'regenerator-runtime'
+import {loggers} from 'rescape-log'
+const log = loggers.get('rescapeDefault');
 
 const predicate = R.allPass([
   // Not null
@@ -159,7 +161,7 @@ const taskQuery = (options, query) => {
     // Possibly delay each call to query_overpass to avoid request rate threshold
     // Since we are executing calls sequentially, this will pause sleepBetweenCalls before each call
     setTimeout(() => {
-        console.debug(`Requesting OSM query: ${query}`);
+        log.debug(`Requesting OSM query: ${query}`);
         queryOverpass(query, (error, data) => {
           if (!error) {
             resolver.resolve(data);
@@ -608,7 +610,7 @@ const _extractOrderedBlocks = intersections => {
   // This happens when the block name changes at one intersection. As long as the first blockname of each
   // intersection is the common block, this will still work with OSM
   if (!R.find(R.equals(2), R.values(streetCount))) {
-    console.warn(`No common block in intersections: ${JSON.stringify(intersections)}. Will return all four streets`);
+    log.warn(`No common block in intersections: ${JSON.stringify(intersections)}. Will return all four streets`);
     return R.flatten(intersections);
   }
   else {
@@ -1119,7 +1121,7 @@ const _locationToQueryResults = location => {
               },
               Error: ({value}) => {
                 // If no results are found, just return null. Hopefully the other nominatin query will return something
-                console.debug(value);
+                log.debug(value);
                 return null;
               }
               // Remove nulls
@@ -1127,7 +1129,7 @@ const _locationToQueryResults = location => {
           ).mapRejected(
             // If the query fails to excute
             errorResult => errorResult.map(error => {
-              console.warn(`Giving up. Nominatim query failed with error message: ${error}`);
+              log.warn(`Giving up. Nominatim query failed with error message: ${error}`);
               return error;
             })
           ),

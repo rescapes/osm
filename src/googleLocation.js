@@ -39,7 +39,7 @@ const log = loggers.get('rescapeDefault');
 // Make sure that the key here is enabled to convert addresses to geocode and to use streetview
 // https://log.developers.google.com/apis/api/geocoding_backend?project=_
 // https://log.developers.google.com/apis/api/directions_backend?project=_
-const apiKey = 'AIzaSyD_M7p8y3-3PUMgodb-9SJ4TtoJFLKDj6U';
+const apiKey = process.env.GOOGLE_API_KEY
 const googleMaps = googleMapsClient(apiKey);
 // HTTP OK response
 const OK_STATUS = 200;

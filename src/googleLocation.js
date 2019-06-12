@@ -443,11 +443,16 @@ export const googleIntersectionTask = location => {
       responsesResult.map(
         // Result has two values, each address
         responses => R.map(
-          response => R.merge({
-            // Get the long name version
-            // Split at &
-            intersection: R.split(' & ', reqStrPathThrowing('address_components.0.long_name', response))
-          }, response),
+          response => R.when(
+            // Only parse the address_components if we have a real response
+            // We'll have a real response unless we had a lat/lon intersection and didn't bother to geocode
+            response => R.propOr(false, 'address_components', response),
+            response => R.merge({
+              // Get the long name version
+              // Split at &
+              intersection: R.split(' & ', reqStrPathThrowing('address_components.0.long_name', response))
+            }, response)
+          )(response),
           responses
         )
       )

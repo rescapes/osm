@@ -19,7 +19,7 @@ import {
   traverseReduce,
   traverseReduceWhile,
   mapMDeep,
-  mapToNamedResponseAndInputs
+  mapToNamedResponseAndInputs, reqPathThrowing
 } from 'rescape-ramda';
 import googleMapsClient from './googleMapsClient';
 import {
@@ -27,7 +27,11 @@ import {
   googleLocationToTurfPoint, locationToTurfPoint, originDestinationToLatLngString, turfPointToLocation
 } from 'rescape-helpers';
 import {
-  addressString, addressStringInBothDirectionsOfLocation, addressStrings, isLatLng, oneLocationIntersectionsFromLocation,
+  addressString,
+  addressStringInBothDirectionsOfLocation,
+  addressStrings,
+  isLatLng,
+  oneLocationIntersectionsFromLocation,
   removeStateFromSomeCountriesForSearch
 } from './locationHelpers';
 import * as Result from 'folktale/result';
@@ -442,17 +446,20 @@ export const googleIntersectionTask = location => {
     responsesResult => of(
       responsesResult.map(
         // Result has two values, each address
-        responses => R.map(
-          response => R.when(
+        responses => R.addIndex(R.map)(
+          (response, i) => R.merge({
             // Only parse the address_components if we have a real response
             // We'll have a real response unless we had a lat/lon intersection and didn't bother to geocode
-            response => R.propOr(false, 'address_components', response),
-            response => R.merge({
+            // Otherwise just use each intersection from location that we already have
+            intersection: R.ifElse(
+              response => R.propOr(false, 'address_components', response),
               // Get the long name version
               // Split at &
-              intersection: R.split(' & ', reqStrPathThrowing('address_components.0.long_name', response))
-            }, response)
-          )(response),
+              response => R.split(' & ', reqStrPathThrowing('address_components.0.long_name', response)),
+              // Use the intersection from location instead
+              () => reqPathThrowing(['intersections', i], location)
+            )(response)
+          }, response),
           responses
         )
       )

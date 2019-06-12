@@ -24,30 +24,25 @@ import {
 import googleMapsClient from './googleMapsClient';
 import {
   googleLocationToLocation,
-  googleLocationToTurfLineString,
   googleLocationToTurfPoint, locationToTurfPoint, originDestinationToLatLngString, turfPointToLocation
 } from 'rescape-helpers';
 import {
-  addressPair, addressString, addressStrings, oneLocationIntersectionsFromLocation,
+  addressString, addressStringInBothDirectionsOfLocation, addressStrings, isLatLng, oneLocationIntersectionsFromLocation,
   removeStateFromSomeCountriesForSearch
 } from './locationHelpers';
 import * as Result from 'folktale/result';
 import {lineString} from '@turf/helpers';
-import {loggers} from 'rescape-log'
+import {loggers} from 'rescape-log';
+
 const log = loggers.get('rescapeDefault');
 
 // Make sure that the key here is enabled to convert addresses to geocode and to use streetview
 // https://log.developers.google.com/apis/api/geocoding_backend?project=_
 // https://log.developers.google.com/apis/api/directions_backend?project=_
-const apiKey = process.env.GOOGLE_API_KEY
+const apiKey = process.env.GOOGLE_API_KEY;
 const googleMaps = googleMapsClient(apiKey);
 // HTTP OK response
 const OK_STATUS = 200;
-
-const latLngRegExp = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
-export const isLatLng = address => {
-  return R.lt(0, R.length(R.match(latLngRegExp, address)));
-};
 
 const addGeojsonToGoogleResult = result => {
   return R.set(
@@ -60,7 +55,9 @@ const addGeojsonToGoogleResult = result => {
 /**
  * Resolves the lat/lon from the given address
  * @param {Object} location Location object gives us context about the address. In the future we might just
- * accept a location an not an address, since we can derive the address from the location
+ * accept a location an not an address, since we can derive the address from the location.
+ * The location must be a single item array containing a lat,lon string
+ * we are resolving
  * @param {String} address Street address
  * @return {Task<Result<Object>} resolves with response in a Result if the status is OK,
  * else an Error with the error. Failed geocoding should be expected and handled. The Result
@@ -70,7 +67,8 @@ const addGeojsonToGoogleResult = result => {
 export const geocodeAddressTask = R.curry((location, address) => {
   // Since we are starting to remove address in favor of location, allow it to be null
   // address is useful if we need to choose which intersection of the location we need when their are two
-  address = address || addressString(location);
+  address = address || R.head(addressStringInBothDirectionsOfLocation(location));
+  // If the address is a lat/lon  don't bother to call Google's geocoder
   if (isLatLng(address)) {
     // Convert the lat lng string to a geojson object. Wrap in a Task and Result to match the normal flow
     return of(Result.of(
@@ -116,8 +114,7 @@ export const geocodeAddressTask = R.curry((location, address) => {
           resolver.resolve(
             Result.of(addGeojsonToGoogleResult(result))
           );
-        }
-        else {
+        } else {
           // Ambiguous or no results. We can potentially resolve ambiguous ones
           log.warn(`Failed to exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${address}. ${R.length(results)} results`);
           resolver.resolve(Result.Error({
@@ -229,7 +226,7 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
         ]),
         errorObj);
       log.warn(modifiedErrorObj.error);
-      return modifiedErrorObj
+      return modifiedErrorObj;
     })),
     locationAddressStrings => traverseReduceWhile(
       {
@@ -250,19 +247,10 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
       )
     ),
     // Produce the two intersection name orderings if the intersections are named and we don't have lat/lons
-    locationWithOneIntersectionPair => of(R.ifElse(
-      location => R.both(R.is(String), isLatLng)(reqStrPathThrowing('intersections.0', location)),
-      // If the intersection is a lat/lon, just use that for the address
-      location => [reqStrPathThrowing('intersections.0', location)],
-      // Else create two addresses with the intersection names ordered in both ways
-      // Google can sometimes only handle one ordering
-      location => [
-        addressString(location),
-        addressString(R.over(R.lensPath(['intersections', '0']), R.reverse, location))
-      ]
-    )(locationWithOneIntersectionPair))
+    locationWithOneIntersectionPair => of(addressStringInBothDirectionsOfLocation(locationWithOneIntersectionPair))
   )(locationWithOneIntersectionPair);
 };
+
 
 /**
  * Returns the geographical center point of a location pair, meaning the center
@@ -496,8 +484,7 @@ export const resolveGeoLocationTask = location => {
       center => turfPointToLocation(center),
       geojsonCenterOfBlockAddress(location)
     );
-  }
-  else {
+  } else {
     return R.composeK(
       // Map the Result value
       // Task Result Object -> Task Result Object

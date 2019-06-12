@@ -8,7 +8,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import {compactEmpty, mapMDeep} from 'rescape-ramda';
+import {compactEmpty, mapMDeep, reqStrPathThrowing} from 'rescape-ramda';
 import * as R from 'ramda';
 
 // The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
@@ -24,6 +24,11 @@ const GOOGLE_STREET_REPLACEMENTS = [
   R.replace(/East/g, 'E'),
   R.replace(/West/g, 'W')
 ];
+
+const latLngRegExp = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
+export const isLatLng = address => {
+  return R.lt(0, R.length(R.match(latLngRegExp, address)));
+};
 
 /***
  * Some countries don't resolve locations well in Google with their states, provinces, cantons, etc
@@ -49,6 +54,26 @@ export const removeStateFromSomeCountriesForSearch = location => {
 const fixWordsThatTripUpGoogle = streetName => {
   return R.reduce((name, r) => r(name), streetName, GOOGLE_STREET_REPLACEMENTS);
 };
+
+/**
+ * Given a location with one intersection. Returns them in both directions because sometimes Google
+ * give different results for each order.
+ * Example: [[Main St, Chestnut St], [Chestnut St, Main St]]
+ * @param locationWithOneIntersectionPair
+ * @returns {[String]} Two arrays of two streets or if the intersection are a lat/lon just a one item
+ * array with the lat/lon
+ */
+export const addressStringInBothDirectionsOfLocation = locationWithOneIntersectionPair => R.ifElse(
+  location => R.both(R.is(String), isLatLng)(reqStrPathThrowing('intersections.0', location)),
+  // If the intersection is a lat/lon, just use that for the address
+  location => [reqStrPathThrowing('intersections.0', location)],
+  // Else create two addresses with the intersection names ordered in both ways
+  // Google can sometimes only handle one ordering
+  location => [
+    addressString(location),
+    addressString(R.over(R.lensPath(['intersections', '0']), R.reverse, location))
+  ]
+)(locationWithOneIntersectionPair);
 
 /**
  * Creates an address string for geolocation resolution

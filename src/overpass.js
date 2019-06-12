@@ -1187,9 +1187,9 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
     // A chained Task that runs 1 or 2 queries as needed
     locationVariationsOfOsm => traverseReduceWhile(
       {
-        // We stop when the predicate fails
-        // Keep searching until we have a Result.Ok
+        // Stop searching when we have a Result.Ok
         predicate: (previousResult, result) => R.complement(Result.Ok.hasInstance)(result),
+        // Take the the last accumulation after the predicate fails
         accumulateAfterPredicateFail: true
       },
 
@@ -1325,9 +1325,10 @@ const _queryOverpassForBlockTask = queries => {
       )(R.map(reqStrPathThrowing('features'), {nodes: nodeResponse, ways: wayResponse}))
     ),
 
-    // Then perform the queries in parallel
+    // Perform the OSM queries in parallel
     queries => waitAll(
-      // Wait 2 seconds for the second call, Overpass is super picky
+      // TODO Wait 2 seconds for the second call, Overpass is super picky
+      // When we have our own serve we can disable the delay
       R.addIndex(R.map)(
         (query, i) => R.map(
           // Then map the task response to include the query for debugging/error resolution

@@ -17,7 +17,7 @@ import {
   geocodeAddressWithBothIntersectionOrdersTask
 } from './googleLocation';
 import * as R from 'ramda';
-import {defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import {turfPointToLocation} from 'rescape-helpers';
 import {rejected} from 'folktale/concurrency/task';
 
@@ -191,25 +191,26 @@ describe('googleLocation', () => {
     20000);
 
   test('geocodeAddressWithLatLng', done => {
-      const somewhereSpecial = [60.004471, -44.663669];
+      const errors = [];
       // Leave the location blank since we don't need it when we use a lat/lng
-      geocodeAddressTask({}, R.join(', ', somewhereSpecial)).run().listen(
+      const latLon = '60.004471, -44.663669'
+      geocodeAddressTask({intersections: [latLon]}, null).run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(
               errorValue => {
                 // This should not happen
                 expect(R.length(errorValue.results)).toEqual(1);
-                done();
               }
             ).map(
               resultValue => {
                 // Reverse the point to match the geojson format
-                expect(resultValue.geojson.geometry.coordinates).toEqual(R.reverse(somewhereSpecial));
-                done();
+                expect(resultValue.geojson.geometry.coordinates).toEqual(
+                  R.compose(R.reverse, R.map(s => parseFloat(s)), R.split(','), R.head)([latLon])
+                )
               }
             )
-        })
+        }, errors, done)
       );
     },
     5000);
@@ -551,4 +552,5 @@ describe('googleLocation', () => {
       )
     });
   }, 20000);
+
 });

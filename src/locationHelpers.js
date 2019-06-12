@@ -26,9 +26,24 @@ const GOOGLE_STREET_REPLACEMENTS = [
 ];
 
 const latLngRegExp = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
+/***
+ * True if the given address is a lat,lng
+ * @param address
+ * @returns {f1}
+ */
 export const isLatLng = address => {
   return R.lt(0, R.length(R.match(latLngRegExp, address)));
 };
+
+/**
+ * True if either location intersection is a lat,lng, not a pair of streets
+ * @param {Object} location
+ * @returns {Boolean}
+ */
+export const hasLatLngIntersections = location => R.any(
+  R.is(String),
+  R.prop('intersections', location)
+);
 
 /***
  * Some countries don't resolve locations well in Google with their states, provinces, cantons, etc
@@ -124,7 +139,7 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
  * @param {[[String]]} location.intersections Two pairs of intersection names
  */
 export const addressStrings = location => {
-  return R.map(addressString, oneLocationIntersectionsFromLocation(location))
+  return R.map(addressString, oneLocationIntersectionsFromLocation(location));
 };
 
 /**

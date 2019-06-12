@@ -14,9 +14,17 @@ import * as R from 'ramda';
 import * as Result from 'folktale/result';
 import {
   compact,
-  findOneThrowing, mapKeys,
-  mergeAllWithKey, removeDuplicateObjectsByProp,
-  reqStrPathThrowing, traverseReduceWhile, resultToTaskNeedingResult, resultToTask, resultToTaskWithResult, mapMDeep
+  findOneThrowing,
+  mapKeys,
+  mergeAllWithKey,
+  removeDuplicateObjectsByProp,
+  reqStrPathThrowing,
+  traverseReduceWhile,
+  resultToTaskNeedingResult,
+  resultToTask,
+  resultToTaskWithResult,
+  mapMDeep,
+  compactEmpty
 } from 'rescape-ramda';
 import os from 'os';
 import squareGrid from '@turf/square-grid';
@@ -25,8 +33,10 @@ import {concatFeatures} from 'rescape-helpers';
 import {googleIntersectionTask} from './googleLocation';
 import {nominatimTask} from './search';
 import {compareTwoStrings} from 'string-similarity';
-import 'regenerator-runtime'
-import {loggers} from 'rescape-log'
+import 'regenerator-runtime';
+import {loggers} from 'rescape-log';
+import {hasLatLngIntersections, isLatLng} from './locationHelpers';
+
 const log = loggers.get('rescapeDefault');
 
 const predicate = R.allPass([
@@ -429,13 +439,13 @@ const _createIntersectionQueryOutput = (type, orderedBlocks) => {
  (.nodes1OfSingleWay; .nodes2OfSingleWay;)-> .nodesOfSingleWay;
  way.singleway(bn.nodesOfSingleWay)(if:nodes1OfSingleWay.count(nodes) == 1)(if:nodes2OfSingleWay.count(nodes) == 1)->.matchingWays;
  node.nodesOfSingleWay(if:nodes1OfSingleWay.count(nodes) == 1)(if:nodes2OfSingleWay.count(nodes) == 1)->.matchingNodes;
-  ${ outputVariable } out geom;
+  ${outputVariable} out geom;
 )`,
     // If we had orderedBlocks we're already done
     () => `
     .ways -> .matchingWays;
     .nodes -> .matchingNodes;
-    ${ outputVariable } out geom;
+    ${outputVariable} out geom;
   `
   )(orderedBlocks);
 };
@@ -612,8 +622,7 @@ const _extractOrderedBlocks = intersections => {
   if (!R.find(R.equals(2), R.values(streetCount))) {
     log.warn(`No common block in intersections: ${JSON.stringify(intersections)}. Will return all four streets`);
     return R.flatten(intersections);
-  }
-  else {
+  } else {
     // Sort each intersection, putting the common block first
     const modifiedIntersections = R.map(
       intersection => R.reverse(R.sortBy(street => R.prop(street, streetCount), intersection)),
@@ -1057,6 +1066,10 @@ export const queryLocationOsm = location => {
               {
                 intersections: R.zipWith(
                   (googleIntersectionObj, locationIntersection) => {
+                    // If our intersection is a 'lat/lon' string, not a pair of streets, just return it
+                    if (R.is(String, locationIntersection)) {
+                      return locationIntersection;
+                    }
                     const googleIntersection = R.prop('intersection', googleIntersectionObj);
                     // Make sure the order of the googleIntersection streets match the original, even though
                     // the Google one might be different to correct the name
@@ -1101,7 +1114,13 @@ const _locationToQueryResults = location => {
   // Sort LineStrings (ways) so we know how they are connected
   return R.composeK(
     // Chain our queries until we get a result or fail
-    locationVariationsWithOsm => _queryOverpassForBlockTaskUntilFound(locationVariationsWithOsm),
+    locationVariationsWithOsm => R.ifElse(
+      R.length,
+      _queryOverpassForBlockTaskUntilFound,
+      // No OSM ids resolved, try to query with the location
+      // If it has lat/lons in the intersection we can resolve the OSM data
+      () => _queryOverpassForBlockTaskUntilFound([location])
+    )(locationVariationsWithOsm),
     // Remove failed nominatim queries
     results => of(compact(results)),
     // Use OSM Nominatim to get relation of the neighborhood (if it exists) and the city
@@ -1133,16 +1152,18 @@ const _locationToQueryResults = location => {
               return error;
             })
           ),
-        // Query with neighborhood (if given) and without. We probably won't need the area from the without
-        // query but it doesn't hurt to grab it here
-        R.concat(
+        // Query with neighborhood (if given) and without.
+        // We'll only actually use the first one that resolves
+        compactEmpty(R.concat(
           R.ifElse(
             R.prop('neighborhood'),
             R.always([['country', 'state', 'city', 'neighborhood']]),
             R.always([])
           )(location),
-          [['country', 'state', 'city']]
-        )
+          // This will either have country, state, city or country, city or nothing if it's a location
+          // with just a lot/long
+          [R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city'])]
+        ))
       )
     )
   )(location);
@@ -1210,15 +1231,31 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
             reqStrPathThrowing('geojson'),
             R.propOr([], 'googleIntersectionObjs', locationWithOsm)
           );
-          return R.concat([
-              // First try to find the location using intersections
-              _queryOverpassForBlockWithOptionalOsmOverridesTask(locationWithOsm)
-            ], R.unless(R.isEmpty, geojsonPoints => [
-              // If that fails try using both intersections and Google intersection points
-              _queryOverpassForBlockWithOptionalOsmOverridesTask(locationWithOsm, geojsonPoints),
-              // If that fails try using only Google intersection points
-              _queryOverpassForBlockWithOptionalOsmOverridesTask(R.omit(['intersections'], locationWithOsm), geojsonPoints)
-            ])(geojsonPoints)
+          return R.ifElse(
+            location => hasLatLngIntersections(location),
+            // Query with points if we only have lat/lng intersections
+            () => [
+              _queryOverpassForBlockWithOptionalOsmOverridesTask(
+                R.omit(['intersections'], locationWithOsm),
+                geojsonPoints)
+            ],
+            location => R.concat(
+              [
+                // First try to find the location using intersections
+                _queryOverpassForBlockWithOptionalOsmOverridesTask(location)
+              ],
+              R.unless(
+                R.isEmpty,
+                geojsonPoints => [
+                  // Next try using both intersections and Google intersection points
+                  _queryOverpassForBlockWithOptionalOsmOverridesTask(locationWithOsm, geojsonPoints),
+                  // Finally try using only Google intersection points
+                  _queryOverpassForBlockWithOptionalOsmOverridesTask(
+                    R.omit(['intersections'], locationWithOsm),
+                    geojsonPoints)
+                ]
+              )(geojsonPoints)
+            )(locationWithOsm)
           );
         },
         locationVariationsOfOsm
@@ -1298,7 +1335,7 @@ const _queryOverpassForBlockTask = queries => {
               reqStrPathThrowing('features', response)
             ),
             [wayResponse, nodeResponse]
-          ),
+          )
         )({wayResponse, nodeResponse})
       ))
     ),

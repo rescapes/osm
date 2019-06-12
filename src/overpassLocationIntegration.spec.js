@@ -16,11 +16,13 @@ import * as R from 'ramda';
 // Integration testing. Unmocked tests
 // requires are used below since the jest includes aren't available at compile time
 describe('overpassIntegration', () => {
+  /*
   if (process.env.ENABLE_INTEGRATION_TESTS == 'false') {
     test('No tests enabled', () => {
     });
     return;
   }
+   */
 
   test('fetchOsmOaklandBlock', done => {
     expect.assertions(1);
@@ -207,5 +209,23 @@ describe('overpassIntegration', () => {
         )
       }));
   }, 50000);
+
+
+  test('fetchLatLonOnyLocation', done => {
+    const errors = []
+    expect.assertions(1);
+    queryLocationOsm({
+      // Intentionally put Grand Ave a different positions
+      intersections: ["40.5961778,-73.90761", "40.5836635,-73.8937054"]
+    }).run().listen(defaultRunConfig(
+      {
+        onResolved: responseResult => responseResult.map(
+          ({results, location}) => {
+            // Expect it to be two ways
+            expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/417728789', 'way/417728790']);
+          }
+        )
+      }, errors, done));
+  }, 1000000);
 });
 

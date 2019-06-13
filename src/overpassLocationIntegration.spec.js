@@ -213,7 +213,7 @@ describe('overpassIntegration', () => {
 
   test('fetchLatLonOnyLocation', done => {
     const errors = [];
-    expect.assertions(2);
+    expect.assertions(3);
     queryLocationOsm({
       intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']
     }).run().listen(defaultRunToResultConfig(
@@ -221,7 +221,18 @@ describe('overpassIntegration', () => {
         onResolved: ({results, location}) => {
           // Expect it to be two ways
           expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/5707230']);
-          expect(R.map(R.prop('id'), R.prop('nodes', results))).toEqual(['node/42901997', 'node/6245285262']);
+          expect(R.map(R.prop('id'), R.prop('nodes', results))).toEqual(['node/42875319', 'node/42901997']);
+          // Expect our intersection names
+          expect(reqStrPathThrowing('intersections', results)).toEqual({
+            "42875319": [
+              "134th Street",
+              "South Conduit Avenue"
+            ],
+            "42901997": [
+              "134th Street",
+              "149th Avenue"
+            ]
+          })
         }
       }, errors, done));
   }, 10000);

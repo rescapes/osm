@@ -11,7 +11,7 @@
 
 import {
   fetchTransitOsm, osmAlways, osmNotEqual, fetchOsmRawTask, queryLocationOsm, getFeaturesOfBlock,
-  _cleanGeojson
+  _cleanGeojson, _intersectionsFromWaysAndNodes
 } from './overpass';
 import {defaultRunConfig, removeDuplicateObjectsByProp, reqStrPathThrowing} from 'rescape-ramda';
 import {LA_SAMPLE, LA_BOUNDS} from './queryOverpass.sample';
@@ -227,4 +227,98 @@ describe('overpassHelpers', () => {
       )
     );
   });
+
+  test('_intersectionsFromWaysAndNodes', () => {
+      const wayFeatures = [
+        {
+          "type": "Feature",
+          "id": "way/5707230",
+          "properties": {
+            "type": "way",
+            "id": 5707230,
+            "tags": {
+              "name": "134th Street"
+            }
+          }
+        }
+      ];
+      const nodeIdToWaysOfNodeFeatures = {
+        "42875319": [
+          {
+            "type": "Feature",
+            "id": "way/5707230",
+            "properties": {
+              "type": "way",
+              "id": 5707230,
+              "tags": {
+                "name": "134th Street"
+              }
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/122633464",
+            "properties": {
+              "type": "way",
+              "id": 122633464,
+              "tags": {
+                "name": "South Conduit Avenue"
+              }
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/220107105",
+            "properties": {
+              "type": "way",
+              "id": 220107105,
+              "tags": {
+                "name": "South Conduit Avenue"
+              }
+            }
+          }
+        ],
+        "42901997": [
+          {
+            "type": "Feature",
+            "id": "way/5707230",
+            "properties": {
+              "type": "way",
+              "id": 5707230,
+              "tags": {
+                "name": "134th Street"
+              }
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/219610989",
+            "properties": {
+              "type": "way",
+              "id": 219610989,
+              "tags": {
+                "name": "149th Avenue"
+              }
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/219610991",
+            "properties": {
+              "type": "way",
+              "id": 219610991,
+              "tags": {
+                "name": "134th Street"
+              }
+            }
+          }
+        ]
+      };
+      expect(
+        _intersectionsFromWaysAndNodes(wayFeatures, nodeIdToWaysOfNodeFeatures)
+      ).toEqual(
+        ['134th Street', 'South Conduit Avenue']
+      );
+    }
+  );
 });

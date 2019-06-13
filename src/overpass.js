@@ -374,7 +374,7 @@ const _filterForIntersectionNodesAroundPoint = (around, outputNodeName) => {
   return `node${around} -> .${possibleNodes};
 foreach.${possibleNodes} ->.${oneOfPossibleNodes}
 {
-  way(bn.${oneOfPossibleNodes})->.${waysOfOneOfPossibleNodes};
+  way(bn.${oneOfPossibleNodes})[highway]["footway" != "crossing"]->.${waysOfOneOfPossibleNodes};
   // If we have at least 2 ways, we have an intersection
   if (${waysOfOneOfPossibleNodes}.count(ways) >= 2)
   {
@@ -384,7 +384,6 @@ foreach.${possibleNodes} ->.${oneOfPossibleNodes}
 };
 
 const _createIntersectionQueryNodesDeclarations = function (nodes, extraNodes, orderedBlocks, geojsonPoints) {
-
 
   // If geojsonPoints are given we can use them to constrain the 2 nodes
   const [around1, around2] = R.ifElse(
@@ -1335,7 +1334,7 @@ export const _cleanGeojson = feature => {
 const waysOfNodeQuery = nodeId => {
   return `
     node(id:${nodeId})->.matchingNode;
-    way(bn.matchingNode)->.matchingWays;
+    way(bn.matchingNode)[highway]["footway" != "crossing"]->.matchingWays;
     .matchingWays out geom;
   `;
 };
@@ -1380,30 +1379,57 @@ const _queryOverpassForBlockWithOptionalOsmOverridesTask = (locationWithOsm, geo
  * @returns {Task<Result<Object>>} The Geojson 2 nodes and way features in a Result.Ok. If an error occurs,
  * namely no that the nodes or ways aren't found, a Result.Error is returned. Object has a ways, nodes,
  * and waysOfNodes property. The latter are the ways around each node keyed by node ids, which we can
- * use to resolve the street names of the block and intersecting streets
+ * use to resolve the street names of the block and intersecting streets. There is also an intersections
+ * key with the street names. intersections is an object keyed by node id and valued by the unique list of streets.
+ * The first street is always street matching the way's street and the remaining are alphabetical
+ * Normally there are only two unique streets for each intersection.
+ * If one or both streets change names or for a >4-way intersection, there can be more.
+ * If we handle roundabouts correctly in the future these could also account for more
  */
 const _queryOverpassForBlockTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
     resultToTaskNeedingResult(
-      ({wayResponse, nodeResponse, waysOfNodeResponses}) => of(
-        getFeaturesOfBlock(
-          // Clean the features of each first
-          ...R.compose(
-            ({wayResponse, nodeResponse}) => R.map(
-              response => R.map(
-                _cleanGeojson,
-                reqStrPathThrowing('features', response)
-              ),
-              [wayResponse, nodeResponse]
+      ({wayResponse, nodeResponse, waysOfNodeResponses}) => {
+        const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('features'), [wayResponse, nodeResponse]);
+        const nodeIdToWaysOfNodeFeatures = R.map(reqStrPathThrowing('features'), waysOfNodeResponses);
+        return of(
+          R.merge(
+            {
+              // Calculate the street names and put them in intersections
+              // intersections is an object keyed by node id and valued by the unique list of streets.
+              // The first street is always street matching the way's street and the remaining are alphabetical
+              // Normally there are only two unique streets for each intersection.
+              // If one or both streets change names or for a >4-way intersection, there can be more.
+              // If we handle roundabouts correctly in the future these could also account for more
+              intersections: _intersectionsFromWaysAndNodes(wayFeatures, nodeIdToWaysOfNodeFeatures),
+              // Clean the geojson of each way intersecting  each node
+              // Then store the results in {waysOfNodes => {nodeN: ..., nodeM:, ...}}
+              waysOfNodes: R.map(
+                waysOfNodeFeatures => R.map(
+                  // Clean the features of each first
+                  _cleanGeojson,
+                  waysOfNodeFeatures
+                ),
+                nodeIdToWaysOfNodeFeatures
+              )
+            },
+            // Clean the geojson of each way and node feature to remove weird characters that mess up API storage
+            // Then store the features in {ways: ..., nodes: ...}
+            getFeaturesOfBlock(
+              // Clean the features of each first
+              ...R.map(
+                features => R.map(_cleanGeojson, features),
+                [wayFeatures, nodeFeatures]
+              )
             )
-          )({wayResponse, nodeResponse})
-        )
-      )
+          )
+        );
+      }
     ),
 
     // If our predicate fails, give up with a Response.Error
-    // Task [Object] -> Task (Result.Ok (Object) | Result.Error (Object)
+    // Task [Object] -> Task Result.Ok (Object) | Result.Error (Object)
     ({
        way,
        node,
@@ -1484,6 +1510,57 @@ const _queryOverpassForBlockTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQ
           ),
           queries
         )
-      ))
+      )
+    )
   )({way: wayQuery, node: nodeQuery});
+};
+
+/**
+ *
+ * @param {[Object]} wayFeatures The way features of a single block. This could be one or more ways:
+ * If the way splits half way through the block or if it's a boulevard, highway, etc with a divided roads
+ * @param {Object} nodeIdToWaysOfNodeFeatures Keyed by node id and value by a list of way features that
+ * intersect the node. Each node represents an intersection of the block
+ * @returns {Object} An object keyed by the same node ids but valued by a list of street names of the
+ * ways that intersect the node. The street names list first the street matching one of the wayFeatures
+ * and the remaining are alphabetical. If a way has no name the way's id string is used
+ * @private
+ */
+export const _intersectionsFromWaysAndNodes = (wayFeatures, nodeIdToWaysOfNodeFeatures) => {
+  const nameOrIdOfFeature = feature => strPathOr(reqStrPathThrowing('id', feature), 'properties.tags.name', feature);
+  const wayNames = R.map(nameOrIdOfFeature, wayFeatures);
+  const wayIds = R.map(R.prop('id'), wayFeatures);
+  const wayMatches = R.concat(wayIds, wayNames);
+  // Scores a featureName 100 if it matches a way name or id, else 0
+  const wayMatchWeight = R.ifElse(featureName => R.contains(featureName, wayMatches), R.always(1), R.always(0));
+
+  return R.map(
+    waysOfNodeFeatures => {
+      return R.compose(
+        // Take the name
+        R.map(R.prop('name')),
+        // Sort by first matching a way and second alphabetically
+        uniqueFeatures => R.sortWith(
+          [
+            // Most points for matching the way
+            R.descend(wayMatchWeight),
+            // Small points for alphabetical name
+            R.ascend(R.prop('name'))
+          ],
+          uniqueFeatures
+        ),
+        // Get uniquely named features
+        featuresWithNames => R.uniqBy(
+          R.prop('name'),
+          featuresWithNames
+        ),
+        // Name features by the name tag or failing that the way id
+        features => R.map(
+          feature => ({feature, name: nameOrIdOfFeature(feature)}),
+          features
+        )
+      )(waysOfNodeFeatures);
+    },
+    nodeIdToWaysOfNodeFeatures
+  );
 };

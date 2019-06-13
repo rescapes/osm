@@ -10,7 +10,7 @@
  */
 
 import {queryLocationOsm} from './overpass';
-import {defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import * as R from 'ramda';
 
 // Integration testing. Unmocked tests
@@ -212,20 +212,18 @@ describe('overpassIntegration', () => {
 
 
   test('fetchLatLonOnyLocation', done => {
-    const errors = []
-    expect.assertions(1);
+    const errors = [];
+    expect.assertions(2);
     queryLocationOsm({
-      // Intentionally put Grand Ave a different positions
-      intersections: ["40.5961778,-73.90761", "40.5836635,-73.8937054"]
-    }).run().listen(defaultRunConfig(
+      intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']
+    }).run().listen(defaultRunToResultConfig(
       {
-        onResolved: responseResult => responseResult.map(
-          ({results, location}) => {
-            // Expect it to be two ways
-            expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/417728789', 'way/417728790']);
-          }
-        )
+        onResolved: ({results, location}) => {
+          // Expect it to be two ways
+          expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/5707230']);
+          expect(R.map(R.prop('id'), R.prop('nodes', results))).toEqual(['node/42901997', 'node/6245285262']);
+        }
       }, errors, done));
-  }, 1000000);
+  }, 10000);
 });
 

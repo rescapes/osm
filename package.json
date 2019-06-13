@@ -96,17 +96,14 @@
   },
   "peerDependencies": {},
   "jest": {
-    "setupFilesAfterEnv": [
-      "<rootDir>/config/jestsetup.js"
-    ],
     "modulePaths": [
       "<rootDir>/src"
     ],
     "collectCoverageFrom": [
       "src/**/*.{js,jsx,mjs}"
     ],
-    "setupFiles": [
-      "<rootDir>/config/polyfills.js"
+    "setupFilesAfterEnv": [
+      "<rootDir>/config/jestsetup.js"
     ],
     "testMatch": [
       "<rootDir>/src/**/__tests__/**/*.{js,jsx,mjs}",
@@ -130,11 +127,12 @@
       "json",
       "web.jsx",
       "jsx",
-      "node"
+      "node",
+      "mjs"
     ]
   },
   "babel": {
-    "sourceMaps": true,
+    "sourceMaps": "both",
     "presets": [
       "@babel/preset-env"
     ],

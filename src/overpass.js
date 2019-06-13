@@ -24,7 +24,8 @@ import {
   resultToTask,
   resultToTaskWithResult,
   mapMDeep,
-  compactEmpty
+  compactEmpty,
+  strPathOr, mapObjToValues
 } from 'rescape-ramda';
 import os from 'os';
 import squareGrid from '@turf/square-grid';
@@ -39,15 +40,20 @@ import {hasLatLngIntersections, isLatLng} from './locationHelpers';
 
 const log = loggers.get('rescapeDefault');
 
-const predicate = R.allPass([
+// When doing OSM queries with lat/lon points search for nodes withing this many meters of them
+// The idea is that differences between Google, OSM, and manually marking of intersections should
+// be within 10 meters. But this might have to be greater
+const AROUND_LAT_LON_TOLERANCE = 10;
+
+const predicate = ({ways, nodes}) => R.allPass([
   // Not null
   R.complement(R.isNil),
   // We'd normally limit nodes to 2, but there can be 4 if we have a divided road
   // There might be cases where a divided road merges into a nondivided road, so we'll allow 2-4
-  R.compose(R.both(R.lte(2), R.gte(4)), R.length, R.prop('nodes')),
+  ({nodes}) => R.compose(R.both(R.lte(2), R.gte(4)), R.length)(nodes),
   // >0 ways:w
-  R.compose(R.lt(0), R.length, R.prop('ways'))
-]);
+  ({ways}) => R.compose(R.lt(0), R.length)(ways)
+], {ways, nodes});
 
 const servers = [
   //'https://lz4.overpass-api.de/api/interpreter',
@@ -353,16 +359,42 @@ const _createIntersectionQueryWaysDeclarations = (areaId, ways, extraWays, order
   ])(orderedBlocks);
 };
 
+/**
+ * Creates a filter to only accept nodes around a given point that have at 2 least ways attached to them,
+ * meaning they are intersections
+ * @param {String} around: e.g. '(around: 10, 40.6660816, -73.8057879)'
+ * @param {String} outputNodeName e.g. 'nodes1'
+ * @returns {string} The osm string
+ * @private
+ */
+const _filterForIntersectionNodesAroundPoint = (around, outputNodeName) => {
+  const possibleNodes = `${outputNodeName}Possible`;
+  const oneOfPossibleNodes = `oneOf${outputNodeName}Possible`;
+  const waysOfOneOfPossibleNodes = `waysOfOneOf${outputNodeName}Possible`;
+  return `node${around} -> .${possibleNodes};
+foreach.${possibleNodes} ->.${oneOfPossibleNodes}
+{
+  way(bn.${oneOfPossibleNodes})->.${waysOfOneOfPossibleNodes};
+  // If we have at least 2 ways, we have an intersection
+  if (${waysOfOneOfPossibleNodes}.count(ways) >= 2)
+  {
+  .${oneOfPossibleNodes} -> .${outputNodeName};
+  }
+}`;
+};
+
 const _createIntersectionQueryNodesDeclarations = function (nodes, extraNodes, orderedBlocks, geojsonPoints) {
 
+
   // If geojsonPoints are given we can use them to constrain the 2 nodes
-  const [around2, around3] = R.ifElse(
+  const [around1, around2] = R.ifElse(
     R.complement(R.isNil),
     () => R.map(
       // The 5 indicates 5 meters from the point. I'm assuming that Google and OSM are within 5 meters
       // otherwise we can't trust they are the same intersection
       // Extracts the coordinates from the geojson point. Reverse since lat, lng is expected
-      geojsonPoint => `(around: 5, ${R.join(', ', R.reverse(reqStrPathThrowing('geometry.coordinates', geojsonPoint)))})`,
+      geojsonPoint => `
+      (around: ${AROUND_LAT_LON_TOLERANCE}, ${R.join(', ', R.reverse(reqStrPathThrowing('geometry.coordinates', geojsonPoint)))})`,
       geojsonPoints
     ),
     R.always(['', ''])
@@ -378,27 +410,25 @@ const _createIntersectionQueryNodesDeclarations = function (nodes, extraNodes, o
     [R.length, nodes => `(${R.join(' ', R.map(node => `node(${node});`, nodes))})->.nodes;`],
     // We have no orderedBlocks but we have geojsonPoints
     [R.always(R.isNil(orderedBlocks)), () => {
-      return `node${around2} -> .nodes1;
-node${around3} -> .nodes2;
+      return `${_filterForIntersectionNodesAroundPoint(around1, 'nodes1')};
+      ${_filterForIntersectionNodesAroundPoint(around2, 'nodes2')};
 (.nodes1; .nodes2;)->.nodes;`;
-    }
-    ],
-    // If we have 4 different blocks we change the query to accomodate them
+    }],
+    // If we have 4 different blocks we change the query to accommodate them
     [R.always(R.compose(R.equals(4), R.length)(orderedBlocks)), () => {
-      return `(node(w.w1)(w.w2)${nodeFilters}${around2};
-        node(w.w3)(w.w4)${nodeFilters}${around3};
-        )->.nodes;
-        `;
+      return `(node(w.w1)(w.w2)${nodeFilters}${around1};
+      node(w.w3)(w.w4)${nodeFilters}${around2};
+    )->.nodes;`;
     }],
     // Otherwise search for the nodes by searching for the nodes contained in both w1 and w2 and both w1 and w3
     [R.T, () => {
-      return `(node(w.w1)(w.w2)${nodeFilters}${around2};
-        node(w.w1)(w.w3)${nodeFilters}${around3};
-        )->.nodes;
-        `;
+      return `(node(w.w1)(w.w2)${nodeFilters}${around1};
+      node(w.w1)(w.w3)${nodeFilters}${around2};
+    )->.nodes;`;
     }]
   ])(nodes);
 };
+
 const _createIntersectionQueryConstrainWaysToNodes = (ways, orderedBlocks) => {
   return R.cond([
     // We have hard-coded ways, just return these as our final ways
@@ -516,8 +546,8 @@ const constructInstersectionsQuery = ({type}, {country, state, city, intersectio
   way(area:3600384615)[highway][name="Nytorget"][footway!="crossing"]->.w1;
 way(area:3600384615)[highway][name="Langgata"][footway!="crossing"]->.w2;
 way(area:3600384615)[highway][name="Vinkelgata"][footway!="crossing"]->.w3;
-  (node(w.w1)(w.w2)(around:5,58.970193, 5.739818);
-   node(w.w1)(w.w3)(around:5,58.970246, 5.739087);
+  (node(w.w1)(w.w2)(around:AROUND_LAT_LON_TOLERANCE,58.970193, 5.739818);
+   node(w.w1)(w.w3)(around:AROUND_LAT_LON_TOLERANCE,58.970246, 5.739087);
   )->.allnodes;
 .allNodes out geom;
 
@@ -529,10 +559,23 @@ foreach .ways -> .singleway (
 .matchingWay out geom;
 );
 
-// This search just constrains the nodes to where Google thinks they are and doesn't use way names
+// This search just constrains the nodes to within 10 meters of predefinied lat/lons
 [out:json];
-node(around:5,58.970232, 5.739091) -> .nodes1;
-node(around:5,58.970193, 5.739818) -> .nodes2;
+node(around: AROUND_LAT_LON_TOLERANCE, 40.6660816, -73.8057879) -> .nodes1Possible;
+// Filter down to nodes that can be intersections
+foreach.nodes1Possible->.node1Possible
+{
+  way(bn.node1Possible)->.waysOfNode1Possible;
+  // If we have at least 2 ways, we have an intersection
+  if (waysOfNode1Possible.count(ways) >= 2)
+  {
+    .node1Possible -> .nodes1;
+  }
+}
+.nodes1 out geom;
+(... repeat foreach for .nodes2)
+node(around:AROUND_LAT_LON_TOLERANCE,58.970232, 5.739091) -> .nodes1;
+node(around:AROUND_LAT_LON_TOLERANCE,58.970193, 5.739818) -> .nodes2;
 (.nodes1; .nodes2;)->.nodes;
 
 way[highway][footway!="crossing"](bn.nodes)->.ways;
@@ -1036,7 +1079,7 @@ export const queryLocationOsm = location => {
       return resultToTaskWithResult(
         location => mapMDeep(2,
           results => ({location, results}),
-          _locationToQueryResults(location)
+          _locationToOsmQueryResults(location)
         ),
         locationResult
       );
@@ -1110,7 +1153,7 @@ export const queryLocationOsm = location => {
  * The data contains nodes and ways, where there should always be exactly 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
  */
-const _locationToQueryResults = location => {
+const _locationToOsmQueryResults = location => {
   // Sort LineStrings (ways) so we know how they are connected
   return R.composeK(
     // Chain our queries until we get a result or fail
@@ -1232,17 +1275,17 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
             R.propOr([], 'googleIntersectionObjs', locationWithOsm)
           );
           return R.ifElse(
-            location => hasLatLngIntersections(location),
+            locationWithOsm => hasLatLngIntersections(locationWithOsm),
             // Query with points if we only have lat/lng intersections
-            () => [
+            locationWithOsm => [
               _queryOverpassForBlockWithOptionalOsmOverridesTask(
                 R.omit(['intersections'], locationWithOsm),
                 geojsonPoints)
             ],
-            location => R.concat(
+            locationWithOsm => R.concat(
               [
                 // First try to find the location using intersections
-                _queryOverpassForBlockWithOptionalOsmOverridesTask(location)
+                _queryOverpassForBlockWithOptionalOsmOverridesTask(locationWithOsm)
               ],
               R.unless(
                 R.isEmpty,
@@ -1255,8 +1298,8 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
                     geojsonPoints)
                 ]
               )(geojsonPoints)
-            )(locationWithOsm)
-          );
+            )
+          )(locationWithOsm);
         },
         locationVariationsOfOsm
       )
@@ -1285,6 +1328,19 @@ export const _cleanGeojson = feature => {
 };
 
 /**
+ * Simple OSM query to return the ways of an intersection node.
+ * @param nodeId
+ * @returns {string}
+ */
+const waysOfNodeQuery = nodeId => {
+  return `
+    node(id:${nodeId})->.matchingNode;
+    way(bn.matchingNode)->.matchingWays;
+    .matchingWays out geom;
+  `;
+};
+
+/**
  * Given a location with an osmId included, query the Overpass API and cleanup the results to get a single block
  * of geojson representing the location's two intersections and the way(s) representing the block
  * @param {Object} locationWithOsm A Location object that also has an osmId to limit the area of the queries.
@@ -1301,14 +1357,14 @@ export const _cleanGeojson = feature => {
  */
 const _queryOverpassForBlockWithOptionalOsmOverridesTask = (locationWithOsm, geojsonPoints) => {
   return R.composeK(
-    _queryOverpassForBlockTask,
+    queriesObj => _queryOverpassForBlockTask(R.merge(queriesObj, {waysOfNodeQuery})),
     // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
     locationWithOsm => of(
-      R.map(
-        type => constructInstersectionsQuery({type}, locationWithOsm, geojsonPoints),
+      R.fromPairs(R.map(
+        type => [type, constructInstersectionsQuery({type}, locationWithOsm, geojsonPoints)],
         ['way', 'node']
-      )
+      ))
     )
   )(locationWithOsm);
 };
@@ -1318,68 +1374,116 @@ const _queryOverpassForBlockWithOptionalOsmOverridesTask = (locationWithOsm, geo
  * Given a location with an osmId included, query the Overpass API and cleanup the results to get a single block
  * of geojson representing the location's two intersections and the block
  * @param {[String]} queries Queries generated by _queryOverpassForBlockWithOptionalOsmOverrides
- * or _queryOverpassForBlockWithGoogleGeojson
+ * or _queryOverpassForBlockWithGoogleGeojson. Right now there must be exactly 2 queries, first
+ * the query for the ways of block and second the query for the nodes at the intersections of the block.
+ * TODO change these to be named queries
  * @returns {Task<Result<Object>>} The Geojson 2 nodes and way features in a Result.Ok. If an error occurs,
- * namely no that the nodes or ways aren't found, a Result.Error is returned
+ * namely no that the nodes or ways aren't found, a Result.Error is returned. Object has a ways, nodes,
+ * and waysOfNodes property. The latter are the ways around each node keyed by node ids, which we can
+ * use to resolve the street names of the block and intersecting streets
  */
-const _queryOverpassForBlockTask = queries => {
+const _queryOverpassForBlockTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
     resultToTaskNeedingResult(
-      ({wayResponse, nodeResponse}) => of(getFeaturesOfBlock(
-        // Clean the features of each first
-        ...R.compose(
-          ({wayResponse, nodeResponse}) => R.map(
-            response => R.map(
-              _cleanGeojson,
-              reqStrPathThrowing('features', response)
-            ),
-            [wayResponse, nodeResponse]
-          )
-        )({wayResponse, nodeResponse})
-      ))
+      ({wayResponse, nodeResponse, waysOfNodeResponses}) => of(
+        getFeaturesOfBlock(
+          // Clean the features of each first
+          ...R.compose(
+            ({wayResponse, nodeResponse}) => R.map(
+              response => R.map(
+                _cleanGeojson,
+                reqStrPathThrowing('features', response)
+              ),
+              [wayResponse, nodeResponse]
+            )
+          )({wayResponse, nodeResponse})
+        )
+      )
     ),
 
     // If our predicate fails, give up with a Response.Error
     // Task [Object] -> Task (Result.Ok (Object) | Result.Error (Object)
-    ([
-       {query: wayQuery, response: wayResponse},
-       {query: nodeQuery, response: nodeResponse}
-     ]) => of(
+    ({
+       way,
+       node,
+       waysOfNodes
+     }) => of(
       R.ifElse(
         // If predicate passes
         predicate,
         // All good, return the responses
-        R.always(Result.Ok({nodeResponse, wayResponse})),
+        R.always(Result.Ok({
+          nodeResponse: reqStrPathThrowing('response', node),
+          wayResponse: reqStrPathThrowing('response', way),
+          waysOfNodeResponses: R.map(reqStrPathThrowing('response'), waysOfNodes)
+        })),
         // Predicate fails, return a Result.Error with useful info.
         R.always(Result.Error({
-          error: `Found ${R.length(R.propOr([], 'features', nodeResponse))} nodes and ${R.length(R.propOr([], 'features', wayResponse))} ways`,
-          nodeQuery,
-          nodeResponse,
-          wayQuery,
-          wayResponse
+          error: `Found ${R.length(strPathOr([], 'response.features', node))} nodes and ${R.length(strPathOr([], 'response.features', way))} ways`,
+          way,
+          node,
+          waysOfNodes
         }))
-      )(R.map(reqStrPathThrowing('features'), {nodes: nodeResponse, ways: wayResponse}))
+      )(R.map(reqStrPathThrowing('response.features'), {node, way}))
     ),
 
-    // Perform the OSM queries in parallel
-    queries => waitAll(
-      // TODO Wait 2 seconds for the second call, Overpass is super picky
-      // When we have our own serve we can disable the delay
-      R.addIndex(R.map)(
-        (query, i) => R.map(
-          // Then map the task response to include the query for debugging/error resolution
-          response => ({query, response}),
-          // Perform the task
-          fetchOsmRawTask(
-            {
-              overpassUrl: roundRobinOsmServers(),
-              sleepBetweenCalls: i * 2000
-            }, query
-          )
-        ),
-        queries
+    // Once we get our way query and node query done,
+    // we want to get all ways of each node that was returned. These ways tell us the street names
+    // that OSM has for each intersection, which are our official street names if we didn't collect them manually
+    ({way, node}) => R.map(
+      // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
+      objs => ({way, node, waysOfNodes: R.mergeAll(objs)}),
+      waitAll(
+        R.addIndex(R.map)(
+          (nodeId, i) => R.map(
+            // Then map the task response to include the query for debugging/error resolution
+            response => ({[nodeId]: {query: waysOfNodeQuery(nodeId), response}}),
+            // Perform the task
+            fetchOsmRawTask(
+              {
+                overpassUrl: roundRobinOsmServers(),
+                sleepBetweenCalls: i * 2000
+              }, waysOfNodeQuery(nodeId)
+            )
+          ),
+          // Extract the id of each node
+          R.compose(
+            R.map(
+              R.compose(
+                R.last,
+                R.split('/'),
+                reqStrPathThrowing('id')
+              )
+            ),
+            reqStrPathThrowing('response.features')
+          )(node)
+        )
       )
-    )
-  )(queries);
+    ),
+
+    // Perform the OSM queries in "parallel"
+    // TODO Wait 2 seconds for the second call, Overpass is super picky. When we get our
+    // own server we can remove the delay
+    queries => R.map(
+      // Just combine the results to get {way: {query, response}, node: {query, response}}
+      objs => R.mergeAll(objs),
+      waitAll(
+        // When we have our own serve we can disable the delay
+        R.addIndex(mapObjToValues)(
+          (query, type, obj, i) => R.map(
+            // Then map the task response to include the query for debugging/error resolution
+            response => ({[type]: {query, response}}),
+            // Perform the task
+            fetchOsmRawTask(
+              {
+                overpassUrl: roundRobinOsmServers(),
+                sleepBetweenCalls: i * 2000
+              }, query
+            )
+          ),
+          queries
+        )
+      ))
+  )({way: wayQuery, node: nodeQuery});
 };

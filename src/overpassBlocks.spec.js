@@ -1,4 +1,4 @@
-import {queryLocationOsm, getFeaturesOfBlock} from './overpassForBlocks';
+import {queryLocationOsm, getFeaturesOfBlock} from './overpassBlocks';
 import {defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
 import * as R from 'ramda';
 

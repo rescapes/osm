@@ -8,3 +8,107 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+
+import * as R from 'ramda';
+import {mergeAllWithKey, removeDuplicateObjectsByProp, reqStrPathThrowing} from 'rescape-ramda';
+import {loggers} from 'rescape-log';
+import {buildFilterQuery, taskQuery} from './overpass';
+import squareGrid from '@turf/square-grid';
+import {concatFeatures} from 'rescape-helpers';
+const log = loggers.get('rescapeDefault');
+
+/**
+ * fetches transit data from OpenStreetMap using the Overpass API.
+ * @param {Object} options settings to pass to query-overpass, plus the following options:
+ * @param {[String]} options.settings OSM query settings such as '[out:csv']`. Defaults to [`[out:json]`]. Don't
+ * put a bounding box here. Instead put it in conditions.bounds.
+ * @param {Object} options.testBounds Used only for testing
+ * @param {Object} options.cellSize If specified delegates to fetchCelled
+ * @param {String} options.overpassUrl server to query
+ * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
+ * @param {Array} conditions.filters List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
+ * The conditions apply to all types given
+ * @param {[Number]} conditions.bounds Required [lat_min, lon_min, lat_max, lon_max] to limit all conditions
+ * @param {[String]} types List of OSM type sto query by e.g. ['way', 'node', relation']
+ * @returns {Object} Task to fetchTransitOsm the data
+ */
+export const fetchTransitOsm = R.curry((options, conditions, types) => {
+  // Default settings
+  const settings = options.settings || [`[out:json]`];
+  const defaultOptions = R.merge(options, {settings});
+
+  if (options.cellSize) {
+    return fetchOsmTransitCelled(defaultOptions, conditions, types);
+  }
+  // Build the query
+  const query = buildFilterQuery(defaultOptions.settings, conditions, types);
+  // Create a Task to run the query. Settings are already added to the query, so omit here
+  return taskQuery(R.omit(['settings'], options), query);
+});
+
+
+/**
+ * fetches transit data in squares sequentially from OpenStreetMap using the Overpass API.
+ * (concurrent calls were triggering API throttle limits)
+ * @param {Number} cellSize Splits query-overpass into separate requests, by splitting
+ * the bounding box by the number of kilometers specified here. Example, if 200 is specified,
+ * 200 by 200km bounding boxes will be created and sent to query-overpass. Any remainder will
+ * be queried separately. The results from all queries are merged by feature id so that no
+ * duplicates are returned.
+ * @param {[Number]} bounds [lat_min, lon_min, lat_max, lon_max]
+ * @param {String} options.overpassUrl server to query
+ * @param {Number} options.sleepBetweenCalls Pause this many milliseconds between calls to avoid the request rate limit
+ * @param {Object} options.testBounds Used only for testing
+ * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
+ * @param {Array} conditions.filters List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
+ * The conditions apply to all types given
+ * @param {[Number]} conditions.bounds Required [lat_min, lon_min, lat_max, lon_max] to limit all conditions
+ * @param {[String]} types List of OSM type sto query by e.g. ['way', 'node', relation']
+ * @returns {Task} Chained Tasks to fetchTransitOsm the data
+ */
+const fetchOsmTransitCelled = ({cellSize, ...options}, conditions, types) => {
+  const squareGridOptions = {units: 'kilometers'};
+  // Use turf's squareGrid function to break up the bbox by cellSize squares
+  const squareBoundaries = R.map(
+    polygon => bbox(polygon),
+    squareGrid(reqStrPathThrowing('bounds', conditions), cellSize, squareGridOptions).features);
+
+  // Create a fetchTransitOsm Task for reach square boundary
+  // fetchTasks :: Array (Task Object)
+  const fetchTasks = R.map(
+    boundary => fetchTransitOsm(
+      options,
+      R.merge(conditions, {boundary}),
+      types
+    ),
+    squareBoundaries);
+
+  // chainedTasks :: Array (Task Object) -> Task.chain(Task).chain(Task)...
+  // We want each request to overpass to run after the previous is finished
+  // so as to not exceed the permitted request rate. Chain the tasks and reduce
+  // them using map to combine all previous Task results.
+  const chainedTasks = R.reduce(
+    (prevChainedTasks, fetchTask) => prevChainedTasks.chain(results =>
+      fetchTask.map(result =>
+        R.concat(results.length ? results : [results], [result])
+      )
+    ),
+    R.head(fetchTasks),
+    R.tail(fetchTasks));
+
+
+  // This combines the results of all the fetchTransitOsm calls and removes duplicate results
+  // sequenced :: Task (Array Object)
+  // const sequenced = R.sequence(Task.of, fetchTasks);
+  return chainedTasks.map(results =>
+    R.compose(
+      // Lastly remove features with the same id
+      R.over(
+        R.lens(R.prop('features'), R.assoc('features')),
+        removeDuplicateObjectsByProp('id')
+      ),
+      // First combine the results into one obj with concatinated features
+      mergeAllWithKey(concatFeatures)
+    )(results)
+  );
+};

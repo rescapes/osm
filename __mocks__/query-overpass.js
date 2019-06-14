@@ -11,7 +11,6 @@
 
 import {fromJS, Map} from 'immutable';
 
-
 import {PARIS_BOUNDS, LA_BOUNDS, PARIS_SAMPLE, LA_SAMPLE} from '../src/queryOverpass.sample'
 
 // Use Map for equality matching of keys

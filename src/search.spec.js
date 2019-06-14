@@ -8,15 +8,15 @@
  *
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import {nominatimTask, mapboxGeocodeTask} from './search';
+import {nominatimResultTask, mapboxGeocodeTask} from './search';
 import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import * as R from 'ramda';
 import {rejected} from 'folktale/concurrency/task';
 
 describe('search', () => {
-  test('nominatimTask', done => {
+  test('nominatimResultTask', done => {
     const errors = [];
-    nominatimTask({country: 'USA', state: 'New York', city: 'New York City'}).orElse(reason => {
+    nominatimResultTask({country: 'USA', state: 'New York', city: 'New York City'}).orElse(reason => {
       // Our task reject handler takes the reason and pushes it too, then rejects again
       errors.push(reason);
       // This reason is the error that goes to defaultOnRejected
@@ -37,7 +37,7 @@ describe('search', () => {
 
   test('nominatimTaskNoState', done => {
     const errors = [];
-    nominatimTask({country: 'Norway', city: 'Stavanger'}).orElse(reason => {
+    nominatimResultTask({country: 'Norway', city: 'Stavanger'}).orElse(reason => {
       // Our task reject handler takes the reason and pushes it too, then rejects again
       errors.push(reason);
       // This reason is the error that goes to defaultOnRejected

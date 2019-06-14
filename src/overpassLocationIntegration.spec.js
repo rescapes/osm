@@ -9,7 +9,7 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {queryLocationOsm} from './overpass';
+import {queryLocationOsm} from './overpassBlocks';
 import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import * as R from 'ramda';
 
@@ -68,6 +68,7 @@ describe('overpassIntegration', () => {
     // This fails on the intersection match because OSM uses Nytorget instead of Pedersgata
     // However Google geocoding gives us points so we eventually resolve the way
     expect.assertions(1);
+    const errors = [];
     queryLocationOsm({
       country: 'Norway',
       city: 'Stavanger',
@@ -78,40 +79,49 @@ describe('overpassIntegration', () => {
         onResolved: responseResult => responseResult.map(
           ({results, location}) => {
             expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/24382524']);
-            done();
           }
         )
-      }));
-  }, 20000);
+      }, errors, done));
+  }, 200000);
 
-  test('fetschOsmBlockStavangerError', done => {
+  test('fetschOsmBlockStavangerFixedError', done => {
 
-    // This fails on the intersection match because OSM uses Nytorget instead of Pedersgata
-    // Even Google can't save us
+    // Although Google uses Pedersgata OSM uses Nytorget. This still works because we revert
+    // to querying the lat/lons that came from Google
+    const errors = [];
     expect.assertions(1);
     queryLocationOsm({
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
       intersections: [['Pedersgata', 'Nykirkebakken'], ['Pedersgata', 'A.B.C Gata']]
-    }).run().listen(defaultRunConfig(
+    }).run().listen(defaultRunToResultConfig(
       {
-        onResolved: responseResult => responseResult.mapError(
-          ({errors, location}) => {
-            expect(errors).toBeTruthy();
-            done();
-          }
-        )
-      }));
-  }, 20000);
+        onResolved: ({location, results}) => {
+          expect(reqStrPathThrowing('intersections', results)).toEqual(
+            {
+              "node/264565256": [
+                "Nykirkebakken",
+                "Nytorget"
+              ],
+              "node/386234920": [
+                "ABCgata",
+                "Nytorget"
+              ]
+            }
+          );
+        }
+      }, errors, done));
+  }, 200000);
 
-  test('fetschOsmBlockWithWeirdWayKeys', done => {
+  test('fetchOsmBlockWithWeirdWayKeys', done => {
 
-    // This fails on the intersection match because OSM uses Nytorget instead of Pedersgata
     // Even Google can't save us
+    const errors = [];
     expect.assertions(1);
     queryLocationOsm({
       country: 'USA',
+      // BAD SPELLING
       city: 'Los Angleles',
       neighborhood: 'Boyle Heights',
       intersections: [['East 1st St', 'North Savannah Street'], ['East 1st St', 'North Saratoga Street']]
@@ -123,7 +133,7 @@ describe('overpassIntegration', () => {
             done();
           }
         )
-      }));
+      }, errors, done));
   }, 20000);
 
   test('fetchOsmBlockStavanger', done => {
@@ -159,6 +169,7 @@ describe('overpassIntegration', () => {
   // side intersects a service road, so we add extraWays.intersection2: [16702952] for the service road's way id
   test('fetchOsmBlockWithSeparatedLanesAndTrafficSignalNodes', done => {
     expect.assertions(1);
+    const errors = []
     queryLocationOsm({
       country: 'USA',
       state: 'NC',
@@ -172,18 +183,15 @@ describe('overpassIntegration', () => {
           }
         }
       }
-    }).run().listen(defaultRunConfig(
+    }).run().listen(defaultRunToResultConfig(
       {
-        onResolved: responseResult => responseResult.map(
-          ({results, location}) => {
-            expect(
-              R.length(reqStrPathThrowing('nodes', results))
-            ).toEqual(4);
-            done();
-          }
-        )
-      }));
-  }, 500000);
+        onResolved: ({results, location}) => {
+          expect(
+            R.length(reqStrPathThrowing('nodes', results))
+          ).toEqual(4);
+        }
+      }, errors, done));
+  }, 50000);
 
   // Here East Columbia Avenue becomes West Columbia Avenue
   test('fetchOSMBlockWhereMainBlockChangesName', done => {
@@ -210,31 +218,5 @@ describe('overpassIntegration', () => {
       }));
   }, 50000);
 
-
-  test('fetchLatLonOnyLocation', done => {
-    const errors = [];
-    expect.assertions(3);
-    queryLocationOsm({
-      intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']
-    }).run().listen(defaultRunToResultConfig(
-      {
-        onResolved: ({results, location}) => {
-          // Expect it to be two ways
-          expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/5707230']);
-          expect(R.map(R.prop('id'), R.prop('nodes', results))).toEqual(['node/42875319', 'node/42901997']);
-          // Expect our intersection names
-          expect(reqStrPathThrowing('intersections', results)).toEqual({
-            "42875319": [
-              "134th Street",
-              "South Conduit Avenue"
-            ],
-            "42901997": [
-              "134th Street",
-              "149th Avenue"
-            ]
-          })
-        }
-      }, errors, done));
-  }, 10000);
 });
 

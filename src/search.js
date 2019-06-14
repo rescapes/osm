@@ -56,7 +56,7 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
  * @return {Task<Result>} A Task that resolves the relation id in a Result.Ok or returns a Result.Error if no
  * qualifying results are found. Task rejects with a Result.Error() if the query fails
  */
-export const nominatimTask = location => {
+export const nominatimResultTask = location => {
   // Create a location string with the country, state (if exists), and city
   // Note I tried to pass city, state, country to the API but it doesn't work, New York City returns York
   // So leaving this as a query string which does work

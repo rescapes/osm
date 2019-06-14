@@ -481,7 +481,7 @@ describe('googleLocation', () => {
       },
       onResolved: responseResult => responseResult.map(response => {
 
-        expect(R.map(f => f.toFixed(4), response)).toEqual(["37.8107", "-122.2605"]);
+        expect(R.map(f => f.toFixed(3), response)).toEqual(["37.810", "-122.260"]);
         done();
       }).mapError(reject => {
         throw new Error(reject);

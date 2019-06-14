@@ -28,7 +28,7 @@ import {
   highwayOsmFilter,
   osmEquals, osmIdEquals, osmNotEqual
 } from './overpass';
-import {nominatimTask} from './search';
+import {nominatimResultTask} from './search';
 import {hasLatLngIntersections, isLatLng} from './locationHelpers';
 import {compareTwoStrings} from 'string-similarity';
 import {googleIntersectionTask} from './googleLocation';
@@ -375,7 +375,7 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
 /**
  * Resolve the location and then query for the block in overpass.
  * Overpass will give us too much data back, so we have to clean it up in getFeaturesOfBlock.
- * This process will first use nominatimTask to query nomatim.openstreetmap.org for the relationship
+ * This process will first use nominatimResultTask to query nomatim.openstreetmap.org for the relationship
  * of the neighborhood of the city. If it fails it will try the entire city. With this result we
  * query overpass using the area representation of the neighborhood or city, which is the OpenStreetMap id
  * plus a magic number defined by Overpass. If the neighborhood area query fails to give us the results we want,
@@ -413,7 +413,7 @@ const _locationToOsmQueryResults = location => {
     // We'll use one of these to query an area in Overpass
     location => waitAll(
       R.map(
-        keys => nominatimTask(R.pick(keys, location))
+        keys => nominatimResultTask(R.pick(keys, location))
           .map(responseResult => responseResult.matchWith({
               Ok: ({value}) => {
                 // bounding box comes as two lats, then two lon, so fix
@@ -609,9 +609,6 @@ const _createIntersectionQueryWaysDeclarations = (areaId, ways, extraWays, order
   // Convert extra ways to a 3 item array, each containing a list of extra way ids
   // The extraBlockname accounts for the rare case where the blockname is different for each intersection,
   // like E Main St to W Main St
-  if (!areaId) {
-    throw Error("Attempt to query with an undefined areaId");
-  }
   const extraWaysForBlocks = R.props(['blockname', 'intersection1', 'intersection2', 'extraBlockname'], R.defaultTo({}, extraWays));
   return R.cond([
     // We have hard-coded way ids, just set the first and last to a variable, we don't need w3 because
@@ -656,7 +653,8 @@ const _createIntersectionQueryWaysDeclarations = (areaId, ways, extraWays, order
  * If intersections are not specified then geojsonPoints are used to find a way that has an OSM node within 5 meters
  * of each point. The intersections must have one common street name.
  * TODO handle two intersections where the common street name changes mid-block
- * @param osmId
+ * @param {String} [osmId] OSM id to be used to constrain the area of the query. This id corresponds
+ * to a neighborhood or city. It can only be left undefined if geojsonPoints are defined
  * @param {Object} data Location data optionally containing OSM overrides
  * @param {Object} [data.osmOverrides] Optional overrides
  * @param {[Number]} [data.osmOverrides.nodes] Optional 2 node ids
@@ -675,7 +673,8 @@ export const constructInstersectionsQuery = ({type}, {country, state, city, inte
   }
 
   // The Overpass Area Id is based on the osm id plus this Overpass magic number
-  const areaId = parseInt(osmId) + 3600000000;
+  // Don't calculate this if we didn't pass an osmId
+  const areaId = R.when(R.identity, parseInt(osmId) + 3600000000)(osmId);
   // If we have hard-coded node and/or ways
   const nodes = R.view(R.lensPath(['osmOverrides', 'nodes']), data);
   const ways = R.view(R.lensPath(['osmOverrides', 'ways']), data);

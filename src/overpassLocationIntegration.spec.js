@@ -12,17 +12,18 @@
 import {queryLocationOsm} from './overpassBlocks';
 import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import * as R from 'ramda';
+import {loggers} from 'rescape-log';
+const log = loggers.get('rescapeDefault');
 
 // Integration testing. Unmocked tests
 // requires are used below since the jest includes aren't available at compile time
 describe('overpassIntegration', () => {
-  /*
   if (process.env.ENABLE_INTEGRATION_TESTS == 'false') {
+    log.warn("No tests enabled");
     test('No tests enabled', () => {
     });
     return;
   }
-   */
 
   test('fetchOsmOaklandBlock', done => {
     expect.assertions(1);
@@ -114,7 +115,7 @@ describe('overpassIntegration', () => {
       }, errors, done));
   }, 200000);
 
-  test('fetchOsmBlockWithWeirdWayKeys', done => {
+  test('fetchOsmBlockWithBadWayKeys', done => {
 
     // Even Google can't save us
     const errors = [];

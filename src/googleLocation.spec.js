@@ -25,6 +25,7 @@ const austinIntersections = [['Salina St', 'E 21st St'], ['Leona St and E 21st S
 
 describe('googleLocation', () => {
   test('geocodeAddressTask', done => {
+      const errors = [];
       geocodeAddressTask({
         country: 'USA',
         state: 'DC',
@@ -44,15 +45,15 @@ describe('googleLocation', () => {
                 expect(resultValue.formatted_address).toEqual('13th St NE & Monroe St NE, Washington, DC 20017, USA');
                 // Make sure we can get full street names
                 expect(resultValue.address_components[0].long_name).toEqual('13th Street Northeast & Monroe Street Northeast');
-                done();
               }
             )
-        })
+        }, errors, done)
       );
     },
     5000);
 
   test('geocodeAddressApproximate', done => {
+      const errors = [];
       // This request for a city returns an approximate location, which is ok. It's not okay for intersections
       // to be approximate
       geocodeAddressTask({
@@ -72,10 +73,9 @@ describe('googleLocation', () => {
             ).map(
               resultValue => {
                 expect(resultValue.formatted_address).toEqual('Irvine, CA, USA');
-                done();
               }
             )
-        })
+        }, errors, done)
       );
     },
     5000);
@@ -137,6 +137,86 @@ describe('googleLocation', () => {
     },
     20000);
 
+
+  test('geocodeAddressWithBothIntersectionOrdersTaskBadLocation', done => {
+    const errors = [];
+    geocodeAddressWithBothIntersectionOrdersTask({
+        "intersections": [
+          [
+            "134th Street",
+            "149th Avenue"
+          ]
+        ],
+        "blockname": "134th Street",
+        "intersc1": "149th Avenue",
+        "intersc2": "South Conduit Avenue",
+        "dataComplete": false,
+        "data": {},
+        "version": 2,
+        "observer": "Created by sop-vml library",
+        "intersection_1_location": "40.6660816,-73.8057879",
+        "intersection_2_location": "40.66528,-73.80604",
+        "geojson": {
+          "type": "FeatureCollection",
+          "generator": "overpass-turbo",
+          "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
+          "features": [
+            {
+              "type": "Feature",
+              "id": "node/42875319",
+              "properties": {
+                "type": "node",
+                "id": 42875319,
+                "tags": {},
+                "relations": [],
+                "meta": {}
+              },
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  -73.8057802,
+                  40.6661498
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "node/42901997",
+              "properties": {
+                "type": "node",
+                "id": 42901997,
+                "tags": {},
+                "relations": [],
+                "meta": {}
+              },
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  -73.806031,
+                  40.665278
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ).run().listen(
+      defaultRunConfig({
+        onResolved:
+          result => result.mapError(
+            errorValue => {
+              // This should not happen
+              expect(R.length(errorValue.results)).toEqual(1);
+            }
+          ).map(
+            resultValue => {
+              expect(resultValue.formatted_address).toEqual('149th Ave & 134th St, Queens, NY 11430, USA');
+            }
+          )
+      }, errors, done)
+    );
+  }, 20000);
+
   test('geocodeAddressWithBothIntersectionOrdersFailsTask', done => {
       const errors = [];
       geocodeAddressWithBothIntersectionOrdersTask({
@@ -164,6 +244,7 @@ describe('googleLocation', () => {
     },
     20000);
   test('geocodeAddressWithBothIntersectionOrdersTaskWithLatLon', done => {
+      const errors = []
       geocodeAddressWithBothIntersectionOrdersTask({
         country: 'USA',
         state: 'IL',
@@ -181,11 +262,13 @@ describe('googleLocation', () => {
             ).map(
               resultValue => {
                 // We just get back the coords. No need to geocode
-                expect(resultValue.geojson.geometry.coordinates).toEqual([-89.597790, 40.699546]);
-                done();
+                expect(R.map(
+                  n => n.toFixed(2),
+                  resultValue.geojson.geometry.coordinates)
+                ).toEqual(['-89.60', '40.70']);
               }
             )
-        })
+        }, errors, done)
       );
     },
     20000);
@@ -193,7 +276,7 @@ describe('googleLocation', () => {
   test('geocodeAddressWithLatLng', done => {
       const errors = [];
       // Leave the location blank since we don't need it when we use a lat/lng
-      const latLon = '60.004471, -44.663669'
+      const latLon = '60.004471, -44.663669';
       geocodeAddressTask({intersections: [latLon]}, null).run().listen(
         defaultRunConfig({
           onResolved:
@@ -205,9 +288,13 @@ describe('googleLocation', () => {
             ).map(
               resultValue => {
                 // Reverse the point to match the geojson format
+                // Slightly different than the input since Google reverse geocodes
                 expect(resultValue.geojson.geometry.coordinates).toEqual(
-                  R.compose(R.reverse, R.map(s => parseFloat(s)), R.split(','), R.head)([latLon])
-                )
+                  [
+                    -44.663885,
+                    60.0043836
+                  ]
+                );
               }
             )
         }, errors, done)
@@ -265,9 +352,12 @@ describe('googleLocation', () => {
           const actualFirst = R.view(R.lensPath([0, 'formatted_address']), results);
           expect(actualFirst).toEqual(expected(actualFirst));
           // We expect a geojson point from the lat,lng. Flip the coordinates and stringify to match original
-          const actualSecond = R.join(', ', R.reverse(R.view(R.lensPath([1, 'geojson', 'geometry', 'coordinates']), results)));
+          const actualSecond = R.map(
+            n => parseFloat(n).toFixed(2),
+            R.reverse(R.view(R.lensPath([1, 'geojson', 'geometry', 'coordinates']), results))
+          );
           // Turf rounds off the end 0s
-          expect(actualSecond).toEqual('38.93199, -77.03089');
+          expect(actualSecond).toEqual(['38.93', '-77.03']);
           done();
         })
       })
@@ -456,7 +546,7 @@ describe('googleLocation', () => {
       },
       onResolved: responseResult => responseResult.map(response => {
 
-        expect(R.map(f => f.toFixed(4), response)).toEqual(["37.8108", "-122.2614"]);
+        expect(R.map(f => f.toFixed(3), response)).toEqual(["37.811", "-122.261"]);
         done();
       }).mapError(reject => {
         throw new Error(reject);
@@ -481,7 +571,7 @@ describe('googleLocation', () => {
       },
       onResolved: responseResult => responseResult.map(response => {
 
-        expect(R.map(f => f.toFixed(3), response)).toEqual(["37.810", "-122.260"]);
+        expect(R.map(f => f.toFixed(3), response)).toEqual(["37.811", "-122.261"]);
         done();
       }).mapError(reject => {
         throw new Error(reject);
@@ -504,7 +594,7 @@ describe('googleLocation', () => {
       },
       onResolved: responseResult => responseResult.map(
         response => {
-          expect(R.map(f => f.toFixed(4), response)).toEqual(["37.8116", "-122.2555"]);
+          expect(R.map(f => f.toFixed(3), response)).toEqual(["37.812", "-122.255"]);
           done();
         }
       ).mapError(

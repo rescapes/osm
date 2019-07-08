@@ -183,10 +183,12 @@ export const fetchOsmRawTask = R.curry((options, query) => {
  * meaning they are intersections
  * @param {String} around: e.g. '(around: 10, 40.6660816, -73.8057879)'
  * @param {String} outputNodeName e.g. 'nodes1'
+ * @param {boolean} leaveForAndIfBlocksOpen Default false. Leave the code blocks open so we can put another loop
+ * for another point inside these loops.
  * @returns {string} The osm string
  * @private
  */
-export const _filterForIntersectionNodesAroundPoint = (around, outputNodeName) => {
+export const _filterForIntersectionNodesAroundPoint = (around, outputNodeName, leaveForAndIfBlocksOpen=false) => {
   const possibleNodes = `${outputNodeName}Possible`;
   const oneOfPossibleNodes = `oneOf${outputNodeName}Possible`;
   const waysOfOneOfPossibleNodes = `waysOfOneOf${outputNodeName}Possible`;
@@ -198,8 +200,7 @@ foreach.${possibleNodes} ->.${oneOfPossibleNodes}
   if (${waysOfOneOfPossibleNodes}.count(ways) >= 2)
   {
   .${oneOfPossibleNodes} -> .${outputNodeName};
-  }
-}`;
+  ${leaveForAndIfBlocksOpen ? '' : '} };'}`;
 };
 
 /**
@@ -398,10 +399,23 @@ function* orderedWayFeatureGenerator(lookup) {
       break;
 
     // Find the pointLookup whose point is the last point for the currentFeature
+    const remainingLookup = R.omit(R.keys(resolvedPointLookups), lookup);
+
+    // If for some reason there are no other ways thant the first and last
+    // just yield the last way feature
+    // This happens in weird cases where a ways is a loop
+    if (!R.length(R.keys(remainingLookup))) {
+      if (lastFeature) {
+        yield({wayFeature: lastFeature, resolvedPointLookups});
+      }
+      break;
+    }
+
     const nextPointLookup = findOneThrowing(
       pointLookupValue => R.pathEq(['last', 0], wayFeature)(pointLookupValue),
-      R.omit(R.keys(resolvedPointLookups), lookup)
+      remainingLookup
     );
+
     // From that pointLookup get the next point by looking at it's head property
     const nextPointToFeature = R.map(value => R.head(R.prop('head', value)), nextPointLookup);
     // Keep track of all points we've processed

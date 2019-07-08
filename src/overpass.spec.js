@@ -151,7 +151,7 @@ describe('overpass', () => {
       expect(
         _intersectionsFromWaysAndNodes(wayFeatures, nodeIdToWaysOfNodeFeatures)
       ).toEqual(
-        ['134th Street', 'South Conduit Avenue']
+        {"42875319": ["134th Street", "South Conduit Avenue"], "42901997": ["134th Street", "149th Avenue"]}
       );
     }
   );

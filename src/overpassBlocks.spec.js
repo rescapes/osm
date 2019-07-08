@@ -13,7 +13,7 @@ import * as R from 'ramda';
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-describe('overpassForBlocks', () => {
+describe('overpassBlocks', () => {
   test('getFeaturesOfBlockOakland', () => {
     const wayFeatures = [
       {
@@ -147,8 +147,170 @@ describe('overpassForBlocks', () => {
               "134th Street",
               "149th Avenue"
             ]
-          })
+          });
         }
       }, errors, done));
-  }, 10000);
-})
+  }, 20000);
+
+  /*
+  test('getFeaturesOfBlock', done => {
+    // Weird case where on way is a loop
+    // I don't know how to handle this but I don't want it to err
+    const features = getFeaturesOfBlock(
+      [
+        {
+          "type": "Feature",
+          "id": "way/101143037",
+          "properties": {
+            "type": "way",
+            "id": 101143037,
+            "tags": {
+              "highway": "residential",
+              "name": "Oriental Boulevard"
+            },
+            "relations": [],
+            "meta": {}
+          },
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [
+                -73.9340603,
+                40.5785096
+              ],
+              [
+                -73.935648,
+                40.5784685
+              ],
+              [
+                -73.9357333,
+                40.5784663
+              ]
+            ]
+          },
+          "__reversed__": true
+        },
+        {
+          "type": "Feature",
+          "id": "way/101144614",
+          "properties": {
+            "type": "way",
+            "id": 101144614,
+            "tags": {
+              "highway": "tertiary",
+              "name": "Oriental Boulevard",
+              "oneway": "yes"
+            },
+            "relations": [],
+            "meta": {}
+          },
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [
+                -73.9357333,
+                40.5784663
+              ],
+              [
+                -73.9357655,
+                40.5785193
+              ],
+              [
+                -73.9358191,
+                40.578556
+              ],
+              [
+                -73.9358932,
+                40.5785762
+              ],
+              [
+                -73.9360391,
+                40.5785804
+              ],
+              [
+                -73.9361571,
+                40.5785573
+              ],
+              [
+                -73.9362107,
+                40.5785234
+              ],
+              [
+                -73.9362269,
+                40.578485
+              ],
+              [
+                -73.9362268,
+                40.5784011
+              ],
+              [
+                -73.9361903,
+                40.5783516
+              ],
+              [
+                -73.9361034,
+                40.5783214
+              ],
+              [
+                -73.9359001,
+                40.5783225
+              ],
+              [
+                -73.9358161,
+                40.5783407
+              ],
+              [
+                -73.9357494,
+                40.578393
+              ],
+              [
+                -73.9357333,
+                40.5784663
+              ]
+            ]
+          }
+        }
+      ],
+      [
+        {
+          "type": "Feature",
+          "id": "node/1167626042",
+          "properties": {
+            "type": "node",
+            "id": 1167626042,
+            "tags": {},
+            "relations": [],
+            "meta": {}
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              -73.9357333,
+              40.5784663
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "node/1167626042",
+          "properties": {
+            "type": "node",
+            "id": 1167626042,
+            "tags": {},
+            "relations": [],
+            "meta": {}
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              -73.9357333,
+              40.5784663
+            ]
+          }
+        }
+      ]
+    );
+    expect(R.length(R.prop('ways', features))).toEqual(0);
+  });
+   */
+});

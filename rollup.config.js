@@ -10,6 +10,8 @@ const config = {
   input: [
     'src/index.js',
     'src/overpass.js',
+    'src/overpassBlocks.js',
+    'src/overpassTransit.js',
     'src/search.js',
     'src/googleLocation.js',
     'src/locationHelpers.js'

@@ -15,6 +15,7 @@ import {loggers} from 'rescape-log';
 import {buildFilterQuery, taskQuery} from './overpass';
 import squareGrid from '@turf/square-grid';
 import {concatFeatures} from 'rescape-helpers';
+import {feature as bbox} from '@turf/helpers';
 const log = loggers.get('rescapeDefault');
 
 /**

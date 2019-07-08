@@ -96,8 +96,16 @@ const waysOfNodeQuery = nodeId => {
  * @returns {Task<Result>} Result.Ok with the geojson results and the location in the form {results, location}
  * or a Result.Error in the form {error, location}. The location has a new property googleIntersctionObjs if Result.Ok,
  * which is the result of the google geocodings
- * The data contains nodes and ways, where there should always be exactly 2 nodes for the two intersections.
+ * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
+ * Some blocks have more than two nodes if they have multiple divided ways.
+ * The results also contain waysOfNodes, and object keyed by node ids and valued by the ways that intersect
+ * the node. There is also an intersections array, which is also keyed by node id but valued by an array
+ * of street names. The main street of the location's block is listed first followed by the rest (usually one)
+ * in alphabetical order
+ * Otherwise Result.Error in the form {errors: {errors, location}, location} where the internal
+ * location are varieties of the original with an osm area id added. Result.Error is only returned
+ * if no variation of the location succeeds in returning a result
  */
 export const queryLocationOsm = location => {
   // This long chain of Task reads bottom to top. Only the functions marked Task are actually async calls.
@@ -133,7 +141,22 @@ export const queryLocationOsm = location => {
         location => mapMDeep(2,
           // Replace the intersections with the fully qualified names
           googleIntersectionObjs => {
-            return R.merge(
+            // If either intersection was a lat/lon it will return a locationWithJurisdictions
+            // property. Use the first one we find to populate missing jurisdiction info in the location
+            // if needed
+            const jurisdiction = R.compose(
+              R.ifElse(
+                Result.Ok.hasInstance,
+                result => R.pick(['country', 'state', 'city', 'neighborhood'], result.value),
+                R.always({})
+              ),
+              R.when(R.identity, R.prop('locationWithJurisdictions')),
+              R.find(R.has('locationWithJurisdictions'))
+            )(googleIntersectionObjs);
+            return R.mergeAll([
+              // Any retrieved jurisdiction info gets lower priority than what is already in the location
+              // That way if jurisdiction data with a lat/lon the Google jurisdiction won't trump
+              jurisdiction,
               location,
               {
                 intersections: R.zipWith(
@@ -160,7 +183,7 @@ export const queryLocationOsm = location => {
                 ),
                 googleIntersectionObjs
               }
-            );
+            ]);
           },
           googleIntersectionTask(location)
         )
@@ -236,7 +259,6 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
   );
 
   // Use the linker to link the features together, dropping those that aren't between the two nodes
-
   const linkedFeatures = _linkedFeatures(finalLookup, nodeFeatures);
 
   // Finally remove the __reversed__ tags from the ways (we could leave them on for debugging if needed)
@@ -259,8 +281,14 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
  * @param {[Object]} [geojsonPoints] Optional two geojson points, which either from Google or User-entered.
  * If specified these further constrain the nodes to within 5 meters of what is found for the street intersections
  * If the street intersections aren't specified then these are used alone to determine the two correct nodes.
- * @returns {Task<Result<Object>>} The Geojson 2 nodes and way features in a Result.Ok. If an error occurs,
- * namely no that the nodes or ways aren't found, a Result.Error is returned
+ * @returns {Task<Result<Object>>} Result.Ok or a Result.Error in the form {error}
+ * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
+ * There must be at least on way and possibly more, depending on where two ways meet.
+ * Some blocks have more than two nodes if they have multiple divided ways.
+ * The results also contain waysOfNodes, and object keyed by node ids and valued by the ways that intersect
+ * the node. There is also an intersections array, which is also keyed by node id but valued by an array
+ * of street names. The main street of the location's block is listed first followed by the rest (usually one)
+ * in alphabetical order
  */
 const _queryOverpassForBlockWithOptionalOsmOverridesTask = (locationWithOsm, geojsonPoints) => {
   return R.composeK(
@@ -285,7 +313,14 @@ const _queryOverpassForBlockWithOptionalOsmOverridesTask = (locationWithOsm, geo
  * results with the neighborhood level osmId because it is faster, but if we get no results we query with the
  * city osmId. Alternatively this can be a location with lat/lons specified for the intersections.
  * Having lat/lons is just as good as an osmId
- * @returns Task<Result<Object>> A Result.Ok with the geojson object or a Result.Error
+ * @returns {Task<Result<Object>>} Result.Ok in the form {location, result} or a Result.Error in the form {location, error}
+ * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
+ * There must be at least on way and possibly more, depending on where two ways meet.
+ * Some blocks have more than two nodes if they have multiple divided ways.
+ * The results also contain waysOfNodes, and object keyed by node ids and valued by the ways that intersect
+ * the node. There is also an intersections array, which is also keyed by node id but valued by an array
+ * of street names. The main street of the location's block is listed first followed by the rest (usually one)
+ * in alphabetical order
  */
 const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
 
@@ -381,9 +416,17 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
  * plus a magic number defined by Overpass. If the neighborhood area query fails to give us the results we want,
  * we retry with the city area
  * @param location
- * @returns {Task<Result<Object>>} Result.Ok if data is found, otherwise Result.Error.
- * The data contains nodes and ways, where there should always be exactly 2 nodes for the two intersections.
+ * @returns {Task<Result<Object>>} Result.Ok in the form {location,  results} if data is found,
+ * otherwise Result.Error in the form {errors: {errors, location}, location} where the internal
+ * location are varieties of the original with an osm area id added. Result.Error is only returned
+ * if no variation of the location succeeds in returning a result
+ * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
+ * Some blocks have more than two nodes if they have multiple divided ways.
+ * The results also contain waysOfNodes, and object keyed by node ids and valued by the ways that intersect
+ * the node. There is also an intersections array, which is also keyed by node id but valued by an array
+ * of street names. The main street of the location's block is listed first followed by the rest (usually one)
+ * in alphabetical order
  */
 const _locationToOsmQueryResults = location => {
   // Sort LineStrings (ways) so we know how they are connected
@@ -527,8 +570,8 @@ const _queryOverpassForBlockTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQ
           waysOfNodes
         }),
         // Predicate fails, return a Result.Error with useful info.
-        () => Result.Error({
-          error: `Found ${R.length(node)} nodes and ${R.length(way)} ways`,
+        ({way: wayFeatures, node: nodeFeatures}) => Result.Error({
+          error: `Found ${R.length(nodeFeatures)} nodes and ${R.length(wayFeatures)} ways`,
           way,
           node,
           waysOfNodes
@@ -674,7 +717,7 @@ export const constructInstersectionsQuery = ({type}, {country, state, city, inte
 
   // The Overpass Area Id is based on the osm id plus this Overpass magic number
   // Don't calculate this if we didn't pass an osmId
-  const areaId = R.when(R.identity, parseInt(osmId) + 3600000000)(osmId);
+  const areaId = R.when(R.identity, osmId => parseInt(osmId) + 3600000000)(osmId);
   // If we have hard-coded node and/or ways
   const nodes = R.view(R.lensPath(['osmOverrides', 'nodes']), data);
   const ways = R.view(R.lensPath(['osmOverrides', 'ways']), data);
@@ -717,6 +760,9 @@ export const constructInstersectionsQuery = ({type}, {country, state, city, inte
     } 
     ${
     _createIntersectionQueryOutput(type, orderedBlocks)
+    }
+    ${
+    _createIntersectionQueryEndingIfNeeded(nodes, orderedBlocks)
     }`;
   return query;
 };
@@ -781,9 +827,14 @@ const _createIntersectionQueryNodesDeclarations = function (nodes, extraNodes, o
     // We have hard-coded node ids, just set the nodes to them
     [R.length, nodes => `(${R.join(' ', R.map(node => `node(${node});`, nodes))})->.nodes;`],
     // We have no orderedBlocks but we have geojsonPoints
+    // Create two for loops. The second is embedded in the first. This looks for eligible nodes
+    // and loops until a node for each each intersection that are connected by way(s) are found
+    // If this is the case we'll need to close each pair of if/for statements at the end of our query
+    // (See _createIntersectionQueryEndingIfNeeded)
+    // It's best to output this code and look at it to make sense of it.
     [R.always(R.isNil(orderedBlocks)), () => {
-      return `${_filterForIntersectionNodesAroundPoint(around1, 'nodes1')};
-      ${_filterForIntersectionNodesAroundPoint(around2, 'nodes2')};
+      return `${_filterForIntersectionNodesAroundPoint(around1, 'nodes1', true)}
+      ${_filterForIntersectionNodesAroundPoint(around2, 'nodes2', true)}
 (.nodes1; .nodes2;)->.nodes;`;
     }],
     // If we have 4 different blocks we change the query to accommodate them
@@ -798,6 +849,15 @@ const _createIntersectionQueryNodesDeclarations = function (nodes, extraNodes, o
       node(w.w1)(w.w3)${nodeFilters}${around2};
     )->.nodes;`;
     }]
+  ])(nodes);
+};
+
+// Complements conditions in _createIntersectionQueryNodesDeclarations to sometimes but end blocks at the end of the query
+const _createIntersectionQueryEndingIfNeeded = (nodes, orderedBlocks) => {
+  return R.cond([
+    [R.length, () => ''],
+    [R.always(R.isNil(orderedBlocks)), () => '} }; } };'],
+    [R.T, () => '']
   ])(nodes);
 };
 

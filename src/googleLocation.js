@@ -12,6 +12,7 @@ import * as R from 'ramda';
 import {task, of, waitAll} from 'folktale/concurrency/task';
 import rhumbDistance from '@turf/rhumb-distance';
 import {featureCollection} from '@turf/helpers';
+import {Ok, Error} from 'folktale/result';
 import center from '@turf/center';
 import {
   reqStrPath,
@@ -73,44 +74,63 @@ export const geocodeAddressTask = R.curry((location, address) => {
   // address is useful if we need to choose which intersection of the location we need when their are two
   address = address || R.head(addressStringInBothDirectionsOfLocation(location));
   // If the address is a lat/lon  don't bother to call Google's geocoder
-  if (isLatLng(address)) {
-    // Convert the lat lng string to a geojson object. Wrap in a Task and Result to match the normal flow
-    return of(Result.of(
-      {
-        geojson: locationToTurfPoint(R.map(parseFloat, R.split(',', address)))
-      }
-    ));
-  }
   return task(resolver => {
-    const promise = googleMaps.geocode({
-      address
-    }).asPromise();
+    let promise = null;
+    if (isLatLng(address)) {
+      promise = googleMaps.reverseGeocode({
+        latlng: address
+      }).asPromise();
+    } else {
+      promise = googleMaps.geocode({
+        address
+      }).asPromise();
+    }
     promise.then(
       // Only accept exact results, not approximate, if the location search involves intersections
       response => {
-        const results = R.filter(
-          result => R.when(
-            R.always(R.and(
-              R.has('intersections', location),
-              R.length(R.prop('intersections', location))
-            )),
-            r => R.allPass([
-              // The first address component must be 'intersection'
-              r => reqStrPath('address_components.0.types.0', r).matchWith({
-                Ok: ({value}) => R.equals('intersection', value),
-                Error: R.F
-              }),
-              // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE location
-              r => R.contains(r.geometry.location_type, ['GEOMETRIC_CENTER']),
-              // No partial matches allowed. TODO this seems to give ok results
-              // r => R.not(R.prop('partial_match', r)),
-              // It must be an intersection, thus have & in the address
-              r => R.contains('&', r.formatted_address)
-            ])(r)
-          )(result),
-          response.json.results
-        );
-        if (R.equals(1, R.length(results))) {
+        const results = R.ifElse(
+          R.always(isLatLng(address)),
+          // If we had a lat/lon use the reverse geocoding to get country, state, city, neighborhood
+          // if we don't already have them
+          results => {
+            return {
+              // Just use our lat lon for the geojson, not what Google found, which might be less accurate
+              geojson: locationToTurfPoint(R.map(parseFloat, R.split(',', address))),
+              // Add this special property that can be used to modify our location later with
+              // the jurisdictions found by Google
+              locationWithJurisdictions: resolveJurisdictionFromGeocodeResult(location, results)
+            };
+          },
+          // Otherwise find the best result from the geocoding
+          results => R.filter(
+              result => R.when(
+                R.always(R.and(
+                  R.has('intersections', location),
+                  R.length(R.prop('intersections', location))
+                )),
+                r => R.allPass([
+                  // The first address component must be 'intersection'
+                  r => reqStrPath('address_components.0.types.0', r).matchWith({
+                    Ok: ({value}) => R.equals('intersection', value),
+                    Error: R.F
+                  }),
+                  // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE location
+                  r => R.contains(r.geometry.location_type, ['GEOMETRIC_CENTER']),
+                  // No partial matches allowed. TODO this seems to give ok results
+                  // r => R.not(R.prop('partial_match', r)),
+                  // It must be an intersection, thus have & in the address
+                  r => R.contains('&', r.formatted_address)
+                ])(r)
+              )(result),
+              results
+            )
+        )(response.json.results);
+
+        if (isLatLng(address)) {
+          // Always resolve lat lons
+          resolver.resolve(Result.of(results))
+        }
+        else if (R.equals(1, R.length(results))) {
           const result = R.head(results);
           // Result to indicate success
           log.debug(`Successfully geocoded location ${R.propOr('(no id given)', 'id', location)}, ${address}`);
@@ -221,7 +241,7 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
         R.lensProp('error'),
         error => R.join('\n', [
           error,
-          `Failed to resolve the intersection after trying both orderings ${
+          `For location ${JSON.stringify(R.pick(['country', 'state', 'city', 'neighborhood'], locationWithOneIntersectionPair))} Failed to resolve the intersection after trying both orderings ${
             R.join(' and ', reqStrPathThrowing('intersections.0', locationWithOneIntersectionPair))
             } and ${
             R.join(' and ', R.reverse(reqStrPathThrowing('intersections.0', locationWithOneIntersectionPair)))
@@ -566,3 +586,60 @@ export const resolveGeojsonTask = location => {
   );
 };
 
+/**
+ * For new locations resolved with OSM and Google geocoding, this applies the geocoding address components
+ * to the location to set country, (state), city, and neighborhood. There are some overrides below for
+ * special cases that should be extracted to an overrides file or similar
+ * @param {OBject} location Location object needing country, state, city, and neighborhood
+ * @param {[Object]} googleGeocodeResults The resolved Google geocode object for each intersection of the location
+ * @param {Result Object} Result.Ok with the location with country, (state), city, and neighborhood. Or Result.Error
+ * if either country or city are missing. state and neighborhood are optional unless overrides require them
+ */
+export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResults) => {
+  const addressComponents = reqStrPathThrowing('0.address_components', googleGeocodeResults);
+  // Match the current naming convention for these countries
+  // TODO update database to use long name and remove this
+  const countryAliasMap = {'United States': 'USA', 'United Kingdom': 'UK'};
+  const mapToName = {
+    country: obj => R.compose(name => R.propOr(name, name, countryAliasMap), R.prop('long_name'))(obj),
+    state: obj => R.prop('short_name', obj),
+    neighborhood: obj => R.prop('long_name', obj),
+    city: obj => {
+      return R.cond([
+        // For some reason New York cities locations don't return New York, I guess because the state equals the city
+        // Seems like a bug
+        [
+          obj => R.both(
+            R.compose(R.isNil, R.prop('city')),
+            R.compose(R.equals, R.prop('state'))
+          )(obj),
+          R.always('New York')
+        ],
+        [R.T, obj => R.prop('long_name', obj)]
+      ])(obj);
+    }
+  };
+  return R.compose(
+    // If country and city are non-null return a Result.Ok. Else a Result.Error
+    location => R.ifElse(
+      location => R.all(
+        prop => R.prop(prop, location),
+        ['country', 'city']
+      ),
+      location => Ok(location),
+      location => Error({error: 'Could not extract country and/or city from Google geocode results', location})
+    )(location),
+    R.merge(location),
+    R.mapObjIndexed((value, key) => mapToName[key](value)),
+    keyToAddressComponentType => R.map(
+      type => R.find(
+        ({types}) => R.contains(
+          type,
+          types
+        ),
+        addressComponents
+      ),
+      keyToAddressComponentType
+    )
+  )({neighborhood: 'neighborhood', city: 'locality', state: 'administrative_area_level_1', country: 'country'});
+};

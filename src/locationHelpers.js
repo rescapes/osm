@@ -194,3 +194,29 @@ export const addressPair = location => {
     location.intersections
   );
 };
+
+
+/**
+ * Sorts the given intersections by node id alphabetically,
+ * first by the first street of the intersection, then by the second if the first are the same, then by the third, etc
+ * @param {Object} intersectionsByNodeId Keyed by node id and valued by an array of 2 or more street names
+ * @returns {[[String]]} Sort lists of the intersections without the node ids
+ * @private
+ */
+export const intersectionsByNodeIdToSortedIntersections = intersectionsByNodeId => {
+  const intersections = R.values(intersectionsByNodeId);
+  const ascends = R.compose(
+    // Map that something to R.ascend for each index of the intersections
+    times => R.addIndex(R.map)((_, i) => R.ascend(R.view(R.lensIndex(i))), times),
+    // Create that many of something
+    n => R.times(R.identity, n),
+    // Get the shortest length
+    R.reduce((r, n) => R.min(r, n), Infinity),
+    // Get the length of each list of streets
+    R.map(R.length)
+  )(intersections);
+  return R.sortWith(
+    ascends,
+    intersections
+  );
+};

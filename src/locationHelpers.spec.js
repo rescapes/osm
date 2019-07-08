@@ -1,7 +1,7 @@
 import * as R from 'ramda';
 import {
   resolveGeoLocationTask, resolveGeojsonTask, addressPair, intersectionsFromLocation,
-  locationWithIntersections, addressStrings
+  locationWithIntersections, addressStrings, sortedIntersections, intersectionsByNodeIdToSortedIntersections
 } from './locationHelpers';
 
 describe('LocationSelector', () => {
@@ -27,7 +27,7 @@ describe('LocationSelector', () => {
       })
     )).toEqual([
       "Main St and First St, Anytown, Anystate, USA",
-        "Main St and Second St, Anytown, Anystate, USA"
+      "Main St and Second St, Anytown, Anystate, USA"
     ]);
   });
 
@@ -56,7 +56,21 @@ describe('LocationSelector', () => {
       intersections: [['Monroe St', '13th NE'], ['Political St', 'Correctness St']]
     })).toEqual(
       ['Monroe St and 13th NE, Washington, DC, USA',
-      'Political St and Correctness St, Washington, DC, USA']
+        'Political St and Correctness St, Washington, DC, USA']
     )
-  )
+  );
+
+  test('  intersectionsByNodeIdToSortedIntersections\n', () => {
+    expect(intersectionsByNodeIdToSortedIntersections(
+      {
+        ['node/idological']: ['Purpose St', 'Quagmire Ct', 'CantEscape Corral'],
+        ['node/idation']: ['Purpose St', 'Quagmire Ct', 'Ataboy Alley']
+      }
+    )).toEqual([
+        ['Purpose St', 'Quagmire Ct', 'Ataboy Alley'],
+        ['Purpose St', 'Quagmire Ct', 'CantEscape Corral']
+      ]
+    );
+
+  });
 });

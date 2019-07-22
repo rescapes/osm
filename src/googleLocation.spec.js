@@ -244,7 +244,7 @@ describe('googleLocation', () => {
     },
     20000);
   test('geocodeAddressWithBothIntersectionOrdersTaskWithLatLon', done => {
-      const errors = []
+      const errors = [];
       geocodeAddressWithBothIntersectionOrdersTask({
         country: 'USA',
         state: 'IL',
@@ -289,11 +289,15 @@ describe('googleLocation', () => {
               resultValue => {
                 // Reverse the point to match the geojson format
                 // Slightly different than the input since Google reverse geocodes
-                expect(resultValue.geojson.geometry.coordinates).toEqual(
-                  [
-                    -44.663885,
-                    60.0043836
-                  ]
+                expect(R.map(
+                  n => parseFloat(n).toFixed(2),
+                  resultValue.geojson.geometry.coordinates)
+                ).toEqual(
+                  R.map(
+                    n => parseFloat(n).toFixed(2), [
+                      -44.663885,
+                      60.0043836
+                    ])
                 );
               }
             )
@@ -304,6 +308,7 @@ describe('googleLocation', () => {
 
 
   test('Resolve correct geocodeAddressTask with two results', done => {
+    const errors = [];
     const ambiguousIntersections = [
       ['Monroe', '13th'],
       ['Monroe', 'Holmead']
@@ -325,9 +330,8 @@ describe('googleLocation', () => {
         onResolved: resultsResult => resultsResult.map(results => {
           const actual = R.map(R.prop('formatted_address'), results);
           expect(actual).toEqual(expected(actual));
-          done();
         })
-      })
+      }, errors, done)
     );
   });
 
@@ -388,6 +392,7 @@ describe('googleLocation', () => {
   });
 
   test('createOpposingRoutesFromOriginAndDestination', done => {
+    const errors = [];
     createOpposingRoutesFromOriginAndDestination(
       initDirectionsService(),
       {country: 'USA', state: 'Texas', city: 'Austin', intersections: austinIntersections}
@@ -398,14 +403,14 @@ describe('googleLocation', () => {
             expect(R.map(
               route => R.head(route.json.routes).summary, routes)
             ).toMatchSnapshot();
-            done();
           });
         }
-      })
+      }, errors, done)
     );
   });
 
   test('calculateRouteTask', done => {
+    const errors = [];
     const origin = {
       "formatted_address": "Salina St & E 21st St, Austin, TX 78722, USA",
       "geometry": {
@@ -472,10 +477,9 @@ describe('googleLocation', () => {
         onResolved: routeResult => {
           routeResult.map(route => {
             expect(R.head(route.json.routes).summary).toMatchSnapshot();
-            done();
           });
         }
-      })
+      }, errors, done)
     );
   });
 

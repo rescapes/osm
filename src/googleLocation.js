@@ -611,7 +611,7 @@ export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResu
         [
           obj => R.both(
             R.compose(R.isNil, R.prop('city')),
-            R.compose(R.equals, R.prop('state'))
+            R.compose(R.equals('New York'), R.prop('state'))
           )(obj),
           R.always('New York')
         ],

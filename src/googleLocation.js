@@ -177,7 +177,7 @@ export const geocodeAddressTask = R.curry((location, address) => {
  * object if the address was resolved through Google, but don't count on it. If either intersection cannot
  * be goecoded by Google, a Task<Result.Error> is returned
  */
-export const geocodeBlockAddressesTask = location => {
+export const geocodeBlockAddressesResultTask = location => {
   const handleResults = (previousResults, currentResults) => R.ifElse(
     R.identity,
     // The second time through we have results from both, so find closest
@@ -302,7 +302,7 @@ export const geojsonCenterOfBlockAddress = location => R.composeK(
   )),
   // First resolve the geocode for the two ends fo the block.
   // This returns and a Result for success, Error for failure
-  location => geocodeBlockAddressesTask(location)
+  location => geocodeBlockAddressesResultTask(location)
 )(location);
 
 
@@ -422,7 +422,7 @@ export const calculateOpposingRoutesTask = R.curry((directionsService, origin, d
 export const createOpposingRoutesFromOriginAndDestination = R.curry((directionService, location) => {
   // geocode the pair. By coding together we can resolve ambiguous locations by finding the closest
   // two locations between the ambiguous results in the origin and destination
-  const geocodeTask = geocodeBlockAddressesTask(location);
+  const geocodeTask = geocodeBlockAddressesResultTask(location);
   // chain the Task sending the two lat/lng locations to calculateRouteTask, which itself returns a Task
   return R.chain(
     // geocodePairResult is a Result that we chain to call calculateRouteTask
@@ -485,7 +485,7 @@ export const googleIntersectionTask = location => {
       )
     ),
     // Geocode the location
-    location => geocodeBlockAddressesTask(location)
+    location => geocodeBlockAddressesResultTask(location)
   )(location);
 };
 
@@ -569,7 +569,7 @@ export const resolveGeojsonTask = location => {
     return of(Result.Ok(location.geojson));
   }
   // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
-  return geocodeBlockAddressesTask(location).map(
+  return geocodeBlockAddressesResultTask(location).map(
     responsesResult => {
       // Map each response in result to a simple lat, lon
       // We chain the Result with two responses by traversing the two
@@ -597,6 +597,12 @@ export const resolveGeojsonTask = location => {
  */
 export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResults) => {
   const addressComponents = reqStrPathThrowing('0.address_components', googleGeocodeResults);
+
+  // If we already have a country and city, assume the jurisdiction is resolved
+  if (R.both(R.prop('country'), R.prop('city'))(location)) {
+    return Result.Ok(location)
+  }
+
   // Match the current naming convention for these countries
   // TODO update database to use long name and remove this
   const countryAliasMap = {'United States': 'USA', 'United Kingdom': 'UK'};

@@ -26,12 +26,13 @@ export {
   createOpposingRoutesFromOriginAndDestination,
   findClosest,
   geocodeAddressTask,
-  geocodeBlockAddressesTask,
+  geocodeBlockAddressesResultTask,
   geocodeAddressWithBothIntersectionOrdersTask,
   geojsonCenterOfBlockAddress,
   googleIntersectionTask,
   routeFromOriginAndDestination,
   initDirectionsService,
   resolveGeoLocationTask,
-  resolveGeojsonTask
+  resolveGeojsonTask,
+  resolveJurisdictionFromGeocodeResult
 } from './googleLocation';

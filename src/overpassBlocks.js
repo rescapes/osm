@@ -16,10 +16,10 @@ import {
   compactEmpty, mapMDeep,
   mapObjToValues, mergeAllWithKey,
   reqStrPathThrowing,
-  resultToTaskNeedingResult, resultToTaskWithResult,
+  resultToTaskNeedingResult, resultToTaskWithResult, taskToResultTask,
   traverseReduceWhile
 } from 'rescape-ramda';
-import {of, waitAll} from 'folktale/concurrency/task';
+import {of, waitAll, rejected} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {
   _cleanGeojson, _filterForIntersectionNodesAroundPoint,
@@ -37,9 +37,11 @@ import {loggers} from 'rescape-log';
 const log = loggers.get('rescapeDefault');
 
 
+// TODO make these accessible for external configuration
 const servers = [
-  //'https://lz4.overpass-api.de/api/interpreter',
-  //'https://z.overpass-api.de/api/interpreter',
+  'https://lz4.overpass-api.de/api/interpreter',
+  'https://z.overpass-api.de/api/interpreter',
+  'http://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter'
 ];
 
@@ -54,6 +56,39 @@ function* gen() {
 const genServer = gen();
 const roundRobinOsmServers = () => {
   return genServer.next().value;
+};
+/**
+ * Runs an OpenStreetMap task. Because OSM servers are picky about throttling,
+ * this allows us to try all servers sequentially until one gives a result
+ * @param tries
+ * @param taskFunc
+ */
+export const osmResultTask = ({tries}, taskFunc) => {
+  const attempts = tries || R.length(servers);
+  return traverseReduceWhile(
+    {
+      // Fail the predicate to stop searching when we have a Result.Ok
+      predicate: (previousResult, result) => R.complement(Result.Ok.hasInstance)(result),
+      // Take the the last accumulation after the predicate fails
+      accumulateAfterPredicateFail: true
+    },
+
+    // If we get a Result.Ok, just return it. The first Result.Ok we get is our final value
+    // When we get Result.Errors, concat them for reporting
+    (previousResult, result) => result.matchWith({
+      Error: value => {
+        value.mapError(url => {
+          log.warn(`Osm query failed with ${url}`);
+        });
+        return previousResult.mapError(R.append(Result.Error(value)));
+      },
+      Ok: R.identity
+    }),
+    // Starting condition is failure
+    of(Result.Error([])),
+    // Create the task with each function. We'll only run as many as needed to get a resul
+    R.times(() => taskToResultTask(taskFunc(roundRobinOsmServers())), attempts)
+  );
 };
 
 /**
@@ -351,7 +386,7 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
     // A chained Task that runs 1 or 2 queries as needed
     locationVariationsOfOsm => traverseReduceWhile(
       {
-        // Stop searching when we have a Result.Ok
+        // Fail the predicate to stop searching when we have a Result.Ok
         predicate: (previousResult, result) => R.complement(Result.Ok.hasInstance)(result),
         // Take the the last accumulation after the predicate fails
         accumulateAfterPredicateFail: true
@@ -363,10 +398,12 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
         Error: ({value}) => previousResult.mapError(R.append(value)),
         Ok: R.identity
       }),
+      // Starting condition is failure
       of(Result.Error([])),
       // Create a list of Tasks. We'll only run as many as needed
       // We start with limiting queries to a neighborhood and if nothing there works or there is no hood we limit
       // to the city. Within each area why try up to 3 queries.
+      // chain here is used to flatten the multiple results produced by each locationsWithOsm
       R.chain(
         locationWithOsm => {
           // geojson points from google or data entry can help us resolve OSM data when street names aren't enough
@@ -589,13 +626,17 @@ const _queryOverpassForBlockTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQ
         R.addIndex(R.map)(
           (nodeId, i) => R.map(
             // Then map the task response to include the query for debugging/error resolution
-            response => ({[nodeId]: {query: waysOfNodeQuery(nodeId), response}}),
+            // Then map the task response to include the query for debugging/error resolution
+            // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
+            response => ({[nodeId]: {query: waysOfNodeQuery(nodeId), response: response.value}}),
             // Perform the task
-            fetchOsmRawTask(
-              {
-                overpassUrl: roundRobinOsmServers(),
-                sleepBetweenCalls: i * 2000
-              }, waysOfNodeQuery(nodeId)
+            osmResultTask({},
+              ({overpassUrl}) => fetchOsmRawTask(
+                {
+                  overpassUrl,
+                  sleepBetweenCalls: i * 2000
+                }, waysOfNodeQuery(nodeId)
+              )
             )
           ),
           // Extract the id of each node
@@ -618,13 +659,17 @@ const _queryOverpassForBlockTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQ
         R.addIndex(mapObjToValues)(
           (query, type, obj, i) => R.map(
             // Then map the task response to include the query for debugging/error resolution
-            response => ({[type]: {query, response}}),
+            // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
+            // if the OSM can't be resolved
+            response => ({[type]: {query, response: response.value}}),
             // Perform the task
-            fetchOsmRawTask(
-              {
-                overpassUrl: roundRobinOsmServers(),
-                sleepBetweenCalls: i * 2000
-              }, query
+            osmResultTask({},
+              ({overpassUrl}) => fetchOsmRawTask(
+                {
+                  overpassUrl,
+                  sleepBetweenCalls: i * 2000
+                }, query
+              )
             )
           ),
           queries

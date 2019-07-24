@@ -13,7 +13,7 @@ import {
   createOpposingRoutesFromOriginAndDestination,
   geocodeAddressTask,
   geojsonCenterOfBlockAddress, googleIntersectionTask, resolveGeojsonTask, resolveGeoLocationTask,
-  geocodeBlockAddressesTask, createRouteFromOriginDestinationGeocodes, calculateRouteTask,
+  geocodeBlockAddressesResultTask, createRouteFromOriginDestinationGeocodes, calculateRouteTask,
   geocodeAddressWithBothIntersectionOrdersTask
 } from './googleLocation';
 import * as R from 'ramda';
@@ -320,7 +320,7 @@ describe('googleLocation', () => {
       "Holmead Pl NW & Monroe St NW, Washington, DC 20010, USA",
       "Monroe St NW & Holmead Pl NW, Washington, DC 20010, USA"
     ]), actual);
-    geocodeBlockAddressesTask({
+    geocodeBlockAddressesResultTask({
       country: 'USA',
       state: 'DC',
       city: 'Washington',
@@ -345,7 +345,7 @@ describe('googleLocation', () => {
       "Monroe St NW & 13th St NW, Washington, DC 20010, USA",
       "13th St NW & Monroe St NW, Washington, DC 20010, USA"
     ]));
-    geocodeBlockAddressesTask({
+    geocodeBlockAddressesResultTask({
       country: 'USA',
       state: 'DC',
       city: 'Washington',

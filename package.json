@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.1.51",
+  "version": "0.1.52",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "repository": {
     "type": "git",
@@ -17,6 +17,7 @@
     "src"
   ],
   "scripts": {
+    "clear-jest": "jest --clearCache",
     "clean": "rimraf lib dist es coverage",
     "lint": "eslint src",
     "test": "cross-env BABEL_ENV=commonjs jest",

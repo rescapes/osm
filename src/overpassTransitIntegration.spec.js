@@ -12,10 +12,11 @@
 
 
 import {
-  fetchTransitOsm, osmAlways, osmNotEqual
+  osmAlways, osmNotEqual
 } from './overpass';
 import {defaultRunConfig} from 'rescape-ramda';
 import {rejected} from 'folktale/concurrency/task'
+import {fetchTransitOsm} from './overpassTransit';
 
 
 const conditions = [

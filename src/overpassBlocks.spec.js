@@ -1,8 +1,6 @@
-import {queryLocationOsm, getFeaturesOfBlock, osmResultTask} from './overpassBlocks';
-import {defaultRunConfig, defaultRunToResultConfig, reqStrPathThrowing, taskToResultTask} from 'rescape-ramda';
+import {queryLocationOsm, getFeaturesOfBlock} from './overpassBlocks';
+import {defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
 import * as R from 'ramda';
-import {of, rejected} from 'folktale/concurrency/task';
-import * as Result from 'folktale/result';
 
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -16,39 +14,6 @@ import * as Result from 'folktale/result';
  */
 
 describe('overpassBlocks', () => {
-
-  test('osmResultTask', done => {
-    const errors = [];
-    // Pretend that all but the last task fail
-    const tasks = [
-      url => rejected(url),
-      url => rejected(url),
-      url => rejected(url),
-      url => of(url),
-      // Shouldn't be called
-      url => rejected(url),
-      url => rejected(url),
-      url => of(url)
-    ];
-    const getTaskResult = (i, url) => tasks[i](url);
-
-    let i = 0;
-    osmResultTask({tries: 4},
-      overpassUrl => {
-        return getTaskResult(i++, overpassUrl);
-      }
-    ).run().listen(defaultRunToResultConfig(
-      {
-        onResolved:
-          response => {
-            expect(response).toBeTruthy();
-            done();
-          }
-      },
-      errors,
-      done
-    ));
-  });
 
   test('getFeaturesOfBlockOakland', () => {
     const wayFeatures = [
@@ -349,5 +314,7 @@ describe('overpassBlocks', () => {
     expect(R.length(R.prop('ways', features))).toEqual(0);
   });
    */
+
+
 });
 

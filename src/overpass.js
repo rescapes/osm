@@ -9,18 +9,19 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import queryOverpass from 'query-overpass';
-import {task} from 'folktale/concurrency/task';
+import {of, task} from 'folktale/concurrency/task';
 import * as R from 'ramda';
 import {
   compact,
   findOneThrowing,
   mapKeys,
   reqStrPathThrowing,
-  strPathOr
+  strPathOr, taskToResultTask, traverseReduceWhile
 } from 'rescape-ramda';
 import os from 'os';
 import 'regenerator-runtime';
 import {loggers} from 'rescape-log';
+import * as Result from 'folktale/result';
 
 const log = loggers.get('rescapeDefault');
 
@@ -29,6 +30,27 @@ const log = loggers.get('rescapeDefault');
 // be within 10 meters. But this might have to be greater
 export const AROUND_LAT_LON_TOLERANCE = 10;
 
+// TODO make these accessible for external configuration
+const servers = [
+  'http://3.222.35.131/api/interpreter',
+  //'https://lz4.overpass-api.de/api/interpreter',
+  //'https://z.overpass-api.de/api/interpreter',
+  //'http://overpass-api.de/api/interpreter',
+  //'https://overpass.kumi.systems/api/interpreter'
+];
+
+function* gen() {
+  let serverIndex = -1;
+  while (true) {
+    serverIndex = R.modulo(serverIndex + 1, R.length(servers));
+    yield servers[serverIndex];
+  }
+}
+
+const genServer = gen();
+const roundRobinOsmServers = () => {
+  return genServer.next().value;
+};
 
 /**
  * Translates to OSM condition that must be true
@@ -69,7 +91,6 @@ export const osmIdEquals = id => `(${id})`;
  */
 export const osmCondition = (operator, prop, value) => `["${prop}" ${operator} "${value}"]`;
 
-
 /**
  * Constructs conditions for a certain OSM type, 'node', 'way', or 'relation'
  * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'
@@ -96,7 +117,11 @@ export const boundsAsString = bounds => {
 // Filter to get roads and paths that aren't sidewalks or crossings
 export const highwayOsmFilter = R.join('', [
   osmAlways('highway'),
+  // We're not currently interested in driveways, but might be in the future
+  osmNotEqual('highway', 'driveway'),
+  // Crosswalks
   osmNotEqual('footway', 'crossing'),
+  // Sidewalks along a highway, these might be useful for some contexts
   osmNotEqual('footway', 'sidewalk')
 ]);
 
@@ -124,6 +149,49 @@ export const buildFilterQuery = R.curry((settings, conditions, types) => {
     out meta qt;/*fixed by auto repair*/
     `;
 });
+
+
+/**
+ * Runs an OpenStreetMap task. Because OSM servers are picky about throttling,
+ * this allows us to try all servers sequentially until one gives a result
+ * @param tries
+ * @param taskFunc
+ */
+export const osmResultTask = ({tries}, taskFunc) => {
+  const attempts = tries || R.length(servers);
+  return traverseReduceWhile(
+    {
+      // Fail the predicate to stop searching when we have a Result.Ok
+      predicate: (previousResult, result) => R.complement(Result.Ok.hasInstance)(result),
+      // Take the the last accumulation after the predicate fails
+      accumulateAfterPredicateFail: true
+    },
+
+    // If we get a Result.Ok, just return it. The first Result.Ok we get is our final value
+    // When we get Result.Errors, concat them for reporting
+    (previousResult, result) => result.matchWith({
+      Error: ({value}) => {
+        log.warn(`Osm query failed on server ${value.server} with ${JSON.stringify(value.value)}`);
+        return previousResult.mapError(R.append(value));
+      },
+      Ok: R.identity
+    }),
+    // Starting condition is failure
+    of(Result.Error([])),
+    // Create the task with each function. We'll only run as many as needed to get a resul
+    R.times(() => {
+      const server = roundRobinOsmServers();
+      // Convert rejected tasks to Result.Error and resolved tasks to Result.Ok.
+      // For errors wrap the server into the value so we can't report the erring server
+      return taskToResultTask(
+        task(({resolve}) => {
+          log.info(`Starting OSM task on server ${server}`);
+          return resolve(server);
+        }).chain(server => taskFunc({overpassUrl: server}))
+      ).map(v => v.mapError(e => ({value: e, server})));
+    }, attempts)
+  );
+};
 
 /**
  * From the given query create a Task to run the query

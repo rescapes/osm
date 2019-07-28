@@ -18,7 +18,7 @@ rescapeDefaultTransports.console.level = 'debug';
 
 // Enzyme setup
 // Set this to false to skip integration tests
-process.env.ENABLE_INTEGRATION_TESTS = 'false';
+process.env.ENABLE_INTEGRATION_TESTS = process.env.ENABLE_INTEGRATION_TESTS  || 'false';
 if (process.env.ENABLE_INTEGRATION_TESTS) {
   jest.unmock('query-overpass');
 }

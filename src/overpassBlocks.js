@@ -16,7 +16,7 @@ import {
   compactEmpty, mapMDeep,
   mapObjToValues, mergeAllWithKey,
   reqStrPathThrowing,
-  resultToTaskNeedingResult, resultToTaskWithResult, taskToResultTask,
+  resultToTaskNeedingResult, resultToTaskWithResult, traverseReduceDeepResults,
   traverseReduceWhile
 } from 'rescape-ramda';
 import {of, waitAll, rejected} from 'folktale/concurrency/task';
@@ -26,7 +26,7 @@ import {
   _intersectionsFromWaysAndNodes, _linkedFeatures, _reduceFeaturesByHeadAndLast, AROUND_LAT_LON_TOLERANCE,
   fetchOsmRawTask,
   highwayOsmFilter,
-  osmEquals, osmIdEquals, osmNotEqual
+  osmEquals, osmIdEquals, osmNotEqual, osmResultTask
 } from './overpass';
 import {nominatimResultTask} from './search';
 import {hasLatLngIntersections, isLatLng} from './locationHelpers';
@@ -36,60 +36,6 @@ import {loggers} from 'rescape-log';
 
 const log = loggers.get('rescapeDefault');
 
-
-// TODO make these accessible for external configuration
-const servers = [
-  'https://lz4.overpass-api.de/api/interpreter',
-  'https://z.overpass-api.de/api/interpreter',
-  'http://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter'
-];
-
-function* gen() {
-  let serverIndex = -1;
-  while (true) {
-    serverIndex = R.modulo(serverIndex + 1, R.length(servers));
-    yield servers[serverIndex];
-  }
-}
-
-const genServer = gen();
-const roundRobinOsmServers = () => {
-  return genServer.next().value;
-};
-/**
- * Runs an OpenStreetMap task. Because OSM servers are picky about throttling,
- * this allows us to try all servers sequentially until one gives a result
- * @param tries
- * @param taskFunc
- */
-export const osmResultTask = ({tries}, taskFunc) => {
-  const attempts = tries || R.length(servers);
-  return traverseReduceWhile(
-    {
-      // Fail the predicate to stop searching when we have a Result.Ok
-      predicate: (previousResult, result) => R.complement(Result.Ok.hasInstance)(result),
-      // Take the the last accumulation after the predicate fails
-      accumulateAfterPredicateFail: true
-    },
-
-    // If we get a Result.Ok, just return it. The first Result.Ok we get is our final value
-    // When we get Result.Errors, concat them for reporting
-    (previousResult, result) => result.matchWith({
-      Error: value => {
-        value.mapError(url => {
-          log.warn(`Osm query failed with ${url}`);
-        });
-        return previousResult.mapError(R.append(Result.Error(value)));
-      },
-      Ok: R.identity
-    }),
-    // Starting condition is failure
-    of(Result.Error([])),
-    // Create the task with each function. We'll only run as many as needed to get a resul
-    R.times(() => taskToResultTask(taskFunc(roundRobinOsmServers())), attempts)
-  );
-};
 
 /**
  * Determines if an OSM query result is a valid block
@@ -143,8 +89,6 @@ const waysOfNodeQuery = nodeId => {
  * if no variation of the location succeeds in returning a result
  */
 export const queryLocationOsm = location => {
-  // This long chain of Task reads bottom to top. Only the functions marked Task are actually async calls.
-  // Everything else is wrapped in a Task to match the expected type
   return R.composeK(
     // Task (Result.Ok Object | Result.Error) -> Task Result.Ok Object | Task Result.Error
     locationResult => {
@@ -166,7 +110,7 @@ export const queryLocationOsm = location => {
             location)
         ))
       ],
-      // OSM needs full street names (Avenue not Ave), so use Google to resolve them
+      // Otherwise OSM needs full street names (Avenue not Ave), so use Google to resolve them
       // Use Google to resolve full names. If Google can't resolve either intersection a Result.Error
       // is returned. Otherwise a Result.Ok containing the location with the updated location.intersections
       // Also maintain the Google results. We can use either the intersections or the Google geojson to
@@ -506,7 +450,7 @@ const _locationToOsmQueryResults = location => {
               },
               Error: ({value}) => {
                 // If no results are found, just return null. Hopefully the other nominatin query will return something
-                log.debug(value);
+                log.debug(`Error no results found from OSM: ${JSON.stringify(value)}`);
                 return null;
               }
               // Remove nulls

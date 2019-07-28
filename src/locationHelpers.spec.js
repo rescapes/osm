@@ -63,14 +63,13 @@ describe('LocationSelector', () => {
   test('  intersectionsByNodeIdToSortedIntersections\n', () => {
     expect(intersectionsByNodeIdToSortedIntersections(
       {
-        ['node/idological']: ['Purpose St', 'Quagmire Ct', 'CantEscape Corral'],
-        ['node/idation']: ['Purpose St', 'Quagmire Ct', 'Ataboy Alley']
+        ['node/idological']: ['CantEscape Corral', 'Purpose St', 'Quagmire Ct', ],
+        ['node/idation']: ['Ataboy Alley', 'Purpose St', 'Quirky Dock', 'Zebra Steps', ]
       }
     )).toEqual([
-        ['Purpose St', 'Quagmire Ct', 'Ataboy Alley'],
-        ['Purpose St', 'Quagmire Ct', 'CantEscape Corral']
+        ['Purpose St', 'Ataboy Alley', 'Quirky Dock', 'Zebra Steps'],
+        ['Purpose St', 'CantEscape Corral', 'Quagmire Ct']
       ]
     );
-
   });
 });

@@ -197,14 +197,26 @@ export const addressPair = location => {
 
 
 /**
- * Sorts the given intersections by node id alphabetically,
+ * Finds the common street of the intersections.
+ * Then sorts the intersections alphabetically based on the second street. If no second street exists
+ * because the intersection is a dead end, then it gets lower priority
  * first by the first street of the intersection, then by the second if the first are the same, then by the third, etc
  * @param {Object} intersectionsByNodeId Keyed by node id and valued by an array of 2 or more street names
  * @returns {[[String]]} Sort lists of the intersections without the node ids
  * @private
  */
-export const intersectionsByNodeIdToSortedIntersections = intersectionsByNodeId => {
-  const intersections = R.values(intersectionsByNodeId);
+export const intersectionsByNodeIdToSortedIntersections = nodesToIntersectingStreets => {
+  const streetIntersectionSets = R.values(nodesToIntersectingStreets);
+  // Extract the common street from the set. There must be exactly one or we err
+  const common = R.reduce(
+    (intersecting, b) => R.intersection(intersecting, b),
+    // Start with all eligible
+    R.compose(R.uniq, R.flatten)(streetIntersectionSets),
+    streetIntersectionSets
+  );
+  if (R.compose(R.not, R.equals(1), R.length)(common)) {
+    throw new Error(`Expected a common street but got ${JSON.stringify(streetIntersectionSets)}`);
+  }
   const ascends = R.compose(
     // Map that something to R.ascend for each index of the intersections
     times => R.addIndex(R.map)((_, i) => R.ascend(R.view(R.lensIndex(i))), times),
@@ -214,9 +226,27 @@ export const intersectionsByNodeIdToSortedIntersections = intersectionsByNodeId 
     R.reduce((r, n) => R.min(r, n), Infinity),
     // Get the length of each list of streets
     R.map(R.length)
-  )(intersections);
+  )(streetIntersectionSets);
+
+  const commonThenAlphabetical = [
+    // First sort by the common street
+    R.ascend(
+      R.ifElse(
+        R.equals(R.head(common)),
+        R.always(0),
+        R.always(1)
+      )
+    ),
+    // Then alphabetically
+    R.ascend(R.identity)
+  ];
   return R.sortWith(
+    // Sort the sets by which has the most alphabetical non-common street(s)
     ascends,
-    intersections
+    R.map(
+      // Sort each set placing the common street first followed by alphabetical
+      R.sortWith(commonThenAlphabetical),
+      streetIntersectionSets
+    )
   );
 };

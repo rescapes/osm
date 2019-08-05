@@ -1,15 +1,4 @@
-# The remote server to deploy too
-# local~$ export $OSM_SERVER = domain name or ip
 
-# Copy files to the server
-
-# local~$ scp -i ~/.ssh/[SoP_osm_0].pem  <sop-vml base directory>/server/osm_setup.sh  $OSM_SERVER:/~osm_setup.sh
-
-# local~$ scp -i ~/.ssh/[SoP_osm_0].pem  <sop-vml base directory>/server/nginx/nginx.conf  $OSM_SERVER:/tmp/nginx.conf
-# sudo mv /tmp/nginx.conf /etc/nginx/nginx.conf
-
-# Also get the start_osm.py script to use to startup the osm scripts as a service
-# local~$ scp -i ~/.ssh/[SoP_osm_0].pem  <sop-vml base directory>/server/osm_setup.sh  $OSM_SERVER:~/osm_setup.sh
 
 
 ## OpenStreetMap cloud installation guide
@@ -18,13 +7,29 @@
 #### https://overpass-api.de/full_installation.html
 #### https://wiki.openstreetmap.org/wiki/Overpass_API/Installation#Setting_up_the_Web_API
 
-#### Create ec2 instance, I used t2.xlarge with 250GB drive
+#### Create ec2 instance, I used t2.xlarge with a 500GB drive
 
 #### Create/use and existing public/private key .pem file from EC2, and download it to your local ~/.ssh directory or similar
 
 #### Connect with ssh, using the instance name and public url
 
-# local~$ ssh -i ~/.ssh/[SoP_osm_0].pem $server
+# Create local public key (if needed) and it to the server
+# local~$ ssh-keygen
+# (accept the defaults)
+# copy the text from the console
+# local~$ cat ~/.ssh/public/id_rsa.pub
+# log into the serve
+# local~$ ssh -i ~/.ssh/SoP_osm.pem $server
+# remote~$ vi ~/.ssh/authorized_keys (paste the public key in here)
+
+# Copy local files to the server
+# local~$ scp server/init.d/overpass ubuntu@$server:~
+# remote~$ sudo mv ~/overpass /etc/init.d
+# remote~$ sudo chown root:root /etc/init.d/overpass
+# local~$ scp server/nginx/nginx.conf ubuntu@$server:~
+
+# Now you can ssh easier:
+# local~$ ssh ubuntu@$server
 
 # Once connected, run this script on the server
 
@@ -62,9 +67,9 @@ make
 
 bash ./bin/download_clone.sh --db-dir=db --source=http://dev.overpass-api.de/api_drolbr/ --meta=yes
 
-(Go eat lunch, take a nap, etc--takes a few hours)
+#### (Go eat lunch, take a nap, etc--takes a few hours)
 
-Make sure all the cgi files are executable
+#### Make sure all the cgi files are executable
 
 bash chmod 755 cgi-bin/*
 
@@ -76,15 +81,18 @@ chmod 755 bin/fetch_osc.sh
 
 chmod 755 bin/apply_osc_to_db.sh
 
-nohup bin/dispatcher --osm-base --meta --db-dir=$DB_DIR &
-
-nohup bin/fetch_osc.sh id " https://planet.osm.org/replication/day/" "diffs/" &
-
-nohup bin/apply_osc_to_db.sh "diffs/" auto --meta=yes &
-
 ### Start the dispatcher
 
-nohup $EXEC_DIR/bin/dispatcher --osm-base --db-dir=$DB_DIR --meta
+nohup $EXEC_DIR/bin/dispatcher --osm-base --meta --db-dir=$DB_DIR &
+
+# If you have problems because of a previous run, delete the following marker files
+# rm -f /dev/shm/osm3s_v0.7.55_osm_base
+# rm -f $DB_DATA/osm3s_v0.7.55_osm_base
+
+nohup $EXEC_DIR/bin/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" &
+
+nohup $EXEC_DIR/bin/apply_osc_to_db.sh "diffs/" auto --meta=yes &
+
 
 ### Install nginx
 
@@ -106,6 +114,8 @@ cd /etc/nginx
 
 #### The default one is useless.
 sudo mv nginx.conf nginx.conf.original
+#### Move the one from rescape-osm into place
+sudo mv ~/nginx.conf /etc/nginx/nginx.conf
 
 #### Open port 80 and 443 (HTTPS) on the EC2 instance: https://stackoverflow.com/questions/5004159/opening-port-80-ec2-amazon-web-services
 
@@ -121,9 +131,15 @@ systemctl status nginx
 
 cd $BASE_DIR
 cp -pR "rules" $DB_DIR
+
 nohup $EXEC_DIR/bin/dispatcher --areas --db-dir=$DB_DIR &
+# If you have problems because of a previous run, delete the following marker files
+# rm -f /dev/shm/osm3s_v0.7.55_osm_areas
+# rm -f $DB_DATA/osm3s_v0.7.55_osm_areas
+
 chmod 666 db/osm3s_v0.7.55_areas
 chmod 755 bin/rules_loop.sh
+# Something is wrong with the paths in this script. Comment out the DB_DIR=... line. We already have it defined
 nohup $EXEC_DIR/bin/rules_loop.sh $DB_DIR &
 
 #### Nice the process to be less important:
@@ -169,3 +185,18 @@ sudo certbot --nginx
 This asks which subdomain to use and updates /etc/nginx/sites-enabled/sop to point to the security certificate
 
 
+# Extras
+
+# To start all the scripts at once
+nohup $EXEC_DIR/bin/dispatcher --osm-base --meta --db-dir=$DB_DIR &
+nohup $EXEC_DIR/bin/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" &
+nohup $EXEC_DIR/bin/apply_osc_to_db.sh "diffs/" auto --meta=yes &
+nohup $EXEC_DIR/bin/dispatcher --areas --db-dir=$DB_DIR &
+nohup $EXEC_DIR/bin/rules_loop.sh $DB_DIR &
+
+# To kill the dispatchers
+$EXEC_DIR/bin/dispatcher --osm_base --terminate
+$EXEC_DIR/bin/dispatcher --areas --terminate
+
+# If you need to increase the size of the volume on EC2:
+https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/recognize-expanded-volume-linux.html

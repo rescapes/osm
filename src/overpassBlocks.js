@@ -88,14 +88,14 @@ const waysOfNodeQuery = nodeId => {
  * location are varieties of the original with an osm area id added. Result.Error is only returned
  * if no variation of the location succeeds in returning a result
  */
-export const queryLocationOsm = location => {
+export const queryLocationForOsmBlockResultsTask = location => {
   return R.composeK(
     // Task (Result.Ok Object | Result.Error) -> Task Result.Ok Object | Task Result.Error
     locationResult => {
       return resultToTaskWithResult(
         location => mapMDeep(2,
           results => ({location, results}),
-          _locationToOsmQueryResults(location)
+          _locationToOsmBlockQueryResultsTask(location)
         ),
         locationResult
       );
@@ -271,7 +271,9 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
  */
 const _queryOverpassForBlockWithOptionalOsmOverridesTask = (locationWithOsm, geojsonPoints) => {
   return R.composeK(
-    queriesObj => _queryOverpassForBlockTask(R.merge(queriesObj, {waysOfNodeQuery})),
+    ({way: wayQuery, node: nodeQuery}) => _queryOverpassForBlockResultTask(
+      {way: wayQuery, node: nodeQuery, waysOfNodeQuery}
+    ),
     // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
     locationWithOsm => of(
@@ -396,7 +398,7 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
  * query overpass using the area representation of the neighborhood or city, which is the OpenStreetMap id
  * plus a magic number defined by Overpass. If the neighborhood area query fails to give us the results we want,
  * we retry with the city area
- * @param location
+ * @param {Object} location A location object
  * @returns {Task<Result<Object>>} Result.Ok in the form {location,  results} if data is found,
  * otherwise Result.Error in the form {errors: {errors, location}, location} where the internal
  * location are varieties of the original with an osm area id added. Result.Error is only returned
@@ -409,7 +411,7 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
  */
-const _locationToOsmQueryResults = location => {
+const _locationToOsmBlockQueryResultsTask = location => {
   // Sort LineStrings (ways) so we know how they are connected
   return R.composeK(
     // Chain our queries until we get a result or fail
@@ -496,7 +498,7 @@ const _locationToOsmQueryResults = location => {
  * If one or both streets change names or for a >4-way intersection, there can be more.
  * If we handle roundabouts correctly in the future these could also account for more
  */
-const _queryOverpassForBlockTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQuery}) => {
+const _queryOverpassForBlockResultTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
     resultToTaskNeedingResult(
@@ -574,7 +576,7 @@ const _queryOverpassForBlockTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQ
             // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
             response => ({[nodeId]: {query: waysOfNodeQuery(nodeId), response: response.value}}),
             // Perform the task
-            osmResultTask({},
+            osmResultTask({name: 'waysOfNodeQuery'},
               ({overpassUrl}) => fetchOsmRawTask(
                 {
                   overpassUrl,
@@ -607,7 +609,8 @@ const _queryOverpassForBlockTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQ
             // if the OSM can't be resolved
             response => ({[type]: {query, response: response.value}}),
             // Perform the task
-            osmResultTask({},
+            osmResultTask(
+              {name: 'featchOsmRawTask'},
               ({overpassUrl}) => fetchOsmRawTask(
                 {
                   overpassUrl,

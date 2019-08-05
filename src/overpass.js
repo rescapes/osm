@@ -31,15 +31,12 @@ const log = loggers.get('rescapeDefault');
 export const AROUND_LAT_LON_TOLERANCE = 10;
 
 // TODO make these accessible for external configuration
-const servers = [
-  'http://3.222.35.131/api/interpreter',
-  //'https://lz4.overpass-api.de/api/interpreter',
-  //'https://z.overpass-api.de/api/interpreter',
-  //'http://overpass-api.de/api/interpreter',
-  //'https://overpass.kumi.systems/api/interpreter'
-];
+const servers = R.split(/\s*[,;\s]\s*/, process.env.OSM_SERVERS || []);
 
 function* gen() {
+  if (!R.length(servers)) {
+    throw new Error("No servers configured. Define environmental variable OSM_SERVERS with comma-separated server urls with their api path. E.g. https://lz4.overpass-api.de/api/interpreter");
+  }
   let serverIndex = -1;
   while (true) {
     serverIndex = R.modulo(serverIndex + 1, R.length(servers));
@@ -154,10 +151,12 @@ export const buildFilterQuery = R.curry((settings, conditions, types) => {
 /**
  * Runs an OpenStreetMap task. Because OSM servers are picky about throttling,
  * this allows us to try all servers sequentially until one gives a result
- * @param tries
+ * @param {Object} config
+ * @param {Number} config.tries Number of tries to make. Defaults to the number of server
+ * @param {String} config.name The name taskFunc for logging purposes
  * @param taskFunc
  */
-export const osmResultTask = ({tries}, taskFunc) => {
+export const osmResultTask = ({tries, name}, taskFunc) => {
   const attempts = tries || R.length(servers);
   return traverseReduceWhile(
     {
@@ -179,13 +178,14 @@ export const osmResultTask = ({tries}, taskFunc) => {
     // Starting condition is failure
     of(Result.Error([])),
     // Create the task with each function. We'll only run as many as needed to get a resul
-    R.times(() => {
+    R.times(attempt => {
       const server = roundRobinOsmServers();
       // Convert rejected tasks to Result.Error and resolved tasks to Result.Ok.
       // For errors wrap the server into the value so we can't report the erring server
       return taskToResultTask(
+        //taskFunc({overpassUrl: server})
         task(({resolve}) => {
-          log.info(`Starting OSM task on server ${server}`);
+          log.info(`Starting OSM task ${name} attempt ${attempt + 1} of ${attempts} on server ${server}`);
           return resolve(server);
         }).chain(server => taskFunc({overpassUrl: server}))
       ).map(v => v.mapError(e => ({value: e, server})));

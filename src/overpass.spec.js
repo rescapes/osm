@@ -39,7 +39,7 @@ describe('overpass', () => {
     const getTaskResult = (i, url) => tasks[i](url);
 
     let i = 0;
-    osmResultTask({tries: 4},
+    osmResultTask({name: 'testOsmResultTask', tries: 4},
       overpassUrl => {
         return getTaskResult(i++, overpassUrl);
       }

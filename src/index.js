@@ -10,7 +10,7 @@
  */
 
 export {fetchTransitOsm} from './overpassTransit';
-export {queryLocationOsm} from './overpassBlocks';
+export {queryLocationForOsmBlockResultsTask} from './overpassBlocks';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './search';
 export {
   addressString,

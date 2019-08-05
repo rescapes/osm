@@ -1,4 +1,4 @@
-import {queryLocationOsm, getFeaturesOfBlock} from './overpassBlocks';
+import {queryLocationForOsmBlockResultsTask, getFeaturesOfBlock} from './overpassBlocks';
 import {defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
 import * as R from 'ramda';
 
@@ -130,7 +130,7 @@ describe('overpassBlocks', () => {
   test('fetchLatLonOnyLocation', done => {
     const errors = [];
     expect.assertions(3);
-    queryLocationOsm({
+    queryLocationForOsmBlockResultsTask({
       intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']
     }).run().listen(defaultRunToResultConfig(
       {

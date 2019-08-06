@@ -19,7 +19,7 @@ const config = {
   plugins: []
 };
 
-const externals = ['symbol-observable', 'folktale/concurrency/task', 'folktale/result'];
+const externals = ['@turf', 'symbol-observable', 'folktale/concurrency/task', 'folktale/result'];
 
 const configs = R.map(c => {
   const x = R.merge(config, c);

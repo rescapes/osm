@@ -153,6 +153,33 @@ describe('overpassBlocks', () => {
       }, errors, done));
   }, 20000);
 
+  test('fetchLatLonOnyLocationForPedestrianArea', done => {
+    // This is where the block is a pedestrian area, not a simple line.
+    const errors = [];
+    expect.assertions(3);
+    queryLocationForOsmBlockResultsTask({
+      intersections: ['59.952305, 11.047053', '59.952248, 11.045588']
+    }).run().listen(defaultRunToResultConfig(
+      {
+        onResolved: ({results, location}) => {
+          // Expect it to be two ways
+          expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/570781859']);
+          expect(R.map(R.prop('id'), R.prop('nodes', results))).toEqual(['node/706705268', 'node/1287797787']);
+          // Expect our intersection names
+          expect(reqStrPathThrowing('intersections', results)).toEqual({
+            "node/706705268": [
+              "Tærudgata",
+              "way/570781859"
+            ],
+            "node/1287797787": [
+              "way/570781859",
+              "way/703449786"
+            ]
+          });
+        }
+      }, errors, done));
+  }, 50000);
+
   /*
   test('getFeaturesOfBlock', done => {
     // Weird case where on way is a loop

@@ -17,7 +17,8 @@ import {
   mapObjToValues, mergeAllWithKey,
   reqStrPathThrowing,
   resultToTaskNeedingResult, resultToTaskWithResult, traverseReduceDeepResults,
-  traverseReduceWhile
+  traverseReduceWhile,
+  strPathOr
 } from 'rescape-ramda';
 import {of, waitAll, rejected} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
@@ -64,7 +65,10 @@ const waysOfNodeQuery = nodeId => {
   )(nodeId);
   return `
     node(id:${id})->.matchingNode;
-    way(bn.matchingNode)${highwayOsmFilter}->.matchingWays;
+    // Find ways within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
+    (way(around.bn.matchingNode:10)[area = "yes"][highway]["highway" != "driveway"]["footway" != "crossing"]["footway" != "sidewalk"];
+    way(bn.matchingNode)[area != "yes"][highway]["highway" != "driveway"]["footway" != "crossing"]["footway" != "sidewalk"];
+    )->.matchingWays;
     .matchingWays out geom;
   `;
 };
@@ -176,17 +180,31 @@ export const queryLocationForOsmBlockResultsTask = location => {
  * Sorts the features by connecting them at their start/ends
  * @param {[Object]} wayFeatures List of way features to sort
  * @param {[Object]} nodeFeatures Two node features representing the block intersection
- * @param {Object} Object contains keys nodes and ways. Nodes must always be the two node Features of the4 block.
+ * @returns {Object}  {ways: ..., nodes: ...} contains keys nodes and ways. Nodes must always be the two node Features of the block.
  * ways must be at least on way Feature, possibly shortened to match the block and up to n way features with at
  * most the first and last possibly shortened to match the block
  */
 export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
+  // First handle some special cases:
+  // If we have exactly one way and it has a tag area="yes" then it's a pedestrian zone or similar and the
+  // two nodes aren't necessarily nodes of the pedestrian area.
+  if (R.both(
+    R.compose(R.equals(1), R.length),
+    R.compose(R.equals('yes'), strPathOr(false, '0.properties.tags.area'))
+  )(wayFeatures)) {
+    return {
+      ways: wayFeatures,
+      nodes: nodeFeatures
+    }
+  }
+
   // Build a lookup of start and end points
   // This results in {
   //  end_coordinate_hash: {head: [feature]}
   //  coordinate_hash: {head: [feature], tail: [feature] }
   //  end_coordinate_hash: {tail: [feature]}
   //}
+  // TODO this doesn't yet handle ways that are loops
   // Note that two hashes have only one feature. One with one at the head and one with one at the tail
   // The other have two features. So this gives us a good idea of how the features are chained together
   const lookup = R.reduce(
@@ -888,8 +906,19 @@ const _createIntersectionQueryOutput = (type, orderedBlocks) => {
     // If we didn't have orderedBlocks, we'll have more possible results
     // We have to go through each way and find one that has exactly one node from our two node sets
     () => `foreach .ways -> .singleway (
- node.nodes1(w.singleway)->.nodes1OfSingleWay;
- node.nodes2(w.singleway)->.nodes2OfSingleWay;
+    // Get the nodes from each intersection that are near the way. We do this instead of finding
+    // nodes that are on the way (e.g. node.nodes1(w.singleway)) because area ways such as pedestrian areas
+    // won't have a node that is one of our intersection nodes. TODO we could code this to only allow
+    // area ways to do fuzzy queries and 
+    // TODO this == 'yes' should work if the area tag equals yes. But it always evaluates false.
+    // Thus I use != so the top block is always true, sigh
+    if (.singleway.t[area] != 'yes') { 
+     node.nodes1(around.singleway:10)->.nodes1OfSingleWay;
+     node.nodes2(around.singleway:10)->.nodes2OfSingleWay;
+    } else {
+     node.nodes1(w.singleway)->.nodes1OfSingleWay;
+     node.nodes2(w.singleway)->.nodes2OfSingleWay;
+    }
  (.nodes1OfSingleWay; .nodes2OfSingleWay;)-> .nodesOfSingleWay;
  way.singleway(bn.nodesOfSingleWay)(if:nodes1OfSingleWay.count(nodes) == 1)(if:nodes2OfSingleWay.count(nodes) == 1)->.matchingWays;
  node.nodesOfSingleWay(if:nodes1OfSingleWay.count(nodes) == 1)(if:nodes2OfSingleWay.count(nodes) == 1)->.matchingNodes;

@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.1.56",
+  "version": "0.1.57",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "repository": {
     "type": "git",
@@ -54,8 +54,8 @@
     "ramda": "^0.26.1",
     "request": "^2.88.0",
     "rescape-helpers": "^1.1.84",
-    "rescape-log": "^0.1.4",
-    "rescape-ramda": "^1.5.64",
+    "rescape-log": "^0.1.6",
+    "rescape-ramda": "^1.5.69",
     "string-similarity": "^3.0.0",
     "xhr": "^2.5.0"
   },
@@ -84,7 +84,7 @@
     "jsdoc-babel": "^0.5.0",
     "longjohn": "^0.2.12",
     "promise": "8.0.3",
-    "rescape-helpers-test": "^0.0.21",
+    "rescape-helpers-test": "^0.0.22",
     "rescape-sample-data": "^1.2.55",
     "rimraf": "^2.6.2",
     "rollup": "^1.19.3",

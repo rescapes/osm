@@ -2336,6 +2336,13 @@ acorn-globals@^4.1.0, acorn-globals@^4.3.0:
     acorn "^6.0.1"
     acorn-walk "^6.0.1"
 
+acorn-globals@^4.3.2:
+  version "4.3.3"
+  resolved "https://registry.yarnpkg.com/acorn-globals/-/acorn-globals-4.3.3.tgz#a86f75b69680b8780d30edd21eee4e0ea170c05e"
+  dependencies:
+    acorn "^6.0.1"
+    acorn-walk "^6.0.1"
+
 acorn-jsx@^5.0.0:
   version "5.0.1"
   resolved "https://registry.yarnpkg.com/acorn-jsx/-/acorn-jsx-5.0.1.tgz#32a064fd925429216a09b141102bfdd185fae40e"
@@ -2352,7 +2359,7 @@ acorn@^6.0.1, acorn@^6.0.4, acorn@^6.0.7:
   version "6.1.1"
   resolved "https://registry.yarnpkg.com/acorn/-/acorn-6.1.1.tgz#7d25ae05bb8ad1f9b699108e1094ecd7884adc1f"
 
-acorn@^6.2.1:
+acorn@^6.1.1, acorn@^6.2.1:
   version "6.2.1"
   resolved "https://registry.yarnpkg.com/acorn/-/acorn-6.2.1.tgz#3ed8422d6dec09e6121cc7a843ca86a330a86b51"
 
@@ -2695,6 +2702,10 @@ astral-regex@^1.0.0:
 async-each@^1.0.0:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/async-each/-/async-each-1.0.3.tgz#b727dbf87d7651602f06f4d4ac387f47d91b0cbf"
+
+async-limiter@^1.0.0:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/async-limiter/-/async-limiter-1.0.1.tgz#dd379e94f0db8310b08291f9d64c3209766617fd"
 
 async-limiter@~1.0.0:
   version "1.0.0"
@@ -3473,9 +3484,19 @@ cssom@0.3.x, "cssom@>= 0.3.2 < 0.4.0", cssom@^0.3.4:
   version "0.3.6"
   resolved "https://registry.yarnpkg.com/cssom/-/cssom-0.3.6.tgz#f85206cee04efa841f3c5982a74ba96ab20d65ad"
 
+cssom@^0.3.6:
+  version "0.3.8"
+  resolved "https://registry.yarnpkg.com/cssom/-/cssom-0.3.8.tgz#9f1276f5b2b463f2114d3f2c75250af8c1a36f4a"
+
 cssstyle@^1.0.0, cssstyle@^1.1.1:
   version "1.2.2"
   resolved "https://registry.yarnpkg.com/cssstyle/-/cssstyle-1.2.2.tgz#427ea4d585b18624f6fdbf9de7a2a1a3ba713077"
+  dependencies:
+    cssom "0.3.x"
+
+cssstyle@^1.2.2:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/cssstyle/-/cssstyle-1.4.0.tgz#9d31328229d3c565c61e586b02041a28fccdccf1"
   dependencies:
     cssom "0.3.x"
 
@@ -3486,6 +3507,10 @@ csstype@^2.5.7:
 d3-array@1, d3-array@^1.2.0:
   version "1.2.4"
   resolved "https://registry.yarnpkg.com/d3-array/-/d3-array-1.2.4.tgz#635ce4d5eea759f6f605863dbcfc30edc737f71f"
+
+"d3-array@1.2.0 - 2":
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/d3-array/-/d3-array-2.2.0.tgz#a9e966b8f8d78f0888d98db1fb840fc8da8ac5c7"
 
 "d3-array@^1.2.0 || 2":
   version "2.0.3"
@@ -3536,6 +3561,16 @@ d3-scale@^3.0.0:
   resolved "https://registry.yarnpkg.com/d3-scale/-/d3-scale-3.0.0.tgz#ddede1278ac3ea2bf3666de6ca625e20bed9b6c9"
   dependencies:
     d3-array "^1.2.0 || 2"
+    d3-format "1"
+    d3-interpolate "1"
+    d3-time "1"
+    d3-time-format "2"
+
+d3-scale@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/d3-scale/-/d3-scale-3.0.1.tgz#f7b5e7046ad83b35399639455bf5218a3cc1d1bc"
+  dependencies:
+    d3-array "1.2.0 - 2"
     d3-format "1"
     d3-interpolate "1"
     d3-time "1"
@@ -3856,7 +3891,7 @@ escape-string-regexp@^1.0.2, escape-string-regexp@^1.0.5:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/escape-string-regexp/-/escape-string-regexp-1.0.5.tgz#1b61c0562190a8dff6ae3bb2cf0200ca130b86d4"
 
-escodegen@^1.11.0, escodegen@^1.9.1:
+escodegen@^1.11.0, escodegen@^1.11.1, escodegen@^1.9.1:
   version "1.11.1"
   resolved "https://registry.yarnpkg.com/escodegen/-/escodegen-1.11.1.tgz#c485ff8d6b4cdb89e27f4a856e91f118401ca510"
   dependencies:
@@ -4329,14 +4364,6 @@ fs-extra@^7.0.1:
     jsonfile "^4.0.0"
     universalify "^0.1.0"
 
-fs-extra@^8.0.1:
-  version "8.0.1"
-  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-8.0.1.tgz#90294081f978b1f182f347a440a209154344285b"
-  dependencies:
-    graceful-fs "^4.1.2"
-    jsonfile "^4.0.0"
-    universalify "^0.1.0"
-
 fs-minipass@^1.2.5:
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/fs-minipass/-/fs-minipass-1.2.5.tgz#06c277218454ec288df77ada54a03b8702aacb9d"
@@ -4558,12 +4585,6 @@ graphql@^0.10.0:
 graphql@^14.3.0:
   version "14.3.0"
   resolved "https://registry.yarnpkg.com/graphql/-/graphql-14.3.0.tgz#34dd36faa489ff642bcd25df6c3b4f988a1a2f3e"
-  dependencies:
-    iterall "^1.2.2"
-
-graphql@^14.3.1:
-  version "14.3.1"
-  resolved "https://registry.yarnpkg.com/graphql/-/graphql-14.3.1.tgz#b3aa50e61a841ada3c1f9ccda101c483f8e8c807"
   dependencies:
     iterall "^1.2.2"
 
@@ -4807,6 +4828,10 @@ invariant@^2.2.2, invariant@^2.2.4:
 invert-kv@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/invert-kv/-/invert-kv-2.0.0.tgz#7393f5afa59ec9ff5f67a27620d11c226e3eec02"
+
+ip-regex@^2.1.0:
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/ip-regex/-/ip-regex-2.1.0.tgz#fa78bf5d2e6913c911ce9f819ee5146bb6d844e9"
 
 is-accessor-descriptor@^0.1.6:
   version "0.1.6"
@@ -5524,35 +5549,35 @@ jsdom@^15.0.0:
     ws "^6.1.2"
     xml-name-validator "^3.0.0"
 
-jsdom@^15.1.0:
-  version "15.1.0"
-  resolved "https://registry.yarnpkg.com/jsdom/-/jsdom-15.1.0.tgz#80c5f0dd69466742ab1194f15d301bdd01417596"
+jsdom@^15.1.1:
+  version "15.1.1"
+  resolved "https://registry.yarnpkg.com/jsdom/-/jsdom-15.1.1.tgz#21ed01f81d95ef4327f3e564662aef5e65881252"
   dependencies:
     abab "^2.0.0"
-    acorn "^6.0.4"
-    acorn-globals "^4.3.0"
+    acorn "^6.1.1"
+    acorn-globals "^4.3.2"
     array-equal "^1.0.0"
-    cssom "^0.3.4"
-    cssstyle "^1.1.1"
+    cssom "^0.3.6"
+    cssstyle "^1.2.2"
     data-urls "^1.1.0"
     domexception "^1.0.1"
-    escodegen "^1.11.0"
+    escodegen "^1.11.1"
     html-encoding-sniffer "^1.0.2"
-    nwsapi "^2.1.3"
+    nwsapi "^2.1.4"
     parse5 "5.1.0"
     pn "^1.1.0"
     request "^2.88.0"
-    request-promise-native "^1.0.5"
+    request-promise-native "^1.0.7"
     saxes "^3.1.9"
     symbol-tree "^3.2.2"
-    tough-cookie "^2.5.0"
+    tough-cookie "^3.0.1"
     w3c-hr-time "^1.0.1"
     w3c-xmlserializer "^1.1.2"
     webidl-conversions "^4.0.2"
     whatwg-encoding "^1.0.5"
     whatwg-mimetype "^2.3.0"
     whatwg-url "^7.0.0"
-    ws "^6.1.2"
+    ws "^7.0.0"
     xml-name-validator "^3.0.0"
 
 jsesc@^2.5.1:
@@ -6058,6 +6083,10 @@ moment-duration-format@^2.2.2:
   version "2.2.2"
   resolved "https://registry.yarnpkg.com/moment-duration-format/-/moment-duration-format-2.2.2.tgz#b957612de26016c9ad9eb6087c054573e5127779"
 
+moment-duration-format@^2.3.2:
+  version "2.3.2"
+  resolved "https://registry.yarnpkg.com/moment-duration-format/-/moment-duration-format-2.3.2.tgz#5fa2b19b941b8d277122ff3f87a12895ec0d6212"
+
 moment@^2.22.2, moment@^2.24.0:
   version "2.24.0"
   resolved "https://registry.yarnpkg.com/moment/-/moment-2.24.0.tgz#0d055d53f5052aa653c9f6eb68bb5d12bf5c2b5b"
@@ -6232,7 +6261,7 @@ numeral@^2.0.6:
   version "2.0.6"
   resolved "https://registry.yarnpkg.com/numeral/-/numeral-2.0.6.tgz#4ad080936d443c2561aed9f2197efffe25f4e506"
 
-nwsapi@^2.0.7, nwsapi@^2.1.3:
+nwsapi@^2.0.7, nwsapi@^2.1.3, nwsapi@^2.1.4:
   version "2.1.4"
   resolved "https://registry.yarnpkg.com/nwsapi/-/nwsapi-2.1.4.tgz#e006a878db23636f8e8a67d33ca0e4edf61a842f"
 
@@ -7114,6 +7143,10 @@ regenerator-runtime@^0.13.2:
   version "0.13.2"
   resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.13.2.tgz#32e59c9a6fb9b1a4aff09b4930ca2d4477343447"
 
+regenerator-runtime@^0.13.3:
+  version "0.13.3"
+  resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.13.3.tgz#7cf6a77d8f5c6f60eb73c5fc1955b2ceb01e6bf5"
+
 regenerator-transform@^0.14.0:
   version "0.14.0"
   resolved "https://registry.yarnpkg.com/regenerator-transform/-/regenerator-transform-0.14.0.tgz#2ca9aaf7a2c239dd32e4761218425b8c7a86ecaf"
@@ -7180,7 +7213,7 @@ request-promise-core@1.1.2:
   dependencies:
     lodash "^4.17.11"
 
-request-promise-native@^1.0.5:
+request-promise-native@^1.0.5, request-promise-native@^1.0.7:
   version "1.0.7"
   resolved "https://registry.yarnpkg.com/request-promise-native/-/request-promise-native-1.0.7.tgz#a49868a624bdea5069f1251d0a836e0d89aa2c59"
   dependencies:
@@ -7229,9 +7262,9 @@ require-relative@0.8.7:
   version "0.8.7"
   resolved "https://registry.yarnpkg.com/require-relative/-/require-relative-0.8.7.tgz#7999539fc9e047a37928fa196f8e1563dabd36de"
 
-rescape-apollo@^0.0.70:
-  version "0.0.70"
-  resolved "https://registry.yarnpkg.com/rescape-apollo/-/rescape-apollo-0.0.70.tgz#f3030e6d8f780793f8502e49753044d70d7d2a7a"
+rescape-apollo@^0.0.71:
+  version "0.0.71"
+  resolved "https://registry.yarnpkg.com/rescape-apollo/-/rescape-apollo-0.0.71.tgz#da8d7c933ca4b2069faea60891b41f6cfe6a38e5"
   dependencies:
     apollo-cache-inmemory "^1.6.2"
     apollo-client "^2.6.3"
@@ -7260,11 +7293,11 @@ rescape-apollo@^0.0.70:
     react-emotion "^10.0.0"
     request "^2.88.0"
     rescape-geospatial-sankey "^0.7.17"
-    rescape-helpers "^1.1.84"
+    rescape-helpers "^1.1.93"
     rescape-helpers-component "^1.5.35"
-    rescape-log "^0.1.6"
-    rescape-ramda "^1.5.69"
-    rescape-validate "^1.2.24"
+    rescape-log "^0.1.7"
+    rescape-ramda "^1.5.70"
+    rescape-validate "^1.2.25"
     unfetch "^4.1.0"
 
 rescape-geospatial-sankey@^0.7.17:
@@ -7301,9 +7334,9 @@ rescape-helpers-component@^1.5.35:
     styled-components "^4.1.3"
     util "^0.11.0"
 
-rescape-helpers-test@^0.0.22:
-  version "0.0.22"
-  resolved "https://registry.yarnpkg.com/rescape-helpers-test/-/rescape-helpers-test-0.0.22.tgz#81dafbcffc604357a678c8e6724f8e6909f207f0"
+rescape-helpers-test@^0.0.23:
+  version "0.0.23"
+  resolved "https://registry.yarnpkg.com/rescape-helpers-test/-/rescape-helpers-test-0.0.23.tgz#32e09bc19a8dfc2683009b7cf98b3701583ea790"
   dependencies:
     apollo-client "^2.6.3"
     apollo-client-preset "^1.0.8"
@@ -7322,10 +7355,10 @@ rescape-helpers-test@^0.0.22:
     redux "^4.0.4"
     redux-mock-store "^1.5.3"
     redux-thunk "^2.3.0"
-    rescape-apollo "^0.0.70"
+    rescape-apollo "^0.0.71"
     rescape-helpers-component "^1.5.35"
-    rescape-ramda "^1.5.69"
-    rescape-validate "^1.2.24"
+    rescape-ramda "^1.5.70"
+    rescape-validate "^1.2.25"
     util "^0.12.1"
 
 rescape-helpers@^1.1.78:
@@ -7363,9 +7396,9 @@ rescape-helpers@^1.1.78:
     rescape-validate "^1.2.19"
     reselect "^4.0.0"
 
-rescape-helpers@^1.1.84:
-  version "1.1.84"
-  resolved "https://registry.yarnpkg.com/rescape-helpers/-/rescape-helpers-1.1.84.tgz#1ccc8f49eba20c29eb6f09444e84a1720dfdb85f"
+rescape-helpers@^1.1.92, rescape-helpers@^1.1.93:
+  version "1.1.93"
+  resolved "https://registry.yarnpkg.com/rescape-helpers/-/rescape-helpers-1.1.93.tgz#1909c55f0cff2d4ec037107487750347baff59b2"
   dependencies:
     "@turf/bbox" "^6.0.1"
     "@turf/bbox-polygon" "^6.0.1"
@@ -7376,31 +7409,33 @@ rescape-helpers@^1.1.84:
     "@turf/transform-translate" "^5.1.5"
     apollo-client-preset "^1.0.8"
     babel-plugin-transform-es2015-modules-commonjs-simple "^6.7.4"
-    d3-scale "^3.0.0"
+    d3-scale "^3.0.1"
     folktale "^2.3.0"
-    graphql "^14.3.1"
+    graphql "^14.4.2"
     graphql-geojson "^1.0.0"
-    graphql-tools "^4.0.4"
+    graphql-tools "^4.0.5"
     immutable "^4.0.0-rc.9"
-    jsdom "^15.1.0"
+    jsdom "^15.1.1"
     longjohn "^0.2.12"
     moment "^2.22.2"
-    moment-duration-format "^2.2.2"
+    moment-duration-format "^2.3.2"
     numeral "^2.0.6"
     parse-decimal-number "^1.0.0"
     prop-types "^15.6.2"
     ramda "^0.26.1"
-    redux "^4.0.0"
+    redux "^4.0.4"
     redux-debounced "^0.5.0"
     redux-logger "^3.0.6"
     redux-thunk "^2.3.0"
-    rescape-ramda "^1.5.41"
-    rescape-validate "^1.2.21"
+    rescape-helpers "^1.1.92"
+    rescape-ramda "^1.5.70"
+    rescape-sample-data "^1.2.58"
+    rescape-validate "^1.2.25"
     reselect "^4.0.0"
 
-rescape-log@^0.1.6:
-  version "0.1.6"
-  resolved "https://registry.yarnpkg.com/rescape-log/-/rescape-log-0.1.6.tgz#8995da562e7900cf8ce85bcc60b2671dff20e322"
+rescape-log@^0.1.7:
+  version "0.1.7"
+  resolved "https://registry.yarnpkg.com/rescape-log/-/rescape-log-0.1.7.tgz#21b47fdeb03ee8157fc078da9606265f258daa7d"
   dependencies:
     winston "^3.2.1"
 
@@ -7416,21 +7451,9 @@ rescape-ramda@^1.5.24, rescape-ramda@^1.5.37:
     ramda-maybe "^0.18.0"
     util "^0.12.0"
 
-rescape-ramda@^1.5.41:
-  version "1.5.41"
-  resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.5.41.tgz#992f31959cc2a834eef7322c43a97c018a4927c9"
-  dependencies:
-    folktale "^2.3.2"
-    fs-extra "^8.0.1"
-    namedtuplemap "^1.0.0"
-    ramda "^0.26.1"
-    ramda-fantasy "^0.8.0"
-    ramda-maybe "^0.18.0"
-    util "^0.12.0"
-
-rescape-ramda@^1.5.69:
-  version "1.5.69"
-  resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.5.69.tgz#be6ed32d6579484724c3cee0e1787da02769e782"
+rescape-ramda@^1.5.70:
+  version "1.5.70"
+  resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.5.70.tgz#515f90a9bef075c3c4146483e958c570b1c0206f"
   dependencies:
     folktale "^2.3.2"
     fs-extra "^8.1.0"
@@ -7440,13 +7463,13 @@ rescape-ramda@^1.5.69:
     ramda-maybe "^0.18.0"
     util "^0.12.1"
 
-rescape-sample-data@^1.2.55:
-  version "1.2.55"
-  resolved "https://registry.yarnpkg.com/rescape-sample-data/-/rescape-sample-data-1.2.55.tgz#b29ee2368dce4be1a48fc0ee9c494d4c8a629290"
+rescape-sample-data@^1.2.58, rescape-sample-data@^1.2.59:
+  version "1.2.59"
+  resolved "https://registry.yarnpkg.com/rescape-sample-data/-/rescape-sample-data-1.2.59.tgz#db2af4b42813f0fb13ebf7ad11c269eda723d7d7"
   dependencies:
-    graphql "^14.3.1"
+    graphql "^14.4.2"
     graphql-geojson "^1.0.0"
-    graphql-tools "^4.0.4"
+    graphql-tools "^4.0.5"
     immutable "^4.0.0-rc.9"
     moment "^2.24.0"
     numeral "^2.0.6"
@@ -7454,10 +7477,10 @@ rescape-sample-data@^1.2.55:
     prop-types "^15.7.2"
     ramda "^0.26.1"
     ramda-lens "^0.1.2"
-    regenerator-runtime "^0.13.2"
-    rescape-helpers "^1.1.84"
-    rescape-ramda "^1.5.41"
-    rescape-validate "^1.2.21"
+    regenerator-runtime "^0.13.3"
+    rescape-helpers "^1.1.93"
+    rescape-ramda "^1.5.70"
+    rescape-validate "^1.2.25"
 
 rescape-validate@^1.2.15, rescape-validate@^1.2.19:
   version "1.2.19"
@@ -7470,27 +7493,16 @@ rescape-validate@^1.2.15, rescape-validate@^1.2.19:
     ramda-fantasy-validation "^0.2.0"
     rescape-ramda "^1.5.37"
 
-rescape-validate@^1.2.21:
-  version "1.2.21"
-  resolved "https://registry.yarnpkg.com/rescape-validate/-/rescape-validate-1.2.21.tgz#19a5b10b5d431edab9dc5266fa6817caf8cf3227"
+rescape-validate@^1.2.25:
+  version "1.2.25"
+  resolved "https://registry.yarnpkg.com/rescape-validate/-/rescape-validate-1.2.25.tgz#ff56d32f1eed1dfe6b8e778a72b0a150edf6dac7"
   dependencies:
     folktale "^2.3.2"
     prop-types "^15.6.2"
     ramda "^0.26.1"
     ramda-fantasy "^0.8.0"
     ramda-fantasy-validation "^0.2.0"
-    rescape-ramda "^1.5.41"
-
-rescape-validate@^1.2.24:
-  version "1.2.24"
-  resolved "https://registry.yarnpkg.com/rescape-validate/-/rescape-validate-1.2.24.tgz#edeeccb356f19c6a8b35001d68854266499157f3"
-  dependencies:
-    folktale "^2.3.2"
-    prop-types "^15.6.2"
-    ramda "^0.26.1"
-    ramda-fantasy "^0.8.0"
-    ramda-fantasy-validation "^0.2.0"
-    rescape-ramda "^1.5.69"
+    rescape-ramda "^1.5.70"
 
 reselect@^4.0.0:
   version "4.0.0"
@@ -7669,9 +7681,9 @@ rollup-watch@4.3.1:
     require-relative "0.8.7"
     rollup-pluginutils "^2.0.1"
 
-rollup@^1.19.3:
-  version "1.19.3"
-  resolved "https://registry.yarnpkg.com/rollup/-/rollup-1.19.3.tgz#77e59426faa6d8399e7b75c129e81447cf9db317"
+rollup@^1.19.4:
+  version "1.19.4"
+  resolved "https://registry.yarnpkg.com/rollup/-/rollup-1.19.4.tgz#0cb4e4d6fa127adab59b11d0be50e8dd1c78123a"
   dependencies:
     "@types/estree" "0.0.39"
     "@types/node" "^12.6.9"
@@ -8271,6 +8283,14 @@ tough-cookie@^2.3.3, tough-cookie@^2.3.4, tough-cookie@^2.5.0:
     psl "^1.1.28"
     punycode "^2.1.1"
 
+tough-cookie@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/tough-cookie/-/tough-cookie-3.0.1.tgz#9df4f57e739c26930a018184887f4adb7dca73b2"
+  dependencies:
+    ip-regex "^2.1.0"
+    psl "^1.1.28"
+    punycode "^2.1.1"
+
 tough-cookie@~2.4.3:
   version "2.4.3"
   resolved "https://registry.yarnpkg.com/tough-cookie/-/tough-cookie-2.4.3.tgz#53f36da3f47783b0925afa06ff9f3b165280f781"
@@ -8629,6 +8649,12 @@ ws@^6.1.2:
   resolved "https://registry.yarnpkg.com/ws/-/ws-6.2.1.tgz#442fdf0a47ed64f59b6a5d8ff130f4748ed524fb"
   dependencies:
     async-limiter "~1.0.0"
+
+ws@^7.0.0:
+  version "7.1.1"
+  resolved "https://registry.yarnpkg.com/ws/-/ws-7.1.1.tgz#f9942dc868b6dffb72c14fd8f2ba05f77a4d5983"
+  dependencies:
+    async-limiter "^1.0.0"
 
 xhr@^2.4.0, xhr@^2.5.0:
   version "2.5.0"

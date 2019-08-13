@@ -3,7 +3,8 @@ import * as R from 'ramda';
 import {of, waitAll} from 'folktale/concurrency/task';
 import {_cleanGeojson, _intersectionsFromWaysAndNodes, fetchOsmRawTask, osmResultTask} from './overpass';
 import * as Result from 'folktale/result';
-import {constructInstersectionsQuery, getFeaturesOfBlock} from './overpassBlocks';
+import {constructInstersectionsQuery, getFeaturesOfBlock} from './overpassSingleBlock';
+import {parallelWayNodeQueriesResultTask, predicate} from './overpassBlockHelpers';
 
 /**
  * Created by Andy Likuski on 2019.07.26
@@ -16,11 +17,23 @@ import {constructInstersectionsQuery, getFeaturesOfBlock} from './overpassBlocks
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+
 /**
- *
- * @param bbox
+ * Given locations that each represent a neighborhood or city (TODO and in the future any geojson-based bounds),
+ * resolves all OpenStreetMap blocks in those neighborhoods. We define a block as one or more full or partial OSM ways
+ * between two OSM nodes, where the nodes are defined as intersections because
+ * 1) 3 or more ways touch them
+ * 2) 2 ways touch them and one of the ways has nodes (waynodes) on either side of the node (the way doesn't just touch
+ * the node at one end)
+ * @param [{Object}] locations Locations that must each contain a country, city, and optionally state, neighborhood
+ * @returns {Task<Object<Ok:[Location], Error:[Object]>>} A task with an object containing two arrays.
+ * The Ok array is a list of all the blocks represented as locations. A location block contains a country, [state],
+ * city, [neighborhood], intersections (usually two arrays with 2 or more streets names each representing an intersection,
+ * one array for a dead end),
+ * geojson containing one or more intersection nodes, and one or more ways where the nodes of the ways are trimmed
+ * to the nodes between the intersections
  */
-export const getBlocksOfBounds = ({locaitons}) => {
+export const getAllBlocksOfLocations = ({locations}) => {
   return traverseReduceDeepResults(2,
     // The accumulator
     (res, okObj) => R.concat(
@@ -43,13 +56,35 @@ export const getBlocksOfBounds = ({locaitons}) => {
     of({Ok: [], Error: []}),
     // [Object] -> [Task (Result.Ok | Result.Error)]
     R.map(
-      locationWithOsm => _queryOverpassForBlocksResultTask(locationWithOsm),
-      locationsWithOsm
+      locationWithOsm => _queryOverpassWithLocationForAllBlocksResultTask(locationWithOsm),
+      locations
     )
   );
 };
 
-const _queryOverpassForBlocksResultTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQuery}) => {
+/***
+ * Queries for all blocks matching the Osm area id in the given location
+ * @param {Object} locationWithOsm Location object with  bbox, osmId, placeId from
+ * @private
+ * @returns {Task<Result<[Object]>>} The block represented as locations (see getAllBlocksOfLocations for description)
+ */
+const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
+  return R.composeK(
+    ({way: wayQuery, node: nodeQuery}) => _queryOverpassForAllBlocksResultTask(
+      {way: wayQuery, node: nodeQuery}
+    ),
+    // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
+    // the geojson if we request them together
+    locationWithOsm => of(
+      R.fromPairs(R.map(
+        type => [type, constructInstersectionsQuery({type}, locationWithOsm)],
+        ['way', 'node']
+      ))
+    )
+  )(locationWithOsm);
+};
+
+const _queryOverpassForAllBlocksResultTask = ({way: wayQuery, node: nodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
     resultToTaskNeedingResult(
@@ -91,88 +126,8 @@ const _queryOverpassForBlocksResultTask = ({way: wayQuery, node: nodeQuery, ways
       }
     ),
 
-    // If our predicate fails, give up with a Response.Error
-    // Task [Object] -> Task Result.Ok (Object) | Result.Error (Object)
-    ({way, node, waysOfNodes}) => of(
-      R.ifElse(
-        // If predicate passes
-        ({way: wayFeatures, node: nodeFeatures}) => predicate({wayFeatures, nodeFeatures}),
-        // All good, return the responses
-        () => Result.Ok({
-          node,
-          way,
-          waysOfNodes
-        }),
-        // Predicate fails, return a Result.Error with useful info.
-        ({way: wayFeatures, node: nodeFeatures}) => Result.Error({
-          error: `Found ${R.length(nodeFeatures)} nodes and ${R.length(wayFeatures)} ways`,
-          way,
-          node,
-          waysOfNodes
-        })
-      )(R.map(reqStrPathThrowing('response.features'), {node, way}))
-    ),
-
-    // Once we get our way query and node query done,
-    // we want to get all ways of each node that was returned. These ways tell us the street names
-    // that OSM has for each intersection, which are our official street names if we didn't collect them manually
-    ({way, node}) => R.map(
-      // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
-      objs => ({way, node, waysOfNodes: R.mergeAll(objs)}),
-      waitAll(
-        R.addIndex(R.map)(
-          (nodeId, i) => R.map(
-            // Then map the task response to include the query for debugging/error resolution
-            // Then map the task response to include the query for debugging/error resolution
-            // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
-            response => ({[nodeId]: {query: waysOfNodeQuery(nodeId), response: response.value}}),
-            // Perform the task
-            osmResultTask({name: 'waysOfNodeQuery'},
-              ({overpassUrl}) => fetchOsmRawTask(
-                {
-                  overpassUrl,
-                  sleepBetweenCalls: i * 2000
-                }, waysOfNodeQuery(nodeId)
-              )
-            )
-          ),
-          // Extract the id of each node
-          R.compose(
-            R.map(reqStrPathThrowing('id')),
-            reqStrPathThrowing('response.features')
-          )(node)
-        )
-      )
-    ),
-
-    // Perform the OSM queries in "parallel"
-    // TODO Wait 2 seconds for the second call, Overpass is super picky. When we get our
-    // own server we can remove the delay
-    queries => R.map(
-      // Just combine the results to get {way: {query, response}, node: {query, response}}
-      objs => R.mergeAll(objs),
-      waitAll(
-        // When we have our own serve we can disable the delay
-        R.addIndex(mapObjToValues)(
-          (query, type, obj, i) => R.map(
-            // Then map the task response to include the query for debugging/error resolution
-            // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
-            // if the OSM can't be resolved
-            response => ({[type]: {query, response: response.value}}),
-            // Perform the task
-            osmResultTask({name: 'featchOsmRawTask'},
-              ({overpassUrl}) => fetchOsmRawTask(
-                {
-                  overpassUrl,
-                  sleepBetweenCalls: i * 2000
-                }, query
-              )
-            )
-          ),
-          queries
-        )
-      )
-    )
+    // Query for the ways and nodes in parallel
+    queries => parallelWayNodeQueriesResultTask(queries)
   )({way: wayQuery, node: nodeQuery});
 };
 

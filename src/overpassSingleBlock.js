@@ -29,49 +29,16 @@ import {
   highwayOsmFilter,
   osmEquals, osmIdEquals, osmNotEqual, osmResultTask
 } from './overpass';
-import {nominatimResultTask} from './search';
+import {nominatimResultTask, nomitimLocationResultTask} from './nominatimLocationSearch';
 import {hasLatLngIntersections, isLatLng} from './locationHelpers';
 import {compareTwoStrings} from 'string-similarity';
 import {googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
+import {parallelWayNodeQueriesResultTask, predicate, waysOfNodesTask} from './overpassBlockHelpers';
 
 const log = loggers.get('rescapeDefault');
 
 
-/**
- * Determines if an OSM query result is a valid block
- * @param wayFeatures
- * @param nodeFeatures
- */
-const predicate = ({wayFeatures, nodeFeatures}) => R.allPass([
-  // Not null
-  R.complement(R.isNil),
-  // We'd normally limit nodes to 2, but there can be 4 if we have a divided road
-  // There might be cases where a divided road merges into a nondivided road, so we'll allow 2-4
-  ({nodeFeatures}) => R.compose(R.both(R.lte(2), R.gte(4)), R.length)(nodeFeatures),
-  // >0 ways:w
-  ({wayFeatures}) => R.compose(R.lt(0), R.length)(wayFeatures)
-])({wayFeatures, nodeFeatures});
-
-/**
- * Simple OSM query to return the ways of an intersection node.
- * @param {String} nodeId In the form 'node/id'
- * @returns {string}
- */
-const waysOfNodeQuery = nodeId => {
-  const id = R.compose(
-    R.last,
-    R.split('/')
-  )(nodeId);
-  return `
-    node(id:${id})->.matchingNode;
-    // Find ways within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
-    (way(around.bn.matchingNode:10)[area = "yes"][highway]["highway" != "driveway"]["footway" != "crossing"]["footway" != "sidewalk"];
-    way(bn.matchingNode)[area != "yes"][highway]["highway" != "driveway"]["footway" != "crossing"]["footway" != "sidewalk"];
-    )->.matchingWays;
-    .matchingWays out geom;
-  `;
-};
 
 
 /**
@@ -178,8 +145,10 @@ export const queryLocationForOsmBlockResultsTask = location => {
 
 /***
  * Sorts the features by connecting them at their start/ends
- * @param {[Object]} wayFeatures List of way features to sort
+ * @param {[Object]} wayFeatures List of way features to sort. This is 1 or more connected ways that might overlap the
+ * block on one or both sides
  * @param {[Object]} nodeFeatures Two node features representing the block intersection
+ * TODO what about dead ends? Is the dead end side represented by a node or simply the end of one way?
  * @returns {Object}  {ways: ..., nodes: ...} contains keys nodes and ways. Nodes must always be the two node Features of the block.
  * ways must be at least on way Feature, possibly shortened to match the block and up to n way features with at
  * most the first and last possibly shortened to match the block
@@ -195,7 +164,7 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
     return {
       ways: wayFeatures,
       nodes: nodeFeatures
-    }
+    };
   }
 
   // Build a lookup of start and end points
@@ -287,10 +256,10 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
  */
-const _queryOverpassForBlockWithOptionalOsmOverridesTask = (locationWithOsm, geojsonPoints) => {
+const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geojsonPoints) => {
   return R.composeK(
-    ({way: wayQuery, node: nodeQuery}) => _queryOverpassForBlockResultTask(
-      {way: wayQuery, node: nodeQuery, waysOfNodeQuery}
+    ({way: wayQuery, node: nodeQuery}) => _queryOverpassForSingleBlockResultTask(
+      {way: wayQuery, node: nodeQuery}
     ),
     // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
@@ -321,7 +290,7 @@ const _queryOverpassForBlockWithOptionalOsmOverridesTask = (locationWithOsm, geo
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
  */
-const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
+const _queryOverpassForSingleBlockTaskUntilFound = locationVariationsOfOsm => {
 
   return R.composeK(
     result => of(
@@ -379,22 +348,22 @@ const _queryOverpassForBlockTaskUntilFound = locationVariationsOfOsm => {
             locationWithOsm => hasLatLngIntersections(locationWithOsm),
             // Query with points if we only have lat/lng intersections
             locationWithOsm => [
-              _queryOverpassForBlockWithOptionalOsmOverridesTask(
+              _queryOverpassWithLocationForSingleBlockResultTask(
                 R.omit(['intersections'], locationWithOsm),
                 geojsonPoints)
             ],
             locationWithOsm => R.concat(
               [
                 // First try to find the location using intersections
-                _queryOverpassForBlockWithOptionalOsmOverridesTask(locationWithOsm)
+                _queryOverpassWithLocationForSingleBlockResultTask(locationWithOsm)
               ],
               R.unless(
                 R.isEmpty,
                 geojsonPoints => [
                   // Next try using both intersections and Google intersection points
-                  _queryOverpassForBlockWithOptionalOsmOverridesTask(locationWithOsm, geojsonPoints),
+                  _queryOverpassWithLocationForSingleBlockResultTask(locationWithOsm, geojsonPoints),
                   // Finally try using only Google intersection points
-                  _queryOverpassForBlockWithOptionalOsmOverridesTask(
+                  _queryOverpassWithLocationForSingleBlockResultTask(
                     R.omit(['intersections'], locationWithOsm),
                     geojsonPoints)
                 ]
@@ -435,11 +404,11 @@ const _locationToOsmBlockQueryResultsTask = location => {
     // Chain our queries until we get a result or fail
     locationVariationsWithOsm => R.cond([
       [R.length,
-        locationVariationsWithOsm => _queryOverpassForBlockTaskUntilFound(locationVariationsWithOsm)
+        locationVariationsWithOsm => _queryOverpassForSingleBlockTaskUntilFound(locationVariationsWithOsm)
       ],
       // No OSM ids resolved, try to query with the location f it has lat/lons in the intersection
       [() => hasLatLngIntersections(location),
-        () => _queryOverpassForBlockTaskUntilFound([location])],
+        () => _queryOverpassForSingleBlockTaskUntilFound([location])],
       // If no query produced results return a Result.Error so we can give up gracefully
       [R.T,
         () => of(Result.Error({
@@ -455,47 +424,7 @@ const _locationToOsmBlockQueryResultsTask = location => {
     results => of(compact(results)),
     // Use OSM Nominatim to get relation of the neighborhood (if it exists) and the city
     // We'll use one of these to query an area in Overpass
-    location => waitAll(
-      R.map(
-        keys => nominatimResultTask(R.pick(keys, location))
-          .map(responseResult => responseResult.matchWith({
-              Ok: ({value}) => {
-                // bounding box comes as two lats, then two lon, so fix
-                return R.merge(location, {
-                  // We're not using the bbox, but note it anyway
-                  bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], value.boundingbox)),
-                  osmId: value.osm_id,
-                  placeId: value.place_id
-                });
-              },
-              Error: ({value}) => {
-                // If no results are found, just return null. Hopefully the other nominatin query will return something
-                log.debug(`Error no results found from OSM: ${JSON.stringify(value)}`);
-                return null;
-              }
-              // Remove nulls
-            })
-          ).mapRejected(
-            // If the query fails to excute
-            errorResult => errorResult.map(error => {
-              log.warn(`Giving up. Nominatim query failed with error message: ${error}`);
-              return error;
-            })
-          ),
-        // Query with neighborhood (if given) and without.
-        // We'll only actually use the first one that resolves
-        compactEmpty(R.concat(
-          R.ifElse(
-            R.prop('neighborhood'),
-            R.always([['country', 'state', 'city', 'neighborhood']]),
-            R.always([])
-          )(location),
-          // This will either have country, state, city or country, city or nothing if it's a location
-          // with just a lot/long
-          [R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city'])]
-        ))
-      )
-    )
+    location => nomitimLocationResultTask(location)
   )(location);
 };
 
@@ -516,7 +445,7 @@ const _locationToOsmBlockQueryResultsTask = location => {
  * If one or both streets change names or for a >4-way intersection, there can be more.
  * If we handle roundabouts correctly in the future these could also account for more
  */
-const _queryOverpassForBlockResultTask = ({way: wayQuery, node: nodeQuery, waysOfNodeQuery}) => {
+const _queryOverpassForSingleBlockResultTask = ({way: wayQuery, node: nodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
     resultToTaskNeedingResult(
@@ -544,7 +473,8 @@ const _queryOverpassForBlockResultTask = ({way: wayQuery, node: nodeQuery, waysO
                 nodeIdToWaysOfNodeFeatures
               )
             },
-            // Clean the geojson of each way and node feature to remove weird characters that mess up API storage
+            // Organize the ways and nodes, trimming the ways down to match the nodes
+            // Also clean the geojson of each way and node feature to remove weird characters that mess up API storage
             // Then store the features in {ways: ..., nodes: ...}
             getFeaturesOfBlock(
               // Clean the features of each first
@@ -583,64 +513,13 @@ const _queryOverpassForBlockResultTask = ({way: wayQuery, node: nodeQuery, waysO
     // Once we get our way query and node query done,
     // we want to get all ways of each node that was returned. These ways tell us the street names
     // that OSM has for each intersection, which are our official street names if we didn't collect them manually
-    ({way, node}) => R.map(
-      // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
-      objs => ({way, node, waysOfNodes: R.mergeAll(objs)}),
-      waitAll(
-        R.addIndex(R.map)(
-          (nodeId, i) => R.map(
-            // Then map the task response to include the query for debugging/error resolution
-            // Then map the task response to include the query for debugging/error resolution
-            // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
-            response => ({[nodeId]: {query: waysOfNodeQuery(nodeId), response: response.value}}),
-            // Perform the task
-            osmResultTask({name: 'waysOfNodeQuery'},
-              ({overpassUrl}) => fetchOsmRawTask(
-                {
-                  overpassUrl,
-                  sleepBetweenCalls: i * 2000
-                }, waysOfNodeQuery(nodeId)
-              )
-            )
-          ),
-          // Extract the id of each node
-          R.compose(
-            R.map(reqStrPathThrowing('id')),
-            reqStrPathThrowing('response.features')
-          )(node)
-        )
-      )
-    ),
+    // Task <way: <query, response>, node: <query, response>>> ->
+    // Task <way: <query, response>, node: <query, response>, waysOfNodes: <node: <query, response>>>> ->
+    ({way, node}) => waysOfNodesTask({way, node}),
 
-    // Perform the OSM queries in "parallel"
-    // TODO Wait 2 seconds for the second call, Overpass is super picky. When we get our
-    // own server we can remove the delay
-    queries => R.map(
-      // Just combine the results to get {way: {query, response}, node: {query, response}}
-      objs => R.mergeAll(objs),
-      waitAll(
-        // When we have our own serve we can disable the delay
-        R.addIndex(mapObjToValues)(
-          (query, type, obj, i) => R.map(
-            // Then map the task response to include the query for debugging/error resolution
-            // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
-            // if the OSM can't be resolved
-            response => ({[type]: {query, response: response.value}}),
-            // Perform the task
-            osmResultTask(
-              {name: 'featchOsmRawTask'},
-              ({overpassUrl}) => fetchOsmRawTask(
-                {
-                  overpassUrl,
-                  sleepBetweenCalls: i * 2000
-                }, query
-              )
-            )
-          ),
-          queries
-        )
-      )
-    )
+    // Query for the ways and nodes in parallel
+    // <way: <query, node: <query> -> Task <way: <query, response>, node: <query, response>>>
+    queries => parallelWayNodeQueriesResultTask(queries)
   )({way: wayQuery, node: nodeQuery});
 };
 

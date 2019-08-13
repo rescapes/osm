@@ -152,9 +152,10 @@ export const buildFilterQuery = R.curry((settings, conditions, types) => {
  * Runs an OpenStreetMap task. Because OSM servers are picky about throttling,
  * this allows us to try all servers sequentially until one gives a result
  * @param {Object} config
- * @param {Number} config.tries Number of tries to make. Defaults to the number of server
+ * @param {Number} [config.tries] Number of tries to make. Defaults to the number of server
  * @param {String} config.name The name taskFunc for logging purposes
  * @param taskFunc
+ * @returns {Task<Result<Object>>} The response in a Result.Ok or errors in Result.Error
  */
 export const osmResultTask = ({tries, name}, taskFunc) => {
   const attempts = tries || R.length(servers);

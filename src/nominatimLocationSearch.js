@@ -10,7 +10,7 @@
  */
 
 import xhr from 'xhr';
-import {task} from 'folktale/concurrency/task';
+import {task, waitAll} from 'folktale/concurrency/task';
 import * as R from 'ramda';
 import {compactEmpty, promiseToTask} from 'rescape-ramda';
 import Nominatim from 'nominatim-geocoder';
@@ -44,17 +44,82 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
   });
 };
 
+/**
+ * Uses the nomitatim service to find a relation representing the given location.
+ * Currently this supports neighborhoods and cities. If a neighborhood is specified in the location and that
+ * query fails, the city without the neighborhood is queried. So this query is as precise as possible but
+ * will not give up until it fails at the city-wide level. TODO in the future we can support other jurisdictions
+ * like counties
+ * @param {Object} location Must contain country, city, and optionally state and neighborhood
+ * @param {Object} location.country Required the country to search in
+ * @param {Object} [location.state] Optional state of state, provinces, etc.
+ * @param {Object} [location.neighborhood] Optional neighborhood to search for the neighborhood relation
+ * @returns {Task<Result<Object>} A task containing a Result.Ok or a Result.Error. If the query finds a relation
+ * The Result.Ok returns that an object with bbox (the bounding box), osmId (the OSM relation id), osmType (always 'relation')
+ * and placeId (unused)
+ */
+export const nomitimLocationResultTask = location => {
+  return waitAll(
+    R.map(
+      keys => {
+        const locationProps = R.pick(keys, location);
+        return nominatimResultTask(locationProps)
+          .map(responseResult => responseResult.matchWith({
+              Ok: ({value}) => {
+                // bounding box comes as two lats, then two lon, so fix
+                return R.merge(location, {
+                  // We're not using the bbox, but note it anyway
+                  bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], value.boundingbox)),
+                  osmId: value.osm_id,
+                  placeId: value.place_id
+                });
+              },
+              Error: ({value}) => {
+                // If no results are found, just return null. Hopefully the other nominatin query will return something
+                log.debug(`For location query ${JSON.stringify(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
+                return null;
+              }
+              // Remove nulls
+            })
+          ).mapRejected(
+            // If the query fails to excute
+            errorResult => errorResult.map(error => {
+              log.warn(`Giving up. Nominatim query failed with error message: ${error}`);
+              return error;
+            })
+          );
+      },
+      // Query with neighborhood (if given) and without.
+      // We'll only actually use the first one that resolves
+      compactEmpty(R.concat(
+        R.ifElse(
+          R.prop('neighborhood'),
+          R.always([['country', 'state', 'city', 'neighborhood']]),
+          R.always([])
+        )(location),
+        // This will either have country, state, city or country, city or nothing if it's a location
+        // with just a lot/long
+        [R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city'])]
+      ))
+    )
+  )
+}
 
 /***
- * Resolves a city's OSM boundary relation
+ * Resolves a city or neighborhood OSM boundary relation
  * @param {Object} location. Contains location props
  * @param {String} location.country Required country
  * @param {String} location.state Optional. The state, province, canton, etc
  * @param {String} location.city Required city
  * @param {String} location.neighborhood Optional. It's quicker to resolve a relation for a neighborhood and
  * then query within a neighborhood. However if there is no neighborhood or nothing is found it can be omitted
- * @return {Task<Result>} A Task that resolves the relation id in a Result.Ok or returns a Result.Error if no
- * qualifying results are found. Task rejects with a Result.Error() if the query fails
+ * @return {Task<Result<Object>>} A Task that resolves the relation id in a Result.Ok or returns a Result.Error if no
+ * qualifying results are found. Task rejects with a Result.Error() if the query fails. The returned value
+ * has the following props:
+ *  osm_id: The OSM id of the relation.
+ *  osm_type: This should always be 'relation'
+ *  bbox: The bounding box of the relation
+ *  placeId: Internal nominatim id, ignore
  */
 export const nominatimResultTask = location => {
   // Create a location string with the country, state (if exists), and city

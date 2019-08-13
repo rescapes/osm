@@ -77,7 +77,7 @@ const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
     // the geojson if we request them together
     locationWithOsm => of(
       R.fromPairs(R.map(
-        type => [type, constructInstersectionsQuery({type}, locationWithOsm)],
+        type => [type, _constructHighwaysQuery({type}, locationWithOsm)],
         ['way', 'node']
       ))
     )
@@ -131,3 +131,12 @@ const _queryOverpassForAllBlocksResultTask = ({way: wayQuery, node: nodeQuery}) 
   )({way: wayQuery, node: nodeQuery});
 };
 
+/**
+ * Create and OSM query to get all eligible highway ways or nodes for area of the given osmId
+ * @param type
+ * @param locationWithOsm
+ * @private
+ */
+const _constructHighwaysQuery = ({type}, locationWithOsm) => {
+
+};

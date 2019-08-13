@@ -31,7 +31,7 @@ const log = loggers.get('rescapeDefault');
 export const AROUND_LAT_LON_TOLERANCE = 10;
 
 // TODO make these accessible for external configuration
-const servers = R.split(/\s*[,;\s]\s*/, process.env.OSM_SERVERS || []);
+const servers = R.split(/\s*[,;\s]\s*/, process.env.OSM_SERVERS || '');
 
 function* gen() {
   if (!R.length(servers)) {

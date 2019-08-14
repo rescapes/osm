@@ -16,7 +16,7 @@ import {
   _reduceFeaturesByHeadAndLast
 } from './overpassFeatureHelpers';
 import {
-  fetchOsmRawTask,
+  fetchOsmRawTask, highwayWayFilters, osmAlways, osmEquals, osmNotEqual,
   osmResultTask
 } from './overpass';
 import {mapObjToValues, reqStrPathThrowing, mapMDeep, mergeAllWithKey, strPathOr} from 'rescape-ramda';
@@ -37,6 +37,7 @@ export const predicate = ({wayFeatures, nodeFeatures}) => R.allPass([
   ({wayFeatures}) => R.compose(R.lt(0), R.length)(wayFeatures)
 ])({wayFeatures, nodeFeatures});
 
+
 /**
  * Simple OSM query to return the ways of an intersection node.
  * @param {String} nodeId In the form 'node/id'
@@ -50,12 +51,13 @@ const waysOfNodeQuery = nodeId => {
   return `
     node(id:${id})->.matchingNode;
     // Find ways within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
-    (way(around.bn.matchingNode:10)[area = "yes"][highway]["highway" != "driveway"]["footway" != "crossing"]["footway" != "sidewalk"];
-    way(bn.matchingNode)[area != "yes"][highway]["highway" != "driveway"]["footway" != "crossing"]["footway" != "sidewalk"];
+    (way(around.bn.matchingNode:10)[area = "yes"]${highwayWayFilters};
+    way(bn.matchingNode)[area != "yes"]${highwayWayFilters};
     )->.matchingWays;
     .matchingWays out geom;
   `;
 };
+
 
 /**
  * Perform the OSM queries in parallel

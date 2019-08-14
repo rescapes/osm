@@ -10,13 +10,14 @@
  */
 
 import xhr from 'xhr';
-import {task, waitAll} from 'folktale/concurrency/task';
+import {task, waitAll, of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
-import {compactEmpty, promiseToTask} from 'rescape-ramda';
+import {compactEmpty, promiseToTask, compact} from 'rescape-ramda';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
-import {loggers} from 'rescape-log'
+import {loggers} from 'rescape-log';
+
 const log = loggers.get('rescapeDefault');
 
 /**
@@ -58,8 +59,10 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
  * The Result.Ok returns that an object with bbox (the bounding box), osmId (the OSM relation id), osmType (always 'relation')
  * and placeId (unused)
  */
-export const nomitimLocationResultTask = location => {
-  return waitAll(
+export const nomitimLocationTask = location => R.composeK(
+  // Remove failed nominatim queries
+  queryResults => of(compact(queryResults)),
+  location => waitAll(
     R.map(
       keys => {
         const locationProps = R.pick(keys, location);
@@ -103,7 +106,7 @@ export const nomitimLocationResultTask = location => {
       ))
     )
   )
-}
+)(location);
 
 /***
  * Resolves a city or neighborhood OSM boundary relation
@@ -145,10 +148,9 @@ export const nominatimResultTask = location => {
       );
       if (R.length(matches)) {
         // Assume the first match is the best since results are ordered by importance
-        return(Result.Ok(R.head(matches)));
-      }
-      else {
-        return(Result.Error({error: "No qualifying results", results, query}));
+        return (Result.Ok(R.head(matches)));
+      } else {
+        return (Result.Error({error: "No qualifying results", results, query}));
       }
     }
     ).catch(error => Result.Error({error}))
@@ -170,8 +172,7 @@ export const mapboxGeocodeTask = R.curry((accessToken, address) => {
       (err, geoData) => {
         if (err) {
           reject(err);
-        }
-        else {
+        } else {
           resolve(geoData);
         }
       }

@@ -1,7 +1,8 @@
 import * as R from 'ramda';
-import {defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {defaultRunToResultConfig, reqStrPathThrowing, resultToTaskWithResult} from 'rescape-ramda';
 import {getAllBlocksOfLocations} from './overpassAllBlocks';
-import {nominatimResultTask} from './nominatimLocationSearch';
+import {nominatimResultTask, nomitimLocationTask} from './nominatimLocationSearch';
+import {hasLatLngIntersections} from './locationHelpers';
 
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -18,13 +19,12 @@ describe('overpassBlocksRegion', () => {
   test('getAllBlocksOfLocations', done => {
     const errors = [];
     const location = {
-      country: 'Norway',
-      city: 'Stavanger',
-      neighborhood: 'Stavanger Sentrum',
+      country: 'Canada',
+      state: 'BC',
+      city: 'Fernie',
     };
     expect.assertions(3);
     R.composeK(
-
       // 4) Return all blocks found in {Ok: []}. All ways and nodes not used in {Error: []}
       // 3) After traveling once.
       //  A) If point reached is a node, then block is created. Hash block by node ids and in between way ids
@@ -51,11 +51,30 @@ describe('overpassBlocksRegion', () => {
       // Return all wighway ways in the area
       // Query OSM constrained to the area
       // Resolve the OSM area id
-      locationWithOsm => getAllBlocksOfLocations({
-        locations: [locationWithOsm]
-      }),
+      // Chain our queries until we get a result or fail
+      locationVariationsWithOsm => R.cond([
+        [R.length,
+          locationVariationsWithOsm => getAllBlocksOfLocations({
+            locations: [R.head(locationVariationsWithOsm)]
+          })
+        ],
+        // No OSM ids resolved, try to query with the location f it has lat/lons in the intersection
+        /*[() => hasLatLngIntersections(location),
+          () => _queryOverpassForSingleBlockTaskUntilFound([location])
+        ], */
+        // If no query produced results return a Result.Error so we can give up gracefully
+        [R.T,
+          () => of(Result.Error({
+            errors: ({
+              errors: ['OSM Nominatim query could not resolve a neighborhood or city for this location. Check spelling'],
+              location
+            }),
+            location
+          }))
+        ]
+      ])(locationVariationsWithOsm),
       // Nominatim query on the place search string.
-      location => nominatimResultTask(location)
+      location => nomitimLocationTask(location)
     )(location).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({Ok: locationBlocks, Errors: errors}) => {
@@ -76,6 +95,6 @@ describe('overpassBlocksRegion', () => {
         }
       }, errors, done)
     );
-  });
+  }, 100000);
 });
 

@@ -1,10 +1,21 @@
-import {mapObjToValues, reqStrPathThrowing, resultToTaskNeedingResult, traverseReduceDeepResults} from 'rescape-ramda';
+import {
+  reqStrPathThrowing,
+  resultToTaskNeedingResult,
+  traverseReduceDeepResults,
+  pickDeepPaths
+} from 'rescape-ramda';
 import * as R from 'ramda';
-import {of, waitAll} from 'folktale/concurrency/task';
-import {_cleanGeojson, _intersectionStreetNamesFromWaysAndNodes, fetchOsmRawTask, osmResultTask} from './overpass';
+import {of} from 'folktale/concurrency/task';
+import {
+  _cleanGeojson, _filterForIntersectionNodesAroundPoint,
+  _intersectionStreetNamesFromWaysAndNodes, AROUND_LAT_LON_TOLERANCE, highwayNodeFilters,
+  highwayWayFilters,
+  osmEquals, osmIdEquals,
+  osmIdToAreaId
+} from './overpass';
 import * as Result from 'folktale/result';
-import {constructInstersectionsQuery, getFeaturesOfBlock} from './overpassSingleBlock';
-import {parallelWayNodeQueriesResultTask, predicate} from './overpassBlockHelpers';
+import {_extractOrderedBlocks, getFeaturesOfBlock} from './overpassSingleBlock';
+import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 
 /**
  * Created by Andy Likuski on 2019.07.26
@@ -62,7 +73,7 @@ export const getAllBlocksOfLocations = ({locations}) => {
   );
 };
 
-/***
+/**
  * Queries for all blocks matching the Osm area id in the given location
  * @param {Object} locationWithOsm Location object with  bbox, osmId, placeId from
  * @private
@@ -70,6 +81,7 @@ export const getAllBlocksOfLocations = ({locations}) => {
  */
 const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
   return R.composeK(
+    result => of(result),
     ({way: wayQuery, node: nodeQuery}) => _queryOverpassForAllBlocksResultTask(
       {way: wayQuery, node: nodeQuery}
     ),
@@ -77,7 +89,14 @@ const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
     // the geojson if we request them together
     locationWithOsm => of(
       R.fromPairs(R.map(
-        type => [type, _constructHighwaysQuery({type}, locationWithOsm)],
+        type => [
+          type,
+          _constructHighwaysQuery(
+            {type},
+            // These are the only properties we might need from the location
+            pickDeepPaths(['intersections', 'osmId', 'data.osmOverrides'], locationWithOsm)
+          )
+        ],
         ['way', 'node']
       ))
     )
@@ -132,11 +151,90 @@ const _queryOverpassForAllBlocksResultTask = ({way: wayQuery, node: nodeQuery}) 
 };
 
 /**
- * Create and OSM query to get all eligible highway ways or nodes for area of the given osmId
- * @param type
- * @param locationWithOsm
+ * Construct an Overpass query to get all eligible highway ways or nodes for area of the given osmId or optionally
+ * geojsonBOunds
+ * @param {String} type 'way' or 'node' We have to do the queries separately because overpass combines the geojson
+ * results in buggy ways
+ * @param {String} [osmId] OSM id to be used to constrain the area of the query. This id corresponds
+ * to a neighborhood or city. It can only be left undefined if geojsonBounds is defined
+ * @param {Object} data Location data optionally containing OSM overrides
+ * @param {Object} [data.osmOverrides] Optional overrides
+ * @param {[Number]} [data.osmOverrides.nodes] Optional 2 node ids
+ * @param {[Number]} [data.osmOverrides.ways] Optional 1 or more way ids
+ * @param {[Object]} [geojsonBounds] Optional. Bounds to use instead of the area of the osmId
+ * @returns {string} The complete Overpass query string
+ */
+const _constructHighwaysQuery = ({type}, {osmId, data}, geojsonBounds) => {
+
+  if (R.not(R.or(osmId, geojsonBounds))) {
+    throw Error("Improper configuration. osmId or geojsonBounds must be non-nil");
+  }
+
+  // The Overpass Area Id is based on the osm id plus this Overpass magic number
+  // Don't calculate this if we didn't pass an osmId
+  const areaId = R.when(R.identity, osmIdToAreaId)(osmId);
+
+  // We generate different queries based on the parameters.
+  // Rather than documenting the generated queries here it's better to run the tests and look at the log
+  const query = `
+    ${
+    // Declare the way variables if needed
+    _createQueryWaysDeclarations(areaId, geojsonBounds)
+    }
+    ${
+    // Declare the node variables
+    _createQueryNodesDeclarations()
+    }
+    ${
+    _createQueryOutput(type)
+    }`;
+  return query;
+};
+
+/**
+ * Creates OSM Overpass query syntax to declare ways for a given OSM area id or geojsonBounds.
+ * @param {Number} areaId Represents an OSM neighborhood or city
+ * @param {Object} [geojsonBounds] Geojson bounds via a polygon. Will override the area id if specified
+ * @returns {String} Overpass query syntax string that declares the way variable
  * @private
  */
-const _constructHighwaysQuery = ({type}, locationWithOsm) => {
+const _createQueryWaysDeclarations = (areaId, geojsonBounds) => {
+  return R.cond([
+    // TODO handle geojsonBounds
+    // We don't have hard-coded way ids, so search for these values by querying
+    [R.T, () => {
+      const wayQuery = `way(area:${areaId})${highwayWayFilters}`;
+      return `${wayQuery}->.ways;`;
+    }]
+  ])(geojsonBounds);
+};
 
+/**
+ * Creates OSM Overpass query syntax to declare nodes based on .ways defined in _createQueryWaysDeclarations
+ * @returns {String} Overpass query syntax string that declares the way variable
+ * @private
+ */
+const _createQueryNodesDeclarations = () => {
+  return `node(w.ways)${highwayNodeFilters}->.nodes;`;
+};
+
+/**
+ * Creates syntax for the output of the query.
+ * @param {String} type Either way or node. We have to query nodes and ways seperately to prevent geojson output errors
+ * @returns {String} the syntax for the output
+ * @private
+ */
+const _createQueryOutput = type => {
+  // Either return nodes or ways. Can't do both because the API messes up the geojson
+  const outputVariable = R.cond([
+    [R.equals('way'), R.always('.matchingWays')],
+    [R.equals('node'), R.always('.matchingNodes')],
+    [R.T, () => {
+      throw Error('type argument must specified and be "way" or "node"');
+    }]
+  ])(type);
+  return `
+    .ways -> .matchingWays;
+    .nodes -> .matchingNodes;
+    ${outputVariable} out geom;`
 };

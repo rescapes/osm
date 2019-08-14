@@ -13,6 +13,7 @@ import {queryLocationForOsmBlockResultsTask} from './overpassSingleBlock';
 import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import * as R from 'ramda';
 import {loggers} from 'rescape-log';
+
 const log = loggers.get('rescapeDefault');
 
 // Integration testing. Unmocked tests
@@ -27,6 +28,7 @@ describe('overpassIntegration', () => {
 
   test('fetchOsmOaklandBlock', done => {
     expect.assertions(1);
+    const errors = [];
     queryLocationForOsmBlockResultsTask({
       country: 'USA',
       state: 'California',
@@ -34,17 +36,15 @@ describe('overpassIntegration', () => {
       neighborhood: 'Adams Point',
       // Intentionally put Grand Ave a different positions
       intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
-    }).run().listen(defaultRunConfig(
-      {
-        onResolved: responseResult => responseResult.map(
-          ({results, location}) => {
-            // Expect it to be two ways
-            expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/417728789', 'way/417728790']);
-            done();
-          }
-        )
-      }));
-  }, 1000000);
+    }).run().listen(defaultRunToResultConfig({
+        onResolved: ({results, location}) => {
+          // Expect it to be two ways
+          expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/417728789', 'way/417728790']);
+          done();
+        }
+      }, errors, done)
+    );
+  }, 50000);
 
   test('fetchOsmBlockOslo', done => {
     expect.assertions(1);
@@ -170,7 +170,7 @@ describe('overpassIntegration', () => {
   // side intersects a service road, so we add extraWays.intersection2: [16702952] for the service road's way id
   test('fetchOsmBlockWithSeparatedLanesAndTrafficSignalNodes', done => {
     expect.assertions(1);
-    const errors = []
+    const errors = [];
     queryLocationForOsmBlockResultsTask({
       country: 'USA',
       state: 'NC',
@@ -217,7 +217,7 @@ describe('overpassIntegration', () => {
           }
         )
       }));
-  }, 50000);
+  }, 90000);
 
 });
 

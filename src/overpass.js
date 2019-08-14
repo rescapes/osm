@@ -12,11 +12,9 @@ import queryOverpass from 'query-overpass';
 import {of, task} from 'folktale/concurrency/task';
 import * as R from 'ramda';
 import {
-  compact,
-  findOneThrowing,
-  mapKeys,
   reqStrPathThrowing,
-  strPathOr, taskToResultTask, traverseReduceWhile
+  taskToResultTask,
+  traverseReduceWhile
 } from 'rescape-ramda';
 import os from 'os';
 import 'regenerator-runtime';
@@ -29,6 +27,11 @@ const log = loggers.get('rescapeDefault');
 // The idea is that differences between Google, OSM, and manually marking of intersections should
 // be within 10 meters. But this might have to be greater
 export const AROUND_LAT_LON_TOLERANCE = 10;
+export const AREA_MAGIC_NUMBER = 3600000000;
+/**
+ * Converts the osm id string to an area id string
+ */
+export const osmIdToAreaId = osmId => (parseInt(osmId) + AREA_MAGIC_NUMBER).toString();
 
 // TODO make these accessible for external configuration
 const servers = R.split(/\s*[,;\s]\s*/, process.env.OSM_SERVERS || '');
@@ -49,6 +52,7 @@ const roundRobinOsmServers = () => {
   return genServer.next().value;
 };
 
+
 /**
  * Translates to OSM condition that must be true
  * @param {string} prop The feature property that must be true
@@ -63,6 +67,14 @@ export const osmAlways = prop => `[${prop}]`;
  * @return {string} '["prop" != "value"]'
  */
 export const osmNotEqual = (prop, value) => osmCondition('!=', prop, value);
+
+/**
+ * Not equal statement using a tag function for if: statements
+ * @param prop
+ * @param value
+ * @returns {string}
+ */
+export const osmNotEqualWithTag = (prop, value) => osmTCondition('!=', prop, value);
 
 /**
  * Translates to OSM equals condition
@@ -89,6 +101,15 @@ export const osmIdEquals = id => `(${id})`;
 export const osmCondition = (operator, prop, value) => `["${prop}" ${operator} "${value}"]`;
 
 /**
+ * Conditional statement using the tag operator. Must be used inside an if: or similar
+ * @param operator
+ * @param prop
+ * @param value
+ * @returns {string}
+ */
+export const osmTCondition = (operator, prop, value) => `t["${prop}"] ${operator} "${value}"`;
+
+/**
  * Constructs conditions for a certain OSM type, 'node', 'way', or 'relation'
  * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'
  * @param {String} type OSM type
@@ -111,16 +132,56 @@ export const boundsAsString = bounds => {
   )(bounds);
 };
 
+/**
+ * Uses an overpass if expression for boolean logic
+ * @param expression
+ * @returns {string}
+ */
+export const osmIf = expression => `(if: ${expression})`;
+
+/**
+ * Joins any number of expressions with &&s
+ * @param expressions
+ */
+export const osmAnd = expressions => R.join(' && ', expressions);
+/**
+ * Joins any number of expressions with ||s
+ * @param expressions
+ */
+export const osmOr = expressions => R.join(' || ', expressions);
+
+
 // Filter to get roads and paths that aren't sidewalks or crossings
-export const highwayOsmFilter = R.join('', [
+export const highwayWayFilters = R.join('', [
   osmAlways('highway'),
   // We're not currently interested in driveways, but might be in the future
   osmNotEqual('highway', 'driveway'),
   // Crosswalks
   osmNotEqual('footway', 'crossing'),
   // Sidewalks along a highway, these might be useful for some contexts
-  osmNotEqual('footway', 'sidewalk')
+  osmNotEqual('footway', 'sidewalk'),
+  osmNotEqual('service', 'parking_aisle'),
+  osmNotEqual('service', 'driveway'),
+  osmNotEqual('service', 'drive-through'),
+  osmIf(
+    osmOr(
+      [
+        osmNotEqualWithTag('highway', 'service'),
+        osmNotEqualWithTag('access', 'private')
+      ]
+    )
+  )
 ]);
+
+
+/**
+ * Street limitations on nodes.
+ * Add more as they are discovered
+ * For instance they can't be tagged as traffic signals!
+ */
+export const highwayNodeFilters = R.join('', [
+  osmNotEqual('traffic_signals', 'signal')]
+);
 
 /**
  * Builds simple queries that just consist of filters on the given types
@@ -257,14 +318,14 @@ export const fetchOsmRawTask = R.curry((options, query) => {
  * @returns {string} The osm string
  * @private
  */
-export const _filterForIntersectionNodesAroundPoint = (around, outputNodeName, leaveForAndIfBlocksOpen=false) => {
+export const _filterForIntersectionNodesAroundPoint = (around, outputNodeName, leaveForAndIfBlocksOpen = false) => {
   const possibleNodes = `${outputNodeName}Possible`;
   const oneOfPossibleNodes = `oneOf${outputNodeName}Possible`;
   const waysOfOneOfPossibleNodes = `waysOfOneOf${outputNodeName}Possible`;
   return `node${around} -> .${possibleNodes};
 foreach.${possibleNodes} ->.${oneOfPossibleNodes}
 {
-  way(bn.${oneOfPossibleNodes})${highwayOsmFilter}->.${waysOfOneOfPossibleNodes};
+  way(bn.${oneOfPossibleNodes})${highwayWayFilters}->.${waysOfOneOfPossibleNodes};
   // If we have at least 2 ways, we have an intersection
   if (${waysOfOneOfPossibleNodes}.count(ways) >= 2)
   {

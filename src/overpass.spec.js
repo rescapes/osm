@@ -9,17 +9,10 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {
-  _cleanGeojson, _intersectionStreetNamesFromWaysAndNodes
-} from './overpass';
-import * as R from 'ramda';
+
 import {of, rejected} from 'folktale/concurrency/task';
 import {osmResultTask} from './overpass';
 import {defaultRunToResultConfig} from 'rescape-ramda';
-
-// See jestsetup.js
-jest.mock('query-overpass');
-
 
 describe('overpass', () => {
 

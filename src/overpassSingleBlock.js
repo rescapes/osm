@@ -14,24 +14,21 @@ import * as R from 'ramda';
 import {
   compact,
   mapMDeep,
-  mergeAllWithKey,
   mapKeysAndValues,
   reqStrPathThrowing,
-  resultToTaskNeedingResult, resultToTaskWithResult, traverseReduceDeepResults,
+  resultToTaskNeedingResult,
+  resultToTaskWithResult,
   traverseReduceWhile,
-  mapToNamedResponseAndInputs,
-  strPathOr
 } from 'rescape-ramda';
-import {of, waitAll, rejected} from 'folktale/concurrency/task';
+import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {
   _filterForIntersectionNodesAroundPoint,
-  _linkedFeatures, _reduceFeaturesByHeadAndLast, AROUND_LAT_LON_TOLERANCE,
-
+  AROUND_LAT_LON_TOLERANCE,
   highwayOsmFilter,
-  osmEquals, osmIdEquals, osmNotEqual, osmResultTask
+  osmEquals, osmIdEquals, osmNotEqual
 } from './overpass';
-import {nominatimResultTask, nomitimLocationResultTask} from './nominatimLocationSearch';
+import {nomitimLocationResultTask} from './nominatimLocationSearch';
 import {hasLatLngIntersections, isLatLng} from './locationHelpers';
 import {compareTwoStrings} from 'string-similarity';
 import {googleIntersectionTask} from './googleLocation';
@@ -149,97 +146,6 @@ export const queryLocationForOsmBlockResultsTask = location => {
 };
 
 
-/***
- * Sorts the features by connecting them at their start/ends
- * @param {[Object]} wayFeatures List of way features to sort. This is 1 or more connected ways that might overlap the
- * block on one or both sides
- * @param {[Object]} nodeFeatures Two node features representing the block intersection
- * TODO what about dead ends? Is the dead end side represented by a node or simply the end of one way?
- * @returns {Object}  {ways: ..., nodes: ...} contains keys nodes and ways. Nodes must always be the two node Features of the block.
- * ways must be at least on way Feature, possibly shortened to match the block and up to n way features with at
- * most the first and last possibly shortened to match the block
- */
-export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
-  // First handle some special cases:
-  // If we have exactly one way and it has a tag area="yes" then it's a pedestrian zone or similar and the
-  // two nodes aren't necessarily nodes of the pedestrian area.
-  if (R.both(
-    R.compose(R.equals(1), R.length),
-    R.compose(R.equals('yes'), strPathOr(false, '0.properties.tags.area'))
-  )(wayFeatures)) {
-    return {
-      ways: wayFeatures,
-      nodes: nodeFeatures
-    };
-  }
-
-  // Build a lookup of start and end points
-  // This results in {
-  //  end_coordinate_hash: {head: [feature]}
-  //  coordinate_hash: {head: [feature], tail: [feature] }
-  //  end_coordinate_hash: {tail: [feature]}
-  //}
-  // TODO this doesn't yet handle ways that are loops
-  // Note that two hashes have only one feature. One with one at the head and one with one at the tail
-  // The other have two features. So this gives us a good idea of how the features are chained together
-  const lookup = R.reduce(
-    (result, feature) => {
-      return _reduceFeaturesByHeadAndLast(result, feature);
-    },
-    {},
-    wayFeatures
-  );
-  // Do any features have the same head or last point? If so flip the coordinates of one
-  const modified_lookup = R.map(
-    headLastObj => {
-      return R.map(
-        features => {
-          return R.when(
-            f => R.compose(R.lt(1), R.length)(f),
-            // Reverse the first features coordinates
-            f => R.compose(
-              f => R.over(R.lensPath([0, '__reversed__']), R.T, f),
-              f => R.over(R.lensPath([0, 'geometry', 'coordinates']), R.reverse, f)
-            )(f)
-          )(features);
-        },
-        headLastObj
-      );
-    },
-    lookup
-  );
-  const modifiedWayFeatures = R.compose(
-    R.values,
-    // Take l if it has __reversed__, otherwise take r assuming r has reversed or neither does and are identical
-    featureObjs => mergeAllWithKey(
-      (_, l, r) => R.ifElse(R.prop('__reversed__'), R.always(l), R.always(r))(l),
-      featureObjs),
-    // Hash each by id
-    features => R.map(feature => ({[feature.id]: feature}), features),
-    R.flatten,
-    values => R.chain(R.values, values),
-    R.values
-  )(modified_lookup);
-
-  // Reduce a LineString feature by its head and last point
-  const finalLookup = R.reduce(
-    (result, feature) => {
-      return _reduceFeaturesByHeadAndLast(result, feature);
-    },
-    {},
-    modifiedWayFeatures
-  );
-
-  // Use the linker to link the features together, dropping those that aren't between the two nodes
-  const linkedFeatures = _linkedFeatures(finalLookup, nodeFeatures);
-
-  // Finally remove the __reversed__ tags from the ways (we could leave them on for debugging if needed)
-  return R.over(
-    R.lensProp('ways'),
-    ways => R.map(R.omit(['__reversed__']), ways),
-    linkedFeatures
-  );
-};
 
 /**
  * Given a location with an osmId included, query the Overpass API and cleanup the results to get a single block
@@ -454,21 +360,25 @@ const _locationToOsmBlockQueryResultsTask = location => {
 const _queryOverpassForSingleBlockResultTask = ({way: wayQuery, node: nodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
-    r => resultToTaskNeedingResult(
-      ({features: {wayFeatures, nodeFeatures, wayFeaturesByNodeId}}) => createSingleBlockFeatures(
+    resultToTaskNeedingResult(
+      ({wayFeatures, nodeFeatures, wayFeaturesByNodeId}) => of(createSingleBlockFeatures(
         {wayFeatures, nodeFeatures, wayFeaturesByNodeId}
-      )
-    )(r),
-    // Map the waysByNodeId to the way features and clean up the geojson of the features to prevent API transmission
-    // errors
+      ))
+    ),
+    // Map the way, node, and waysByNodeId to the way features and
+    // clean up the geojson of the features to prevent API transmission errors
     // F: way features => Task <int, <responses: <features: [F]>>> -> Task <int, [F]>
     resultToTaskNeedingResult(
-      mapToNamedResponseAndInputs('features',
-        ({way, node, waysByNodeId}) => R.merge(
-          mapKeysAndValues((queryResults, key) => [`${key}Features`, mapToCleanedFeatures(queryResults)], {way, node}),
-          {waysFeaturesByNodeId: mapWaysByNodeIdToCleanedFeatures(waysByNodeId)}
-        )
-      )
+      ({way, node, waysByNodeId}) => of(R.merge(
+        mapKeysAndValues(
+          (queryResults, key) => [
+            `${key}Features`,
+            mapToCleanedFeatures(queryResults)
+          ],
+          {way, node}
+        ),
+        {wayFeaturesByNodeId: mapWaysByNodeIdToCleanedFeatures(waysByNodeId)}
+      ))
     ),
 
     // If our predicate fails, give up with a Response.Error

@@ -10,10 +10,17 @@
  */
 
 import * as R from 'ramda';
-import {_cleanGeojson, _intersectionStreetNamesFromWaysAndNodes, fetchOsmRawTask, osmResultTask} from './overpass';
-import {mapObjToValues, reqStrPathThrowing, mapMDeep, pickDeepPaths} from 'rescape-ramda';
+import {
+  _cleanGeojson,
+  _intersectionStreetNamesFromWaysAndNodes, _linkedFeatures,
+  _reduceFeaturesByHeadAndLast
+} from './overpassFeatureHelpers';
+import {
+  fetchOsmRawTask,
+  osmResultTask
+} from './overpass';
+import {mapObjToValues, reqStrPathThrowing, mapMDeep, mergeAllWithKey, strPathOr} from 'rescape-ramda';
 import {waitAll} from 'folktale/concurrency/task';
-import {getFeaturesOfBlock} from './overpassSingleBlock';
 
 /**
  * Determines if an OSM query result is a valid block
@@ -168,27 +175,110 @@ export const mapWaysByNodeIdToCleanedFeatures = waysByNodeId => mapMDeep(2,
  * @returns {Object} {wayFeatures: wayFeatures features, nodeFeatures: nodeFeatures features, intersections: ... }
  */
 export const createSingleBlockFeatures = ({wayFeatures, nodeFeatures, wayFeaturesByNodeId}) => {
-  return of(
-    R.merge(
-      {
-        // Calculate the street names and put them in intersections
-        // intersections is an object keyed by nodeFeatures id and valued by the unique list of streets.
-        // The first street is always street matching the wayFeatures's street and the remaining are alphabetical
-        // Normally there are only two unique streets for each intersection.
-        // If one or both streets change names or for a >4-wayFeatures intersection, there can be more.
-        // If we handle roundabouts correctly in the future these could also account for more
-        intersections: _intersectionStreetNamesFromWaysAndNodes(wayFeatures, wayFeaturesByNodeId)
-      },
-      // Organize the ways and nodes, trimming the ways down to match the nodes
-      // Also clean the geojson of each wayFeatures and nodeFeatures feature to remove weird characters that mess up API storage
-      // Then store the features in {ways: ..., nodes: ...}
-      getFeaturesOfBlock(
-        // Clean the features of each first
-        ...R.map(
-          features => R.map(_cleanGeojson, features),
-          [wayFeatures, nodeFeatures]
-        )
-      )
-    )
+  return R.merge(
+    {
+      // Calculate the street names and put them in intersections
+      // intersections is an object keyed by nodeFeatures id and valued by the unique list of streets.
+      // The first street is always street matching the wayFeatures's street and the remaining are alphabetical
+      // Normally there are only two unique streets for each intersection.
+      // If one or both streets change names or for a >4-wayFeatures intersection, there can be more.
+      // If we handle roundabouts correctly in the future these could also account for more
+      intersections: _intersectionStreetNamesFromWaysAndNodes(wayFeatures, wayFeaturesByNodeId)
+    },
+    // Organize the ways and nodes, trimming the ways down to match the nodes
+    // Then store the features in {ways: ..., nodes: ...}
+    getFeaturesOfBlock(wayFeatures, nodeFeatures)
+  );
+};
+
+/***
+ * Sorts the features by connecting them at their start/ends
+ * @param {[Object]} wayFeatures List of way features to sort. This is 1 or more connected ways that might overlap the
+ * block on one or both sides
+ * @param {[Object]} nodeFeatures Two node features representing the block intersection
+ * TODO what about dead ends? Is the dead end side represented by a node or simply the end of one way?
+ * @returns {Object}  {ways: ..., nodes: ...} contains keys nodes and ways. Nodes must always be the two node Features of the block.
+ * ways must be at least on way Feature, possibly shortened to match the block and up to n way features with at
+ * most the first and last possibly shortened to match the block
+ */
+export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
+  // First handle some special cases:
+  // If we have exactly one way and it has a tag area="yes" then it's a pedestrian zone or similar and the
+  // two nodes aren't necessarily nodes of the pedestrian area.
+  if (R.both(
+    R.compose(R.equals(1), R.length),
+    R.compose(R.equals('yes'), strPathOr(false, '0.properties.tags.area'))
+  )(wayFeatures)) {
+    return {
+      ways: wayFeatures,
+      nodes: nodeFeatures
+    };
+  }
+
+  // Build a lookup of start and end points
+  // This results in {
+  //  end_coordinate_hash: {head: [feature]}
+  //  coordinate_hash: {head: [feature], tail: [feature] }
+  //  end_coordinate_hash: {tail: [feature]}
+  //}
+  // TODO this doesn't yet handle ways that are loops
+  // Note that two hashes have only one feature. One with one at the head and one with one at the tail
+  // The other have two features. So this gives us a good idea of how the features are chained together
+  const lookup = R.reduce(
+    (result, feature) => {
+      return _reduceFeaturesByHeadAndLast(result, feature);
+    },
+    {},
+    wayFeatures
+  );
+  // Do any features have the same head or last point? If so flip the coordinates of one
+  const modified_lookup = R.map(
+    headLastObj => {
+      return R.map(
+        features => {
+          return R.when(
+            f => R.compose(R.lt(1), R.length)(f),
+            // Reverse the first features coordinates
+            f => R.compose(
+              f => R.over(R.lensPath([0, '__reversed__']), R.T, f),
+              f => R.over(R.lensPath([0, 'geometry', 'coordinates']), R.reverse, f)
+            )(f)
+          )(features);
+        },
+        headLastObj
+      );
+    },
+    lookup
+  );
+  const modifiedWayFeatures = R.compose(
+    R.values,
+    // Take l if it has __reversed__, otherwise take r assuming r has reversed or neither does and are identical
+    featureObjs => mergeAllWithKey(
+      (_, l, r) => R.ifElse(R.prop('__reversed__'), R.always(l), R.always(r))(l),
+      featureObjs),
+    // Hash each by id
+    features => R.map(feature => ({[feature.id]: feature}), features),
+    R.flatten,
+    values => R.chain(R.values, values),
+    R.values
+  )(modified_lookup);
+
+  // Reduce a LineString feature by its head and last point
+  const finalLookup = R.reduce(
+    (result, feature) => {
+      return _reduceFeaturesByHeadAndLast(result, feature);
+    },
+    {},
+    modifiedWayFeatures
+  );
+
+  // Use the linker to link the features together, dropping those that aren't between the two nodes
+  const linkedFeatures = _linkedFeatures(finalLookup, nodeFeatures);
+
+  // Finally remove the __reversed__ tags from the ways (we could leave them on for debugging if needed)
+  return R.over(
+    R.lensProp('ways'),
+    ways => R.map(R.omit(['__reversed__']), ways),
+    linkedFeatures
   );
 };

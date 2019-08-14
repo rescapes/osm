@@ -1,7 +1,7 @@
 import {mapObjToValues, reqStrPathThrowing, resultToTaskNeedingResult, traverseReduceDeepResults} from 'rescape-ramda';
 import * as R from 'ramda';
 import {of, waitAll} from 'folktale/concurrency/task';
-import {_cleanGeojson, _intersectionsFromWaysAndNodes, fetchOsmRawTask, osmResultTask} from './overpass';
+import {_cleanGeojson, _intersectionStreetNamesFromWaysAndNodes, fetchOsmRawTask, osmResultTask} from './overpass';
 import * as Result from 'folktale/result';
 import {constructInstersectionsQuery, getFeaturesOfBlock} from './overpassSingleBlock';
 import {parallelWayNodeQueriesResultTask, predicate} from './overpassBlockHelpers';
@@ -88,9 +88,9 @@ const _queryOverpassForAllBlocksResultTask = ({way: wayQuery, node: nodeQuery}) 
   return R.composeK(
     // Finally get the features from the response
     resultToTaskNeedingResult(
-      ({way, node, waysOfNodes}) => {
+      ({way, node, waysByNodeId: waysByNodeId}) => {
         const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
-        const nodeIdToWaysOfNodeFeatures = R.map(reqStrPathThrowing('response.features'), waysOfNodes);
+        const wayFeaturesByNodeId = R.map(reqStrPathThrowing('response.features'), waysByNodeId);
         return of(
           R.merge(
             {
@@ -100,16 +100,16 @@ const _queryOverpassForAllBlocksResultTask = ({way: wayQuery, node: nodeQuery}) 
               // Normally there are only two unique streets for each intersection.
               // If one or both streets change names or for a >4-way intersection, there can be more.
               // If we handle roundabouts correctly in the future these could also account for more
-              intersections: _intersectionsFromWaysAndNodes(wayFeatures, nodeIdToWaysOfNodeFeatures),
+              intersections: _intersectionStreetNamesFromWaysAndNodes(wayFeatures, wayFeaturesByNodeId),
               // Clean the geojson of each way intersecting  each node
-              // Then store the results in {waysOfNodes => {nodeN: ..., nodeM:, ...}}
-              waysOfNodes: R.map(
-                WaysOfNodeFeatures => R.map(
+              // Then store the results in {waysByNodeId => {nodeN: ..., nodeM:, ...}}
+              waysByNodeId: R.map(
+                wayFeatures => R.map(
                   // Clean the features of each first
                   _cleanGeojson,
-                  WaysOfNodeFeatures
+                  wayFeatures
                 ),
-                nodeIdToWaysOfNodeFeatures
+                wayFeaturesByNodeId
               )
             },
             // Clean the geojson of each way and node feature to remove weird characters that mess up API storage

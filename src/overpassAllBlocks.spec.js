@@ -45,7 +45,7 @@ describe('overpassBlocksRegion', () => {
       // For loop ways that match exactly 1 node in waynodehash, hash that matching waynode as a wayendnode in wayendnodehash
       //    Above when we travel we'll start at the node and stop at the wayendnode at the same place. See 3.B.i
       // Hash way endings (wayendnode) ids unless it matches a node in the nodehash (wayendnodehash)
-      // Has all way ids by intersection node if any waynode matches or is and area-way (pedestrian area) within 5m (waynodehash)
+      // Hash all way ids by intersection node if any waynode matches or is and area-way (pedestrian area) within 5m (waynodehash)
       // Hash intersection nodes by id (nodehash)
       // Return all highway nodes in the area
       // Return all wighway ways in the area

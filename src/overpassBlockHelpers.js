@@ -10,9 +10,10 @@
  */
 
 import * as R from 'ramda';
-import {fetchOsmRawTask, osmResultTask} from './overpass';
-import {mapObjToValues, reqStrPathThrowing} from 'rescape-ramda'
+import {_cleanGeojson, _intersectionStreetNamesFromWaysAndNodes, fetchOsmRawTask, osmResultTask} from './overpass';
+import {mapObjToValues, reqStrPathThrowing, mapMDeep, pickDeepPaths} from 'rescape-ramda';
 import {waitAll} from 'folktale/concurrency/task';
+import {getFeaturesOfBlock} from './overpassSingleBlock';
 
 /**
  * Determines if an OSM query result is a valid block
@@ -72,7 +73,7 @@ export const parallelWayNodeQueriesResultTask = queries => R.map(
         osmResultTask({name: 'fetchOsmRawTask'},
           ({overpassUrl}) => fetchOsmRawTask(
             {
-              overpassUrl,
+              overpassUrl
             }, query
           )
         )
@@ -88,14 +89,14 @@ export const parallelWayNodeQueriesResultTask = queries => R.map(
  * @param {Object} queries.way Currently non used but returned
  * @param {Object} queries.node Response contains the nodes
  * @param {Object} queries.node.response Response containing the nodes
- * @returns {Task<Object>} Object keyed by way, node, and waysOfNodes. waysOfNodes is and object keyed
+ * @returns {Task<Object>} Object keyed by way, node, and waysByNodeId. waysByNodeId is and object keyed
  * by nodeId and valued by a query and response
  * @sig waysOfNodeTask:: Task <way: <query, response>, node: <query, response>>> ->
- * Task <way: <query, response>, node: <query, response>, waysOfNodes: <node: <query, response>>>> ->
+ * Task <way: <query, response>, node: <query, response>, waysByNodeId: <node: <query, response>>>> ->
  */
-export const waysOfNodesTask = ({way, node}) => R.map(
+export const waysByNodeIdTask = ({way, node}) => R.map(
   // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
-  objs => ({way, node, waysOfNodes: R.mergeAll(objs)}),
+  objs => ({way, node, waysByNodeId: R.mergeAll(objs)}),
   waitAll(
     R.addIndex(R.map)(
       (nodeId, i) => R.map(
@@ -106,8 +107,7 @@ export const waysOfNodesTask = ({way, node}) => R.map(
         osmResultTask({name: 'waysOfNodeQuery'},
           ({overpassUrl}) => fetchOsmRawTask(
             {
-              overpassUrl,
-              sleepBetweenCalls: i * 0,
+              overpassUrl
             }, waysOfNodeQuery(nodeId)
           )
         )
@@ -119,4 +119,76 @@ export const waysOfNodesTask = ({way, node}) => R.map(
       )(node)
     )
   )
-)
+);
+
+/**
+ * Map the waysByNodeId to the way features and clean up the geojson of the features to prevent API transmission errors
+ * @param {Object} queryResults Object with response.features, which contains a list of way features
+ * @returns {Object}
+ * @sig mapToCleanedFeatures:: F: features => Task [responses: <features: [F]>>> -> Task <int, [F]>
+ */
+export const mapToCleanedFeatures = queryResults => R.map(
+  // Clean the features of each first
+  feature => _cleanGeojson(feature),
+  // Limit to the features
+  reqStrPathThrowing('response.features', queryResults)
+);
+
+/**
+ *
+ * Map the waysByNodeId to the way features and clean up the geojson of the features to prevent API transmission errors
+ * @param {Object} waysByNodeId Object keyed by node id and valued by response.features, which contains a list of way features
+ * @returns {Object}
+ * @sig mapWaysByNodeIdToCleanedFeatures:: F: way features => Task <int, <responses: <features: [F]>>> -> Task <int, [F]>
+ */
+export const mapWaysByNodeIdToCleanedFeatures = waysByNodeId => mapMDeep(2,
+  // Clean the features of each first
+  feature => _cleanGeojson(feature),
+  // Limit to the features
+  R.map(
+    reqStrPathThrowing('response.features'),
+    waysByNodeId
+  )
+);
+
+
+/**
+ * Given wayFeatures that form a street block (and may overlap neigbhoring blocks), given nodeFeatures which
+ * represent 1 or more intersections of the block (normally 2 but possibly 1 for a dead end or 3 or more for divided
+ * streets), and given a mapping of wayFeatures features by those same nodeFeatures ids (where the wayFeatures features are all ways intersecting
+ * that nodeFeatures--not just those of wayFeatures), construct an object that has the ways features trimmed and ordered to match
+ * the intersection nodes, the intersection nodeFeatures features left in the same order they were given, and additionally
+ * an intersections property that is an object keyed by nodeFeatures id and valued by the street names of the ways that meet
+ * the intersection. The first wayFeatures street name is that of the block itself, the subsequent are one or more alphabetically
+ * listed street names. Example intersections:
+ * {nodeFeatures/1234: ['Main St', 'Billy Goat Gate', 'Wonder Woman Way'], nodeFeatures/2345: ['Main St', 'Howdy Doody Drive']}
+ * @param wayFeatures
+ * @param nodeFeatures
+ * @param wayFeaturesByNodeId
+ * @returns {Object} {wayFeatures: wayFeatures features, nodeFeatures: nodeFeatures features, intersections: ... }
+ */
+export const createSingleBlockFeatures = ({wayFeatures, nodeFeatures, wayFeaturesByNodeId}) => {
+  return of(
+    R.merge(
+      {
+        // Calculate the street names and put them in intersections
+        // intersections is an object keyed by nodeFeatures id and valued by the unique list of streets.
+        // The first street is always street matching the wayFeatures's street and the remaining are alphabetical
+        // Normally there are only two unique streets for each intersection.
+        // If one or both streets change names or for a >4-wayFeatures intersection, there can be more.
+        // If we handle roundabouts correctly in the future these could also account for more
+        intersections: _intersectionStreetNamesFromWaysAndNodes(wayFeatures, wayFeaturesByNodeId)
+      },
+      // Organize the ways and nodes, trimming the ways down to match the nodes
+      // Also clean the geojson of each wayFeatures and nodeFeatures feature to remove weird characters that mess up API storage
+      // Then store the features in {ways: ..., nodes: ...}
+      getFeaturesOfBlock(
+        // Clean the features of each first
+        ...R.map(
+          features => R.map(_cleanGeojson, features),
+          [wayFeatures, nodeFeatures]
+        )
+      )
+    )
+  );
+};

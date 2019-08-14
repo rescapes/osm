@@ -10,7 +10,7 @@
  */
 
 import {
-  _cleanGeojson, _intersectionsFromWaysAndNodes
+  _cleanGeojson, _intersectionStreetNamesFromWaysAndNodes
 } from './overpass';
 import * as R from 'ramda';
 import {of, rejected} from 'folktale/concurrency/task';
@@ -98,7 +98,7 @@ describe('overpass', () => {
     );
   });
 
-  test('_intersectionsFromWaysAndNodes', () => {
+  test('_intersectionStreetNamesFromWaysAndNodes', () => {
       const wayFeatures = [
         {
           "type": "Feature",
@@ -185,7 +185,7 @@ describe('overpass', () => {
         ]
       };
       expect(
-        _intersectionsFromWaysAndNodes(wayFeatures, nodeIdToWaysOfNodeFeatures)
+        _intersectionStreetNamesFromWaysAndNodes(wayFeatures, nodeIdToWaysOfNodeFeatures)
       ).toEqual(
         {"42875319": ["134th Street", "South Conduit Avenue"], "42901997": ["134th Street", "149th Avenue"]}
       );

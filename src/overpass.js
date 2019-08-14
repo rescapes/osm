@@ -646,17 +646,24 @@ export const _cleanGeojson = feature => {
 };
 
 /**
- *
+ * Given the way features of a single block and a lookup that maps intersection node ids to the way features
+ * that intersect the node (including but not limited to the wayFeatures ways), resolves the names of the
+ * intersections of the wayFeatures (normally 2 intersections but possibly 1 for dead ends).
  * @param {[Object]} wayFeatures The way features of a single block. This could be one or more ways:
  * If the way splits half way through the block or if it's a boulevard, highway, etc with a divided roads
  * @param {Object} nodeIdToWaysOfNodeFeatures Keyed by node id and value by a list of way features that
- * intersect the node. Each node represents an intersection of the block
+ * intersect the node. Each node represents an intersection of the block. Note that this lookup can be larger
+ * than just the needed nodes if you are calling this function multiple times on many blocks and have a comprehensive
+ * list of lookups
  * @returns {Object} An object keyed by the same node ids but valued by a list of street names of the
  * ways that intersect the node. The street names list first the street matching one of the wayFeatures
- * and the remaining are alphabetical. If a way has no name the way's id string is used
+ * (i.e. the block name) and the remaining are alphabetical. If a way has no name the way's id string is used
+ * (e.g. 'way/12345').
+ * TODO for future wayfinding visualizations it might be better to return these keyed by degrees from the block,
+ * such as {0: blockname, 24: street name 24 degrees clockwise or counterclockwise from block, 180:..., etc }
  * @private
  */
-export const _intersectionsFromWaysAndNodes = (wayFeatures, nodeIdToWaysOfNodeFeatures) => {
+export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeIdToWaysOfNodeFeatures) => {
   const nameOrIdOfFeature = feature => strPathOr(reqStrPathThrowing('id', feature), 'properties.tags.name', feature);
   const wayNames = R.map(nameOrIdOfFeature, wayFeatures);
   const wayIds = R.map(R.prop('id'), wayFeatures);

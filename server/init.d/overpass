@@ -1,4 +1,5 @@
 #!/bin/sh
+### TODO not working yet. See osm_setup to start processes manually instead
 
 ### BEGIN INIT INFO
 # Provides:          Overpass server to query OpenStreetMap

@@ -13,19 +13,21 @@
 import * as R from 'ramda';
 import {
   compact,
-  compactEmpty, mapMDeep,
-  mapObjToValues, mergeAllWithKey,
+  mapMDeep,
+  mergeAllWithKey,
+  mapKeysAndValues,
   reqStrPathThrowing,
   resultToTaskNeedingResult, resultToTaskWithResult, traverseReduceDeepResults,
   traverseReduceWhile,
+  mapToNamedResponseAndInputs,
   strPathOr
 } from 'rescape-ramda';
 import {of, waitAll, rejected} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {
-  _cleanGeojson, _filterForIntersectionNodesAroundPoint,
-  _intersectionsFromWaysAndNodes, _linkedFeatures, _reduceFeaturesByHeadAndLast, AROUND_LAT_LON_TOLERANCE,
-  fetchOsmRawTask,
+  _filterForIntersectionNodesAroundPoint,
+  _linkedFeatures, _reduceFeaturesByHeadAndLast, AROUND_LAT_LON_TOLERANCE,
+
   highwayOsmFilter,
   osmEquals, osmIdEquals, osmNotEqual, osmResultTask
 } from './overpass';
@@ -34,11 +36,15 @@ import {hasLatLngIntersections, isLatLng} from './locationHelpers';
 import {compareTwoStrings} from 'string-similarity';
 import {googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
-import {parallelWayNodeQueriesResultTask, predicate, waysOfNodesTask} from './overpassBlockHelpers';
+import {
+  createSingleBlockFeatures,
+  mapToCleanedFeatures, mapWaysByNodeIdToCleanedFeatures,
+  parallelWayNodeQueriesResultTask,
+  predicate,
+  waysByNodeIdTask
+} from './overpassBlockHelpers';
 
 const log = loggers.get('rescapeDefault');
-
-
 
 
 /**
@@ -51,7 +57,7 @@ const log = loggers.get('rescapeDefault');
  * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
  * Some blocks have more than two nodes if they have multiple divided ways.
- * The results also contain waysOfNodes, and object keyed by node ids and valued by the ways that intersect
+ * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
  * the node. There is also an intersections array, which is also keyed by node id but valued by an array
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
@@ -251,7 +257,7 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
  * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
  * Some blocks have more than two nodes if they have multiple divided ways.
- * The results also contain waysOfNodes, and object keyed by node ids and valued by the ways that intersect
+ * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
  * the node. There is also an intersections array, which is also keyed by node id but valued by an array
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
@@ -285,7 +291,7 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geo
  * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
  * Some blocks have more than two nodes if they have multiple divided ways.
- * The results also contain waysOfNodes, and object keyed by node ids and valued by the ways that intersect
+ * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
  * the node. There is also an intersections array, which is also keyed by node id but valued by an array
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
@@ -393,7 +399,7 @@ const _queryOverpassForSingleBlockTaskUntilFound = locationVariationsOfOsm => {
  * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
  * Some blocks have more than two nodes if they have multiple divided ways.
- * The results also contain waysOfNodes, and object keyed by node ids and valued by the ways that intersect
+ * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
  * the node. There is also an intersections array, which is also keyed by node id but valued by an array
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
@@ -437,7 +443,7 @@ const _locationToOsmBlockQueryResultsTask = location => {
  * TODO change these to be named queries
  * @returns {Task<Result<Object>>} The Geojson 2 nodes and way features in a Result.Ok. If an error occurs,
  * namely no that the nodes or ways aren't found, a Result.Error is returned. Object has a ways, nodes,
- * and waysOfNodes property. The latter are the ways around each node keyed by node ids, which we can
+ * and waysByNodeId property. The latter are the ways around each node keyed by node ids, which we can
  * use to resolve the street names of the block and intersecting streets. There is also an intersections
  * key with the street names. intersections is an object keyed by node id and valued by the unique list of streets.
  * The first street is always street matching the way's street and the remaining are alphabetical
@@ -448,49 +454,26 @@ const _locationToOsmBlockQueryResultsTask = location => {
 const _queryOverpassForSingleBlockResultTask = ({way: wayQuery, node: nodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
+    r => resultToTaskNeedingResult(
+      ({features: {wayFeatures, nodeFeatures, wayFeaturesByNodeId}}) => createSingleBlockFeatures(
+        {wayFeatures, nodeFeatures, wayFeaturesByNodeId}
+      )
+    )(r),
+    // Map the waysByNodeId to the way features and clean up the geojson of the features to prevent API transmission
+    // errors
+    // F: way features => Task <int, <responses: <features: [F]>>> -> Task <int, [F]>
     resultToTaskNeedingResult(
-      ({way, node, waysOfNodes}) => {
-        const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
-        const nodeIdToWaysOfNodeFeatures = R.map(reqStrPathThrowing('response.features'), waysOfNodes);
-        return of(
-          R.merge(
-            {
-              // Calculate the street names and put them in intersections
-              // intersections is an object keyed by node id and valued by the unique list of streets.
-              // The first street is always street matching the way's street and the remaining are alphabetical
-              // Normally there are only two unique streets for each intersection.
-              // If one or both streets change names or for a >4-way intersection, there can be more.
-              // If we handle roundabouts correctly in the future these could also account for more
-              intersections: _intersectionsFromWaysAndNodes(wayFeatures, nodeIdToWaysOfNodeFeatures),
-              // Clean the geojson of each way intersecting  each node
-              // Then store the results in {waysOfNodes => {nodeN: ..., nodeM:, ...}}
-              waysOfNodes: R.map(
-                WaysOfNodeFeatures => R.map(
-                  // Clean the features of each first
-                  _cleanGeojson,
-                  WaysOfNodeFeatures
-                ),
-                nodeIdToWaysOfNodeFeatures
-              )
-            },
-            // Organize the ways and nodes, trimming the ways down to match the nodes
-            // Also clean the geojson of each way and node feature to remove weird characters that mess up API storage
-            // Then store the features in {ways: ..., nodes: ...}
-            getFeaturesOfBlock(
-              // Clean the features of each first
-              ...R.map(
-                features => R.map(_cleanGeojson, features),
-                [wayFeatures, nodeFeatures]
-              )
-            )
-          )
-        );
-      }
+      mapToNamedResponseAndInputs('features',
+        ({way, node, waysByNodeId}) => R.merge(
+          mapKeysAndValues((queryResults, key) => [`${key}Features`, mapToCleanedFeatures(queryResults)], {way, node}),
+          {waysFeaturesByNodeId: mapWaysByNodeIdToCleanedFeatures(waysByNodeId)}
+        )
+      )
     ),
 
     // If our predicate fails, give up with a Response.Error
     // Task [Object] -> Task Result.Ok (Object) | Result.Error (Object)
-    ({way, node, waysOfNodes}) => of(
+    ({way, node, waysByNodeId}) => of(
       R.ifElse(
         // If predicate passes
         ({way: wayFeatures, node: nodeFeatures}) => predicate({wayFeatures, nodeFeatures}),
@@ -498,14 +481,14 @@ const _queryOverpassForSingleBlockResultTask = ({way: wayQuery, node: nodeQuery}
         () => Result.Ok({
           node,
           way,
-          waysOfNodes
+          waysByNodeId
         }),
         // Predicate fails, return a Result.Error with useful info.
         ({way: wayFeatures, node: nodeFeatures}) => Result.Error({
           error: `Found ${R.length(nodeFeatures)} nodes and ${R.length(wayFeatures)} ways`,
           way,
           node,
-          waysOfNodes
+          waysByNodeId
         })
       )(R.map(reqStrPathThrowing('response.features'), {node, way}))
     ),
@@ -514,8 +497,8 @@ const _queryOverpassForSingleBlockResultTask = ({way: wayQuery, node: nodeQuery}
     // we want to get all ways of each node that was returned. These ways tell us the street names
     // that OSM has for each intersection, which are our official street names if we didn't collect them manually
     // Task <way: <query, response>, node: <query, response>>> ->
-    // Task <way: <query, response>, node: <query, response>, waysOfNodes: <node: <query, response>>>> ->
-    ({way, node}) => waysOfNodesTask({way, node}),
+    // Task <way: <query, response>, node: <query, response>, waysByNodeId: <node: <query, response>>>> ->
+    ({way, node}) => waysByNodeIdTask({way, node}),
 
     // Query for the ways and nodes in parallel
     // <way: <query, node: <query> -> Task <way: <query, response>, node: <query, response>>>

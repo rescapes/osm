@@ -9,12 +9,15 @@ import * as R from 'ramda';
 const config = {
   input: [
     'src/index.js',
-    'src/overpass.js',
-    'src/overpassBlocks.js',
-    'src/overpassTransit.js',
-    'src/search.js',
     'src/googleLocation.js',
-    'src/locationHelpers.js'
+    'src/locationHelpers.js',
+    'src/nominatimLocationSearch.js',
+    'src/overpass.js',
+    'src/overpassAllBlocks.js',
+    'src/overpassBlockHelpers.js',
+    'src/overpassFeatureHelpers.js',
+    'src/overpassSingleBlock.js',
+    'src/overpassTransit.js',
   ],
   plugins: []
 };

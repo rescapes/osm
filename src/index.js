@@ -9,17 +9,6 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-export {fetchTransitOsm} from './overpassTransit';
-export {queryLocationForOsmBlockResultsTask} from './overpassSingleBlock';
-export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
-export {
-  addressString,
-  addressPair,
-  addressStrings,
-  streetAddressString,
-  removeStateFromSomeCountriesForSearch,
-  intersectionsByNodeIdToSortedIntersections
-} from './locationHelpers';
 export {
   calculateRouteTask,
   calculateOpposingRoutesTask,
@@ -36,3 +25,16 @@ export {
   resolveGeojsonTask,
   resolveJurisdictionFromGeocodeResult
 } from './googleLocation';
+
+export {
+  addressString,
+  addressPair,
+  addressStrings,
+  streetAddressString,
+  removeStateFromSomeCountriesForSearch,
+  intersectionsByNodeIdToSortedIntersections
+} from './locationHelpers';
+export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
+export {fetchTransitOsm} from './overpassTransit';
+export {getAllBlocksOfLocations} from './overpassAllBlocks';
+export {queryLocationForOsmBlockResultsTask} from './overpassSingleBlock';

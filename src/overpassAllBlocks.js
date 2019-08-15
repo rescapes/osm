@@ -7,14 +7,16 @@ import {
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import {
-  _cleanGeojson, _filterForIntersectionNodesAroundPoint,
-  _intersectionStreetNamesFromWaysAndNodes, AROUND_LAT_LON_TOLERANCE, highwayNodeFilters,
+  highwayNodeFilters,
   highwayWayFilters,
-  osmEquals, osmIdEquals,
   osmIdToAreaId
 } from './overpass';
+import {
+  _cleanGeojson,
+  _intersectionStreetNamesFromWaysAndNodes
+} from './overpassFeatureHelpers';
 import * as Result from 'folktale/result';
-import {_extractOrderedBlocks, getFeaturesOfBlock} from './overpassSingleBlock';
+import {getFeaturesOfBlock} from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 
 /**
@@ -236,5 +238,5 @@ const _createQueryOutput = type => {
   return `
     .ways -> .matchingWays;
     .nodes -> .matchingNodes;
-    ${outputVariable} out geom;`
+    ${outputVariable} out geom;`;
 };

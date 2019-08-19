@@ -9,16 +9,51 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {fromJS, Map} from 'immutable';
 
-import {PARIS_BOUNDS, LA_BOUNDS, PARIS_SAMPLE, LA_SAMPLE} from '../src/queryOverpass.sample'
+const {
+  PARIS_BOUNDS,
+  LA_BOUNDS,
+  PARIS_SAMPLE,
+  LA_SAMPLE,
+  FERNIE_NODES,
+  FERNIE_WAYS
+} = require('../src/samples/queryOverpass.sample');
+const {fromJS, Map} = require('immutable');
 
 // Use Map for equality matching of keys
 const responses = Map([
-    [fromJS(PARIS_BOUNDS), PARIS_SAMPLE],
-    [fromJS(LA_BOUNDS), LA_SAMPLE],
+  [fromJS(PARIS_BOUNDS), PARIS_SAMPLE],
+  [fromJS(LA_BOUNDS), LA_SAMPLE],
+  [fromJS({
+    "type": "way",
+    "country": "Canada",
+    "state": "BC",
+    "city": "Fernie",
+    "bbox": [
+      49.4749668,
+      -115.0907209,
+      49.5284394,
+      -115.0326362
+    ],
+    "osmId": 2221420,
+    "placeId": 198308070
+  }), FERNIE_WAYS],
+  [fromJS({
+    "type": "node",
+    "country": "Canada",
+    "state": "BC",
+    "city": "Fernie",
+    "bbox": [
+      49.4749668,
+      -115.0907209,
+      49.5284394,
+      -115.0326362
+    ],
+    "osmId": 2221420,
+    "placeId": 198308070
+  }), FERNIE_NODES]
 ]);
-const getResponse = (bounds) => responses.get(fromJS(bounds));
+const getResponse = (json) => responses.get(fromJS(json));
 
 /**
  * Mocks the query_overpass method,
@@ -26,17 +61,17 @@ const getResponse = (bounds) => responses.get(fromJS(bounds));
  * @param query
  * @param cb
  * @param options
- * @param options.testBounds Required for testing
+ * @param options.testMockJsonToKey Required for testing
  * @return {Promise}
  */
 module.exports = (query, cb, options) => {
-    const response = getResponse(options.testBounds);
-    process.nextTick(
-        () => response ?
-            cb(undefined, response) :
-            cb({
-                   message: "Bounds don't match any mock response",
-                   statusCode: 404
-            })
-   );
+  const response = getResponse(options.testMockJsonToKey);
+  process.nextTick(
+    () => response ?
+      cb(undefined, response) :
+      cb({
+        message: "Bounds don't match any mock response",
+        statusCode: 404
+      })
+  );
 };

@@ -19,8 +19,16 @@ import {
   fetchOsmRawTask, highwayWayFilters, osmAlways, osmEquals, osmNotEqual,
   osmResultTask
 } from './overpass';
-import {mapObjToValues, reqStrPathThrowing, mapMDeep, mergeAllWithKey, strPathOr} from 'rescape-ramda';
+import {
+  mapObjToValues,
+  reqStrPathThrowing,
+  mapMDeep,
+  mergeAllWithKey,
+  strPathOr,
+  taskToResultTask
+} from 'rescape-ramda';
 import {waitAll} from 'folktale/concurrency/task';
+import * as Result from 'folktale/result';
 
 /**
  * Determines if an OSM query result is a valid block
@@ -61,36 +69,37 @@ const waysOfNodeQuery = nodeId => {
 
 /**
  * Perform the OSM queries in parallel
+ * @param {Object} location Only used for context for testing with mocks
  * @param {Object} queries Object keyed by query type 'way' and 'node' and valued by the OSM query string.
  * This can technically be more than two queries or have different names
  * @returns {Task<Result<Object>>} A Result.Ok The original query object with response props added containing the OSM response.
  * If one of the queries fail then a Result.Error object is returned with the errors instead
  * @sig parallelWayNodeQueriesResultTask:: String query, Object response <way: <query, node: <query> -> Task <way: <query, response>, node: <query, response>>>
  */
-export const parallelWayNodeQueriesResultTask = queries => R.map(
-  // Just combine the results to get {way: {query, response}, node: {query, response}}
-  objs => R.mergeAll(objs),
-  waitAll(
-    // When we have our own serve we can disable the delay
-    R.addIndex(mapObjToValues)(
-      (query, type, obj, i) => R.map(
-        // Then map the task response to include the query for debugging/error resolution
-        // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
-        // if the OSM can't be resolved
-        response => ({[type]: {query, response: response.value}}),
-        // Perform the task
-        osmResultTask({name: 'fetchOsmRawTask'},
-          ({overpassUrl}) => fetchOsmRawTask(
-            {
-              overpassUrl
-            }, query
+export const parallelWayNodeQueriesResultTask = (location, queries) => R.compose(
+  // This converts failed tasks to a Result.Error and success to Result.Ok
+  taskToResultTask,
+  queries => R.map(
+    // Just combine the results to get {way: {query, response}, node: {query, response}}
+    objs => R.mergeAll(objs),
+    waitAll(
+      // When we have our own serve we can disable the delay
+      R.addIndex(mapObjToValues)(
+        (query, type, obj, i) => R.map(
+          // Then map the task response to include the query for debugging/error resolution
+          // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
+          // if the OSM can't be resolved
+          response => ({[type]: {query, response: response.value}}),
+          // Perform the task
+          osmResultTask({name: 'fetchOsmRawTask', testMockJsonToKey: R.merge({type}, location)},
+            options => fetchOsmRawTask(options, query)
           )
-        )
-      ),
-      queries
+        ),
+        queries
+      )
     )
   )
-);
+)(queries);
 
 /***
  * Given node results this finds all ways of each node so that we can resolve street names of the intersections
@@ -114,11 +123,7 @@ export const waysByNodeIdTask = ({way, node}) => R.map(
         response => ({[nodeId]: {query: waysOfNodeQuery(nodeId), response: response.value}}),
         // Perform the task
         osmResultTask({name: 'waysOfNodeQuery'},
-          ({overpassUrl}) => fetchOsmRawTask(
-            {
-              overpassUrl
-            }, waysOfNodeQuery(nodeId)
-          )
+          options => fetchOsmRawTask(options, waysOfNodeQuery(nodeId))
         )
       ),
       // Extract the id of each node

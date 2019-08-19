@@ -23,9 +23,9 @@ const log = loggers.get('rescapeDefault');
  * @param {Object} options settings to pass to query-overpass, plus the following options:
  * @param {[String]} options.settings OSM query settings such as '[out:csv']`. Defaults to [`[out:json]`]. Don't
  * put a bounding box here. Instead put it in conditions.bounds.
- * @param {Object} options.testBounds Used only for testing
  * @param {Object} options.cellSize If specified delegates to fetchCelled
  * @param {String} options.overpassUrl server to query
+ * @param {Object} options.testMockJsonToKey for testing only matches a test result in __mocks__/query-overpass.js
  * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
  * @param {Array} conditions.filters List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
  * The conditions apply to all types given
@@ -59,7 +59,7 @@ export const fetchTransitOsm = R.curry((options, conditions, types) => {
  * @param {[Number]} bounds [lat_min, lon_min, lat_max, lon_max]
  * @param {String} options.overpassUrl server to query
  * @param {Number} options.sleepBetweenCalls Pause this many milliseconds between calls to avoid the request rate limit
- * @param {Object} options.testBounds Used only for testing
+ * @param {Object} options.testMockJsonToKey Used only for testing
  * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
  * @param {Array} conditions.filters List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
  * The conditions apply to all types given

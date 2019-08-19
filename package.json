@@ -24,7 +24,7 @@
     "test:watch": "yarn test -- --watch",
     "test:cov": "yarn test -- --coverage",
     "build": "rollup -c",
-    "prepare": "cross-env ENABLE_INTEGRATION_TESTS=false yarn run clean && yarn run lint && yarn run build",
+    "prepare": "yarn run install-peers && cross-env ENABLE_INTEGRATION_TESTS=false yarn run clean && yarn run lint && yarn run build",
     "docs:clean": "rimraf _book",
     "docs:prepare": "gitbook install",
     "docs:build": "yarn run docs:prepare && gitbook build -g reactjs/redux && cp logo/apple-touch-icon.png _book/gitbook/images/apple-touch-icon-precomposed-152.png && cp logo/favicon.ico _book/gitbook/images",
@@ -32,8 +32,8 @@
     "docs:publish": "yarn run docs:clean && yarn run docs:build && cp CNAME _book && cd _book && git init && git commit --allow-empty -m 'update book' && git checkout -b gh-pages && touch .nojekyll && git add . && git commit -am 'update book' && git push git@github.com:reactjs/redux gh-pages --force",
     "build-publish-patch": "yarn run build && yarn run publish-patch",
     "build-publish-minor": "yarn run build && yarn run publish-minor",
-    "publish-patch": "yarn --new-version version patch && yarn publish",
-    "publish-minor": "yarn --new-version version minor && yarn publish"
+    "publish-patch": "yarn --new-version version patch && yarn publish -non-interactive ",
+    "publish-minor": "yarn --new-version version minor && yarn publish -non-interactive "
   },
   "dependencies": {
     "@google/maps": "^0.5.5",
@@ -53,9 +53,6 @@
     "query-overpass": "^1.5.3",
     "ramda": "^0.26.1",
     "request": "^2.88.0",
-    "rescape-helpers": "^1.1.99",
-    "rescape-log": "^0.1.11",
-    "rescape-ramda": "^1.5.78",
     "string-similarity": "^3.0.0",
     "xhr": "^2.5.0"
   },
@@ -67,6 +64,7 @@
     "@babel/preset-env": "^7.5.5",
     "@babel/runtime": "^7.5.5",
     "@types/jest": "^24.0.17",
+    "add": "^2.0.6",
     "babel-eslint": "^10.0.2",
     "babel-jest": "^24.9.0",
     "babel-plugin-transform-es2015-modules-commonjs-simple": "^6.7.4",
@@ -80,12 +78,12 @@
     "file-loader": "4.2.0",
     "fs-extra": "8.1.0",
     "immutable": "^4.0.0-rc.12",
+    "install-peers-cli": "^2.1.1",
     "jest": "^24.9.0",
     "jsdoc-babel": "^0.5.0",
     "longjohn": "^0.2.12",
     "promise": "8.0.3",
-    "rescape-helpers-test": "^0.0.28",
-    "rescape-sample-data": "^1.2.60",
+    "rescape-helpers": ">=1.1.99",
     "rimraf": "^3.0.0",
     "rollup": "^1.19.4",
     "rollup-plugin-babel": "^4.3.3",
@@ -96,9 +94,16 @@
     "rollup-plugin-node-resolve": "^5.2.0",
     "rollup-plugin-replace": "^2.2.0",
     "rollup-plugin-terser": "^5.1.1",
-    "rollup-watch": "4.3.1"
+    "rollup-watch": "4.3.1",
+    "yarn": "^1.17.3"
   },
-  "peerDependencies": {},
+  "peerDependencies": {
+    "rescape-helpers": ">=1.1.99",
+    "rescape-helpers-test": ">=0.0.28",
+    "rescape-log": ">=0.1.11",
+    "rescape-ramda": ">=1.5.78",
+    "rescape-sample-data": ">=1.2.60"
+  },
   "jest": {
     "modulePaths": [
       "<rootDir>/src"

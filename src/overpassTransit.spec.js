@@ -34,7 +34,7 @@ describe('overpassTransit', () => {
     fetchTransitOsm(
       {
         // Used by the mock
-        testBounds: bounds
+        testMockJsonToKey: bounds
       },
       {bounds, filters: conditions},
       types
@@ -55,7 +55,7 @@ describe('overpassTransit', () => {
       {
         cellSize: 200,
         // Used by the mock
-        testBounds: bounds
+        testMockJsonToKey: bounds
       },
       {bounds, filters: conditions},
       types

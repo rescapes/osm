@@ -85,7 +85,7 @@ const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
   return R.composeK(
     result => of(result),
     ({way: wayQuery, node: nodeQuery}) => _queryOverpassForAllBlocksResultTask(
-      {way: wayQuery, node: nodeQuery}
+      {location: locationWithOsm, way: wayQuery, node: nodeQuery}
     ),
     // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
@@ -105,7 +105,15 @@ const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
   )(locationWithOsm);
 };
 
-const _queryOverpassForAllBlocksResultTask = ({way: wayQuery, node: nodeQuery}) => {
+/**
+ * Queries for all blocks
+ * @param location {Object} Only used for context for testing mocks
+ * @param {String} wayQuery The Overpass way query
+ * @param {String} nodeQuery The overpass node query
+ * @returns {Task<Result<Object>>} The Geojson nodes and way features in a Result.Ok. If an error occurs,
+ * Result.Error is returned. Object has a ways, nodes
+ */
+const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: nodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
     resultToTaskNeedingResult(
@@ -148,7 +156,7 @@ const _queryOverpassForAllBlocksResultTask = ({way: wayQuery, node: nodeQuery}) 
     ),
 
     // Query for the ways and nodes in parallel
-    queries => parallelWayNodeQueriesResultTask(queries)
+    queries => parallelWayNodeQueriesResultTask(location, queries)
   )({way: wayQuery, node: nodeQuery});
 };
 

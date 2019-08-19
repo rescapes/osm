@@ -215,10 +215,12 @@ export const buildFilterQuery = R.curry((settings, conditions, types) => {
  * @param {Object} config
  * @param {Number} [config.tries] Number of tries to make. Defaults to the number of server
  * @param {String} config.name The name taskFunc for logging purposes
+ * @param {Object} config.testMockJsonToKey For mock testing only. JSON to identify the desired results
+ * in __mocks__/query-overpass.js
  * @param taskFunc
  * @returns {Task<Result<Object>>} The response in a Result.Ok or errors in Result.Error
  */
-export const osmResultTask = ({tries, name}, taskFunc) => {
+export const osmResultTask = ({tries, name, testMockJsonToKey}, taskFunc) => {
   const attempts = tries || R.length(servers);
   return traverseReduceWhile(
     {
@@ -249,7 +251,7 @@ export const osmResultTask = ({tries, name}, taskFunc) => {
         task(({resolve}) => {
           log.info(`Starting OSM task ${name} attempt ${attempt + 1} of ${attempts} on server ${server}`);
           return resolve(server);
-        }).chain(server => taskFunc({overpassUrl: server}))
+        }).chain(server => taskFunc({overpassUrl: server, testMockJsonToKey}))
       ).map(v => v.mapError(e => ({value: e, server})));
     }, attempts)
   );

@@ -12,7 +12,7 @@
 import xhr from 'xhr';
 import {task, waitAll, of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
-import {compactEmpty, promiseToTask, compact} from 'rescape-ramda';
+import {compactEmpty, promiseToTask, compact, resultToTaskNeedingResult, traverseReduce} from 'rescape-ramda';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
@@ -57,55 +57,55 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
  * @param {Object} [location.neighborhood] Optional neighborhood to search for the neighborhood relation
  * @returns {Task<Result<Object>} A task containing a Result.Ok or a Result.Error. If the query finds a relation
  * The Result.Ok returns that an object with bbox (the bounding box), osmId (the OSM relation id), osmType (always 'relation')
- * and placeId (unused)
+ * and placeId (unused). If it doesn't a Result.Ok([]) is returned for further processing. If there's a problem
+ * connecting to the server a Result.Error returns
  */
-export const nomitimLocationTask = location => R.composeK(
-  // Remove failed nominatim queries
-  queryResults => of(compact(queryResults)),
-  location => waitAll(
-    R.map(
-      keys => {
-        const locationProps = R.pick(keys, location);
-        return nominatimResultTask(locationProps)
-          .map(responseResult => responseResult.matchWith({
-              Ok: ({value}) => {
-                // bounding box comes as two lats, then two lon, so fix
-                return R.merge(location, {
-                  // We're not using the bbox, but note it anyway
-                  bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], value.boundingbox)),
-                  osmId: value.osm_id,
-                  placeId: value.place_id
-                });
-              },
-              Error: ({value}) => {
-                // If no results are found, just return null. Hopefully the other nominatin query will return something
-                log.debug(`For location query ${JSON.stringify(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
-                return null;
-              }
-              // Remove nulls
-            })
-          ).mapRejected(
-            // If the query fails to excute
-            errorResult => errorResult.map(error => {
-              log.warn(`Giving up. Nominatim query failed with error message: ${error}`);
-              return error;
-            })
-          );
-      },
-      // Query with neighborhood (if given) and without.
-      // We'll only actually use the first one that resolves
-      compactEmpty(R.concat(
-        R.ifElse(
-          R.prop('neighborhood'),
-          R.always([['country', 'state', 'city', 'neighborhood']]),
-          R.always([])
-        )(location),
-        // This will either have country, state, city or country, city or nothing if it's a location
-        // with just a lot/long
-        [R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city'])]
-      ))
-    )
-  )
+export const nominatimLocationResultTask = location => R.composeK(
+  results => of(traverseReduce(
+    // Accept the non-null results
+    (previousResultValues, resultValue) => R.concat(previousResultValues, compact([resultValue])),
+    Result.Ok([]),
+    results
+  )),
+  location => waitAll(R.map(
+    keys => {
+      const locationProps = R.pick(keys, location);
+      log.debug(`Nomanitim query for the following values ${JSON.stringify(locationProps)}`);
+      return nominatimResultTask(locationProps)
+        .map(responseResult => responseResult.map(value => {
+            // bounding box comes as two lats, then two lon, so fix
+            return R.merge(location, {
+              // We're not using the bbox, but note it anyway
+              bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], value.boundingbox)),
+              osmId: value.osm_id,
+              placeId: value.place_id
+            });
+          }).mapError(value => {
+            // If no results are found, just return null. Hopefully the other nominatin query will return something
+            log.debug(`For location query ${JSON.stringify(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
+            return null;
+          })
+        ).mapRejected(
+          // If the query fails to excute
+          errorResult => errorResult.map(error => {
+            log.warn(`Giving up. Nominatim query failed with error message: ${error}`);
+            return error;
+          })
+        );
+    },
+    // Query with neighborhood (if given) and without.
+    // We'll only actually use the first one that resolves
+    compactEmpty(R.concat(
+      R.ifElse(
+        R.prop('neighborhood'),
+        R.always([['country', 'state', 'city', 'neighborhood']]),
+        R.always([])
+      )(location),
+      // This will either have country, state, city or country, city or nothing if it's a location
+      // with just a lot/long
+      [R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city'])]
+    ))
+  ))
 )(location);
 
 /***

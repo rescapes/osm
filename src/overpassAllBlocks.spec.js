@@ -1,8 +1,7 @@
 import * as R from 'ramda';
 import {defaultRunToResultConfig, reqStrPathThrowing, resultToTaskWithResult} from 'rescape-ramda';
 import {getAllBlocksOfLocations} from './overpassAllBlocks';
-import {nominatimResultTask, nomitimLocationTask} from './nominatimLocationSearch';
-import {hasLatLngIntersections} from './locationHelpers';
+import {nominatimLocationResultTask} from './nominatimLocationSearch';
 
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -15,13 +14,14 @@ import {hasLatLngIntersections} from './locationHelpers';
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+
 describe('overpassBlocksRegion', () => {
   test('getAllBlocksOfLocations', done => {
     const errors = [];
     const location = {
       country: 'Canada',
       state: 'BC',
-      city: 'Fernie',
+      city: 'Fernie'
     };
     expect.assertions(3);
     R.composeK(
@@ -52,29 +52,31 @@ describe('overpassBlocksRegion', () => {
       // Query OSM constrained to the area
       // Resolve the OSM area id
       // Chain our queries until we get a result or fail
-      locationVariationsWithOsm => R.cond([
-        [R.length,
-          locationVariationsWithOsm => getAllBlocksOfLocations({
-            locations: [R.head(locationVariationsWithOsm)]
-          })
-        ],
-        // No OSM ids resolved, try to query with the location f it has lat/lons in the intersection
-        /*[() => hasLatLngIntersections(location),
-          () => _queryOverpassForSingleBlockTaskUntilFound([location])
-        ], */
-        // If no query produced results return a Result.Error so we can give up gracefully
-        [R.T,
-          () => of(Result.Error({
-            errors: ({
-              errors: ['OSM Nominatim query could not resolve a neighborhood or city for this location. Check spelling'],
+      resultToTaskWithResult(
+        locationVariationsWithOsm => R.cond([
+          [R.length,
+            locationVariationsWithOsm => getAllBlocksOfLocations({
+              locations: [R.head(locationVariationsWithOsm)]
+            })
+          ],
+          // No OSM ids resolved, try to query by geojson bounds
+          /*[() => hasLatLngIntersections(location),
+            () => getAllBlocksOfLocations({locations: [locations]})
+          ], */
+          // If no query produced results return a Result.Error so we can give up gracefully
+          [R.T,
+            () => of(Result.Error({
+              errors: ({
+                errors: ['OSM Nominatim query could not resolve a neighborhood or city for this location. Check spelling'],
+                location
+              }),
               location
-            }),
-            location
-          }))
-        ]
-      ])(locationVariationsWithOsm),
+            }))
+          ]
+        ])(locationVariationsWithOsm)
+      ),
       // Nominatim query on the place search string.
-      location => nomitimLocationTask(location)
+      location => nominatimLocationResultTask(location)
     )(location).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({Ok: locationBlocks, Errors: errors}) => {

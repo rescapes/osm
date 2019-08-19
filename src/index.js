@@ -36,5 +36,5 @@ export {
 } from './locationHelpers';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';
-export {getAllBlocksOfLocations} from './overpassAllBlocks';
+export {_queryForAllBlocksOfLocationsTask} from './overpassAllBlocks';
 export {queryLocationForOsmBlockResultsTask} from './overpassSingleBlock';

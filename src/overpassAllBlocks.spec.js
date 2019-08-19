@@ -1,7 +1,8 @@
 import * as R from 'ramda';
 import {defaultRunToResultConfig, reqStrPathThrowing, resultToTaskWithResult} from 'rescape-ramda';
-import {getAllBlocksOfLocations} from './overpassAllBlocks';
+import {locationToOsmAllBlocksQueryResultsTask, _queryForAllBlocksOfLocationsTask} from './overpassAllBlocks';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
+import {of} from 'folktale/concurrency/task'
 
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -16,7 +17,7 @@ import {nominatimLocationResultTask} from './nominatimLocationSearch';
 
 
 describe('overpassBlocksRegion', () => {
-  test('getAllBlocksOfLocations', done => {
+  test('_queryForAllBlocksOfLocationsTask', done => {
     const errors = [];
     const location = {
       country: 'Canada',
@@ -25,58 +26,8 @@ describe('overpassBlocksRegion', () => {
     };
     expect.assertions(3);
     R.composeK(
-      // 4) Return all blocks found in {Ok: []}. All ways and nodes not used in {Error: []}
-      // 3) After traveling once.
-      //  A) If point reached is a node, then block is created. Hash block by node ids and in between way ids
-      //    (In between way ids can be fetched from the non-reduced ways) DONE
-      //  B) If point is wayendnode:
-      //    i) If wayendnode matches a node, this is a loop way. Make block and DONE
-      //    ii) If wayendnode has has another way, travel that way (reversing its nodes if needed to travel) DONE
-      //    iii) if wayendnode has no other way, dead end block. Store block by accumulated node and way(s) reduced to traversed waynodes.
-      //  C) If point is waynode: store accumulated waynode and go back to step 3 CONTINUE
-      // 2) Traveling. Hash the way segments by hashing the way id with the two node/endpoint id (order independent).
-      //  If this segment is already in the hash, abandon this travel (segment has been traversed) DONE
-      // 1) Travel from every node: Find ways of node and travel:
-      //  A) If starting at way end, travel other direction. Go to step 2 for the one direction CONTINUE
-      //  B) Else travel both directions to next node/way endpoint. Go to step 2 for each direction CONTINUEx2
-      // For area ways (pedestrian areas) find nodes within 5 meters of each waynode. Hash way
-      //    If the area way only matches one node, hash that matching waynode as a wayendnode.
-      //    (Above when we travel we'll start at the matching node and go around the area until we reach another node or the wayendnode at the starting point)
-      // For loop ways that match exactly 1 node in waynodehash, hash that matching waynode as a wayendnode in wayendnodehash
-      //    Above when we travel we'll start at the node and stop at the wayendnode at the same place. See 3.B.i
-      // Hash way endings (wayendnode) ids unless it matches a node in the nodehash (wayendnodehash)
-      // Hash all way ids by intersection node if any waynode matches or is and area-way (pedestrian area) within 5m (waynodehash)
-      // Hash intersection nodes by id (nodehash)
-      // Return all highway nodes in the area
-      // Return all wighway ways in the area
-      // Query OSM constrained to the area
-      // Resolve the OSM area id
-      // Chain our queries until we get a result or fail
-      resultToTaskWithResult(
-        locationVariationsWithOsm => R.cond([
-          [R.length,
-            locationVariationsWithOsm => getAllBlocksOfLocations({
-              locations: [R.head(locationVariationsWithOsm)]
-            })
-          ],
-          // No OSM ids resolved, try to query by geojson bounds
-          /*[() => hasLatLngIntersections(location),
-            () => getAllBlocksOfLocations({locations: [locations]})
-          ], */
-          // If no query produced results return a Result.Error so we can give up gracefully
-          [R.T,
-            () => of(Result.Error({
-              errors: ({
-                errors: ['OSM Nominatim query could not resolve a neighborhood or city for this location. Check spelling'],
-                location
-              }),
-              location
-            }))
-          ]
-        ])(locationVariationsWithOsm)
-      ),
-      // Nominatim query on the place search string.
-      location => nominatimLocationResultTask(location)
+      hiphop => of(hiphop),
+      location => locationToOsmAllBlocksQueryResultsTask(location)
     )(location).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({Ok: locationBlocks, Errors: errors}) => {

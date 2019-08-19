@@ -9,7 +9,6 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
 import * as R from 'ramda';
 import {
   mapMDeep,
@@ -17,7 +16,6 @@ import {
   reqStrPathThrowing,
   resultToTaskNeedingResult,
   resultToTaskWithResult,
-  traverseReduceWhile,
   pickDeepPaths
 } from 'rescape-ramda';
 import {of} from 'folktale/concurrency/task';
@@ -34,6 +32,7 @@ import {compareTwoStrings} from 'string-similarity';
 import {googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
 import {
+  _queryLocationVariationsUntilFoundResultTask,
   createSingleBlockFeatures,
   mapToCleanedFeatures, mapWaysByNodeIdToCleanedFeatures,
   parallelWayNodeQueriesResultTask,
@@ -191,114 +190,50 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geo
   )(locationWithOsm);
 };
 
-/***
- * Queries the location with the OverPass API for its given street block. Querying happens once or twice, first
- * with the neighborhood specified (faster) and then without if no results return. The neighborhood is
- * also be omitted in a first and only query if the location doesn't have one
- * @param {[Object]} locationVariationsOfOsm 1 or more of the same location with different osmIds
- * The first should be a neighborhood osmId if available, and the second is the city osmId. We hope to get
- * results with the neighborhood level osmId because it is faster, but if we get no results we query with the
- * city osmId. Alternatively this can be a location with lat/lons specified for the intersections.
- * Having lat/lons is just as good as an osmId
- * @returns {Task<Result<Object>>} Result.Ok in the form {location, result} or a Result.Error in the form {location, error}
- * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
- * There must be at least on way and possibly more, depending on where two ways meet.
- * Some blocks have more than two nodes if they have multiple divided ways.
- * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
- * the node. There is also an intersections array, which is also keyed by node id but valued by an array
- * of street names. The main street of the location's block is listed first followed by the rest (usually one)
- * in alphabetical order
+/**
+ * Tries querying for the location based on the osm area id, osm city id, or intersections of the location
+ * @param locationWithOsm
+ * @returns {f1}
+ * @private
  */
-const _queryOverpassForSingleBlockUntilFoundResultTask = locationVariationsOfOsm => {
-
-  return R.composeK(
-    result => of(
-      // If we had no results report the errors of each query
-      // We create this somewhat strange format so that we know what variation of the location was used for each
-      // query. So the Result.Error looks like:
-      // {
-      //  errors: [
-      //    {
-      //       errors: [
-      //        { error: error message about the query, nodeQuery: the osm way query },
-      //        { error: error message about the query, nodeQuery: the osm node query},
-      //       ]
-      //       location: the variation of the location for this query
-      //    },
-      //    ... other location variations that were tried
-      //  ]
-      //  location: arbitrary first variation of the location
-      // }
-      result.mapError(errors => ({
-          errors: R.map(location => ({errors, location}), locationVariationsOfOsm),
-          location: R.head(locationVariationsOfOsm)
-        })
-      )
-    ),
-    // A chained Task that runs 1 or 2 queries as needed
-    locationVariationsOfOsm => traverseReduceWhile(
-      {
-        // Fail the predicate to stop searching when we have a Result.Ok
-        predicate: (previousResult, result) => R.complement(Result.Ok.hasInstance)(result),
-        // Take the the last accumulation after the predicate fails
-        accumulateAfterPredicateFail: true
-      },
-
-      // If we get a Result.Ok, just return it. The first Result.Ok we get is our final value
-      // When we get Result.Errors, concat them for reporting
-      (previousResult, result) => result.matchWith({
-        Error: ({value}) => previousResult.mapError(R.append(value)),
-        Ok: R.identity
-      }),
-      // Starting condition is failure
-      of(Result.Error([])),
-      // Create a list of Tasks. We'll only run as many as needed
-      // We start with limiting queries to a neighborhood and if nothing there works or there is no hood we limit
-      // to the city. Within each area why try up to 3 queries.
-      // chain here is used to flatten the multiple results produced by each locationsWithOsm
-      R.chain(
-        locationWithOsm => {
-          // geojson points from google or data entry can help us resolve OSM data when street names aren't enough
-          const geojsonPoints = R.map(
-            reqStrPathThrowing('geojson'),
-            R.propOr([], 'googleIntersectionObjs', locationWithOsm)
-          );
-          return R.ifElse(
-            locationWithOsm => hasLatLngIntersections(locationWithOsm),
-            // Query with points if we only have lat/lng intersections
-            locationWithOsm => [
-              _queryOverpassWithLocationForSingleBlockResultTask(
-                R.omit(['intersections'], locationWithOsm),
-                geojsonPoints)
-            ],
-            locationWithOsm => R.concat(
-              [
-                // First try to find the location using intersections
-                _queryOverpassWithLocationForSingleBlockResultTask(locationWithOsm)
-              ],
-              R.unless(
-                R.isEmpty,
-                geojsonPoints => [
-                  // Next try using both intersections and Google intersection points
-                  _queryOverpassWithLocationForSingleBlockResultTask(locationWithOsm, geojsonPoints),
-                  // Finally try using only Google intersection points
-                  _queryOverpassWithLocationForSingleBlockResultTask(
-                    R.omit(['intersections'], locationWithOsm),
-                    geojsonPoints)
-                ]
-              )(geojsonPoints)
-            )
-          )(locationWithOsm);
-        },
-        locationVariationsOfOsm
-      )
+const _queryOverpassBasedLocationPropsForSingleBlockResultTask = locationWithOsm => {
+  // geojson points from google or data entry can help us resolve OSM data when street names aren't enough
+  const geojsonPoints = R.map(
+    reqStrPathThrowing('geojson'),
+    R.propOr([], 'googleIntersectionObjs', locationWithOsm)
+  );
+  return R.ifElse(
+    locationWithOsm => hasLatLngIntersections(locationWithOsm),
+    // If the query has lat/lng points use them
+    locationWithOsm => [
+      _queryOverpassWithLocationForSingleBlockResultTask(
+        R.omit(['intersections'], locationWithOsm),
+        geojsonPoints)
+    ],
+    // Else use intersections and possible google points
+    locationWithOsm => R.concat(
+      [
+        // First try to find the location using intersections
+        _queryOverpassWithLocationForSingleBlockResultTask(locationWithOsm)
+      ],
+      R.unless(
+        R.isEmpty,
+        geojsonPoints => [
+          // Next try using both intersections and Google intersection points
+          _queryOverpassWithLocationForSingleBlockResultTask(locationWithOsm, geojsonPoints),
+          // Finally try using only Google intersection points
+          _queryOverpassWithLocationForSingleBlockResultTask(
+            R.omit(['intersections'], locationWithOsm),
+            geojsonPoints)
+        ]
+      )(geojsonPoints)
     )
-  )(locationVariationsOfOsm);
+  )(locationWithOsm);
 };
 
 /**
  * Resolve the location and then query for the block in overpass.
- * Overpass will give us too much data back, so we have to clean it up in getFeaturesOfBlock.
+ * Overpass can't give precise blocks back so we get more than we need and clean it with getFeaturesOfBlock.
  * This process will first use nominatimResultTask to query nomatim.openstreetmap.org for the relationship
  * of the neighborhood of the city. If it fails it will try the entire city. With this result we
  * query overpass using the area representation of the neighborhood or city, which is the OpenStreetMap id
@@ -318,17 +253,21 @@ const _queryOverpassForSingleBlockUntilFoundResultTask = locationVariationsOfOsm
  * in alphabetical order
  */
 const _locationToOsmSingleBlockQueryResultsTask = location => {
+  const queryOverpassForSingleBlockUntilFoundResultTask = _queryLocationVariationsUntilFoundResultTask(
+    _queryOverpassBasedLocationPropsForSingleBlockResultTask
+  );
+
   // Sort LineStrings (ways) so we know how they are connected
   return R.composeK(
     resultToTaskWithResult(
       // Chain our queries until we get a result or fail
       locationVariationsWithOsm => R.cond([
         [R.length,
-          locationVariationsWithOsm => _queryOverpassForSingleBlockUntilFoundResultTask(locationVariationsWithOsm)
+          locationVariationsWithOsm => queryOverpassForSingleBlockUntilFoundResultTask(locationVariationsWithOsm)
         ],
         // No OSM ids resolved, try to query with the location if it has lat/lons in the intersection
         [() => hasLatLngIntersections(location),
-          () => _queryOverpassForSingleBlockUntilFoundResultTask([location])],
+          () => queryOverpassForSingleBlockUntilFoundResultTask([location])],
         // If no query produced results return a Result.Error so we can give up gracefully
         [R.T,
           () => of(Result.Error({
@@ -392,23 +331,23 @@ const _queryOverpassForSingleBlockResultTask = ({location, way: wayQuery, node: 
     // Task Result [Object] -> Task Result.Ok (Object) | Result.Error (Object)
     resultToTaskWithResult(
       ({way, node, waysByNodeId}) => of(
-      R.ifElse(
-        // If predicate passes
-        ({way: wayFeatures, node: nodeFeatures}) => predicate({wayFeatures, nodeFeatures}),
-        // All good, return the responses
-        () => Result.Ok({
-          node,
-          way,
-          waysByNodeId
-        }),
-        // Predicate fails, return a Result.Error with useful info.
-        ({way: wayFeatures, node: nodeFeatures}) => Result.Error({
-          error: `Found ${R.length(nodeFeatures)} nodes and ${R.length(wayFeatures)} ways`,
-          way,
-          node,
-          waysByNodeId
-        })
-      )(R.map(reqStrPathThrowing('response.features'), {node, way}))
+        R.ifElse(
+          // If predicate passes
+          ({way: wayFeatures, node: nodeFeatures}) => predicate({wayFeatures, nodeFeatures}),
+          // All good, return the responses
+          () => Result.Ok({
+            node,
+            way,
+            waysByNodeId
+          }),
+          // Predicate fails, return a Result.Error with useful info.
+          ({way: wayFeatures, node: nodeFeatures}) => Result.Error({
+            error: `Found ${R.length(nodeFeatures)} nodes and ${R.length(wayFeatures)} ways`,
+            way,
+            node,
+            waysByNodeId
+          })
+        )(R.map(reqStrPathThrowing('response.features'), {node, way}))
       )
     ),
 

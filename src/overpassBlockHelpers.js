@@ -15,8 +15,9 @@ import {
   _intersectionStreetNamesFromWaysAndNodes, _linkedFeatures,
   _reduceFeaturesByHeadAndLast
 } from './overpassFeatureHelpers';
+import {of} from 'folktale/concurrency/task'
 import {
-  fetchOsmRawTask, highwayWayFilters, osmAlways, osmEquals, osmNotEqual,
+  fetchOsmRawTask, highwayWayFilters,
   osmResultTask
 } from './overpass';
 import {
@@ -25,7 +26,8 @@ import {
   mapMDeep,
   mergeAllWithKey,
   strPathOr,
-  taskToResultTask
+  taskToResultTask,
+  traverseReduceWhile
 } from 'rescape-ramda';
 import {waitAll} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
@@ -66,6 +68,81 @@ const waysOfNodeQuery = nodeId => {
   `;
 };
 
+
+/***
+ * Queries the location with the OverPass API for its given street block. Querying happens once or twice, first
+ * with the neighborhood specified (faster) and then without if no results return. The neighborhood is
+ * also be omitted in a first and only query if the location doesn't have one
+ * @param {Function<location>} queryLocationResultTask Called with each location variation and must return
+ * a result task with the query results
+ * @param {[Object]} locationVariationsOfOsm 1 or more of the same location with different osmIds
+ * The first should be a neighborhood osmId if available, and the second is the city osmId. We hope to get
+ * results with the neighborhood level osmId because it is faster, but if we get no results we query with the
+ * city osmId. Alternatively this can be a location with lat/lons specified for the intersections.
+ * Having lat/lons is just as good as an osmId
+ * @returns {Task<Result<Object>>} Result.Ok in the form {location, result} or a Result.Error in the form {location, error}
+ * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
+ * There must be at least on way and possibly more, depending on where two ways meet.
+ * Some blocks have more than two nodes if they have multiple divided ways.
+ * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
+ * the node. There is also an intersections array, which is also keyed by node id but valued by an array
+ * of street names. The main street of the location's block is listed first followed by the rest (usually one)
+ * in alphabetical order
+ */
+export const _queryLocationVariationsUntilFoundResultTask = R.curry((queryLocationResultTask, locationVariationsOfOsm) => {
+
+  return R.composeK(
+    result => of(
+      // If we had no results report the errors of each query
+      // We create this somewhat strange format so that we know what variation of the location was used for each
+      // query. So the Result.Error looks like:
+      // {
+      //  errors: [
+      //    {
+      //       errors: [
+      //        { error: error message about the query, nodeQuery: the osm way query },
+      //        { error: error message about the query, nodeQuery: the osm node query},
+      //       ]
+      //       location: the variation of the location for this query
+      //    },
+      //    ... other location variations that were tried
+      //  ]
+      //  location: arbitrary first variation of the location
+      // }
+      result.mapError(errors => ({
+          errors: R.map(location => ({errors, location}), locationVariationsOfOsm),
+          location: R.head(locationVariationsOfOsm)
+        })
+      )
+    ),
+    // A chained Task that runs 1 or 2 queries as needed
+    locationVariationsOfOsm => traverseReduceWhile(
+      {
+        // Fail the predicate to stop searching when we have a Result.Ok
+        predicate: (previousResult, result) => R.complement(Result.Ok.hasInstance)(result),
+        // Take the the last accumulation after the predicate fails
+        accumulateAfterPredicateFail: true
+      },
+
+      // If we get a Result.Ok, just return it. The first Result.Ok we get is our final value
+      // When we get Result.Errors, concat them for reporting
+      (previousResult, result) => result.matchWith({
+        Error: ({value}) => previousResult.mapError(R.append(value)),
+        Ok: R.identity
+      }),
+      // Starting condition is failure
+      of(Result.Error([])),
+      // Create a list of Tasks. We'll only run as many as needed
+      // We start with limiting queries to a neighborhood and if nothing there works or there is no hood we limit
+      // to the city. Within each area why try up to 3 queries.
+      // chain here is used to flatten the multiple results produced by each locationsWithOsm
+      R.chain(
+        locationWithOsm => queryLocationResultTask(locationWithOsm),
+        locationVariationsOfOsm
+      )
+    )
+  )(locationVariationsOfOsm);
+});
 
 /**
  * Perform the OSM queries in parallel

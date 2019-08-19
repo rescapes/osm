@@ -2,7 +2,9 @@ import {
   reqStrPathThrowing,
   resultToTaskNeedingResult,
   traverseReduceDeepResults,
-  pickDeepPaths
+  pickDeepPaths,
+  resultToTaskWithResult,
+  compact
 } from 'rescape-ramda';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
@@ -11,13 +13,11 @@ import {
   highwayWayFilters,
   osmIdToAreaId
 } from './overpass';
-import {
-  _cleanGeojson,
-  _intersectionStreetNamesFromWaysAndNodes
-} from './overpassFeatureHelpers';
 import * as Result from 'folktale/result';
-import {getFeaturesOfBlock} from './overpassBlockHelpers';
+import {_queryLocationVariationsUntilFoundResultTask, getFeaturesOfBlock} from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
+import {nominatimLocationResultTask} from './nominatimLocationSearch';
+import {hashPoint} from './overpassFeatureHelpers';
 
 /**
  * Created by Andy Likuski on 2019.07.26
@@ -30,56 +30,65 @@ import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
 /**
- * Given locations that each represent a neighborhood or city (TODO and in the future any geojson-based bounds),
- * resolves all OpenStreetMap blocks in those neighborhoods. We define a block as one or more full or partial OSM ways
- * between two OSM nodes, where the nodes are defined as intersections because
- * 1) 3 or more ways touch them
- * 2) 2 ways touch them and one of the ways has nodes (waynodes) on either side of the node (the way doesn't just touch
- * the node at one end)
- * @param [{Object}] locations Locations that must each contain a country, city, and optionally state, neighborhood
- * @returns {Task<Object<Ok:[Location], Error:[Object]>>} A task with an object containing two arrays.
- * The Ok array is a list of all the blocks represented as locations. A location block contains a country, [state],
- * city, [neighborhood], intersections (usually two arrays with 2 or more streets names each representing an intersection,
- * one array for a dead end),
- * geojson containing one or more intersection nodes, and one or more ways where the nodes of the ways are trimmed
- * to the nodes between the intersections
+ * Resolve the location and then query for the all of its blocks in overpass.
+ * This process will first use nominatimResultTask to query nomatim.openstreetmap.org for the relationship
+ * of the neighborhood of the city. If it fails it will try the entire city. With this result we
+ * query overpass using the area representation of the neighborhood or city, which is the OpenStreetMap id
+ * plus a magic number defined by Overpass. If the neighborhood area query fails to give us the results we want,
+ * we retry with the city area. TODO If we have a full city query when we want a neighborhood we should reduce
+ * the results somewhow
+ * @param {Object} location A location object
+ * @returns {Task<Result<Object>>} Result.Ok in the form {location,  results} if data is found,
+ * otherwise Result.Error in the form {errors: {errors, location}, location} where the internal
+ * location are varieties of the original with an osm area id added. Result.Error is only returned
+ * if no variation of the location succeeds in returning a result
+ * The results contain nodes and ways
  */
-export const getAllBlocksOfLocations = ({locations}) => {
-  return traverseReduceDeepResults(2,
-    // The accumulator
-    (res, okObj) => R.concat(
-      res,
-      [okObj]
-    ),
-    // The accumulator of errors
-    (res, errorObj) => R.concat(
-      res,
-      // extract the errors array, each of which has a list of errors and the location that erred
-      // If there isn't an errors array just add the entire object
-      R.ifElse(
-        R.has('errors'),
-        // TODO errorObj.errors should be an array but sometimes isn't, so wrap
-        errorObj => R.compose(R.unless(Array.isArray, Array.of), reqStrPathThrowing('errors'))(errorObj),
-        Array.of
-      )(errorObj)
-    ),
-    // Our initial value is a Task with an object can contain Result.Ok and Result.Error results
-    of({Ok: [], Error: []}),
-    // [Object] -> [Task (Result.Ok | Result.Error)]
-    R.map(
-      locationWithOsm => _queryOverpassWithLocationForAllBlocksResultTask(locationWithOsm),
-      locations
-    )
+export const locationToOsmAllBlocksQueryResultsTask = location => {
+
+  // Create a function that expects the location variations and returns the results
+  // of _queryForAllBlocksOfLocationsTask for the location variation that overpass can resolve
+  // (currently either a neighborhood level query or failing that city level query)
+  const _queryOverpassForAllBlocksUntilFoundResultTask = _queryLocationVariationsUntilFoundResultTask(
+    _queryOverpassWithLocationForAllBlocksResultTask
   );
+
+
+  return R.composeK(
+    resultToTaskWithResult(
+      locationVariationsWithOsm => R.cond([
+        [R.length,
+          locationVariationsWithOsm => _queryOverpassForAllBlocksUntilFoundResultTask(
+            locationVariationsWithOsm
+          )
+        ],
+        // No OSM ids resolved, try to query by geojson bounds
+        /*[() => hasLatLngIntersections(location),
+          () => _queryOverpassForAllBlocksUntilFoundResultTask({locations: [locations]})
+        ], */
+        // If no query produced results return a Result.Error so we can give up gracefully
+        [R.T,
+          () => of(Result.Error({
+            errors: ({
+              errors: ['OSM Nominatim query could not resolve a neighborhood or city for this location. Check spelling'],
+              location
+            }),
+            location
+          }))
+        ]
+      ])(locationVariationsWithOsm)
+    ),
+    // Nominatim query on the place search string.
+    location => nominatimLocationResultTask(location)
+  )(location);
 };
 
 /**
  * Queries for all blocks matching the Osm area id in the given location
  * @param {Object} locationWithOsm Location object with  bbox, osmId, placeId from
  * @private
- * @returns {Task<Result<[Object]>>} The block represented as locations (see getAllBlocksOfLocations for description)
+ * @returns {Task<Result<[Object]>>} The block represented as locations
  */
 const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
   return R.composeK(
@@ -114,43 +123,86 @@ const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
  * Result.Error is returned. Object has a ways, nodes
  */
 const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: nodeQuery}) => {
+
+  // 4) Return all blocks found in {Ok: []}. All ways and nodes not used in {Error: []}
+  // 3) After traveling once.
+  //  A) If point reached is a node, then block is created. Hash block by node ids and in between way ids
+  //    (In between way ids can be fetched from the non-reduced ways) DONE
+  //  B) If point is wayendnode:
+  //    i) If wayendnode matches a node, this is a loop way. Make block and DONE
+  //    ii) If wayendnode has has another way, travel that way (reversing its nodes if needed to travel) DONE
+  //    iii) if wayendnode has no other way, dead end block. Store block by accumulated node and way(s) reduced to traversed waynodes.
+  //  C) If point is waynode: store accumulated waynode and go back to step 3 CONTINUE
+  // 2) Traveling. Hash the way segments by hashing the way id with the two node/endpoint id (order independent).
+  //  If this segment is already in the hash, abandon this travel (segment has been traversed) DONE
+  // 1) Travel from every node: Find ways of node and travel:
+  //  A) If starting at way end, travel other direction. Go to step 2 for the one direction CONTINUE
+  //  B) Else travel both directions to next node/way endpoint. Go to step 2 for each direction CONTINUEx2
+  // For area ways (pedestrian areas) find nodes within 5 meters of each waynode. Hash way
+  //    If the area way only matches one node, hash that matching waynode as a wayendnode.
+  //    (Above when we travel we'll start at the matching node and go around the area until we reach another node or the wayendnode at the starting point)
+  // For loop ways that match exactly 1 node in waynodehash, hash that matching waynode as a wayendnode in wayendnodehash
+  //    Above when we travel we'll start at the node and stop at the wayendnode at the same place. See 3.B.i
   return R.composeK(
     // Finally get the features from the response
     resultToTaskNeedingResult(
-      ({way, node, waysByNodeId: waysByNodeId}) => {
+      ({way, node}) => {
         const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
-        const wayFeaturesByNodeId = R.map(reqStrPathThrowing('response.features'), waysByNodeId);
-        return of(
-          R.merge(
-            {
-              // Calculate the street names and put them in intersections
-              // intersections is an object keyed by node id and valued by the unique list of streets.
-              // The first street is always street matching the way's street and the remaining are alphabetical
-              // Normally there are only two unique streets for each intersection.
-              // If one or both streets change names or for a >4-way intersection, there can be more.
-              // If we handle roundabouts correctly in the future these could also account for more
-              intersections: _intersectionStreetNamesFromWaysAndNodes(wayFeatures, wayFeaturesByNodeId),
-              // Clean the geojson of each way intersecting  each node
-              // Then store the results in {waysByNodeId => {nodeN: ..., nodeM:, ...}}
-              waysByNodeId: R.map(
-                wayFeatures => R.map(
-                  // Clean the features of each first
-                  _cleanGeojson,
-                  wayFeatures
+        // Hash intersection nodes by id. These are all intersections (nodehash)
+        const nodeIdToNode = R.indexBy(R.prop('id'), nodeFeatures);
+        const nodePointHash = R.indexBy(R.compose(hashPoint, reqStrPathThrowing('geometry.coordinates')), nodeFeatures);
+        const matchingNodes = findMatchingNodes(nodePointHash);
+        // Hash all way ids by intersection node if any waynode matches or is and area-way (pedestrian area) within 5m (waynodehash)
+        const wayIdToNodes = R.fromPairs(R.map(
+          wayFeature => [R.prop('id', wayFeature), matchingNodes(wayFeature)],
+          wayFeatures
+        ));
+        // node id to list of ways
+        const nodeIdToWays = R.reduce(
+          (hash, [wayId, nodes]) => {
+            const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
+            return R.reduce(
+              // Add the wayId to the nodeId key
+              (hsh, nodeId) => R.over(
+                // Lens to get the node id in the hash
+                R.lensProp(nodeId),
+                // Add the way id to the list of the nodeId
+                wayList => R.concat(wayList || [], [wayId]),
+                hsh
+              ),
+              hash,
+              nodeIds
+            );
+          },
+          {},
+          R.toPairs(wayIdToNodes)
+        );
+        // Hash way endings (wayendnode) ids unless it matches a node in the nodehash (wayendnodehash)
+        const wayEndPointHashToNodes = R.map(
+          wayFeature => {
+            const wayCoordinates = reqStrPathThrowing('geometry.coordinates', wayFeature);
+            return R.compose(
+              // Filter out points that are already nodes
+              endPointObjs => R.filter(({endPoint}) => R.not(R.propOr(false, hashPoint(endPoint), nodePointHash), endPointObjs)),
+              // Get the first and last point of the way
+              wayCoordinates => R.map(
+                prop => (
+                  {
+                    endPoint: R[prop](wayCoordinates),
+                    way: R.when(
+                      () => R.equals('tail', prop),
+                      // For the tail end point, created a copy of the wayFeature with the coordinates reversed
+                      // This makes it easy to traverse the ways from their endPoints.
+                      // Since we hash ways independent of directions, we'll still detect ways we've already traversed
+                      wayFeature => R.over(R.lensPath(['geometry', 'coordinates']), R.reverse, wayFeature)
+                    )(wayFeature)
+                  }
                 ),
-                wayFeaturesByNodeId
+                ['head', 'last']
               )
-            },
-            // Clean the geojson of each way and node feature to remove weird characters that mess up API storage
-            // Then store the features in {ways: ..., nodes: ...}
-            getFeaturesOfBlock(
-              // Clean the features of each first
-              ...R.map(
-                features => R.map(_cleanGeojson, features),
-                [wayFeatures, nodeFeatures]
-              )
-            )
-          )
+            )(wayCoordinates);
+          },
+          wayFeatures
         );
       }
     ),
@@ -160,6 +212,21 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
   )({way: wayQuery, node: nodeQuery});
 };
 
+/**
+ * Given a list of node features creates a function that expects a way feature and finds the nodes features
+ * that the way intersects
+ * @param {Object} nodePointHash A list of nodes hashed by point geojson
+ * @returns {[Object]} The matching nodes
+ */
+const findMatchingNodes = R.curry((nodePointHash, wayFeature) => {
+  return R.compose(
+    nodes => compact(nodes),
+    wayFeature => R.map(
+      coordinate => R.propOr(null, hashPoint(coordinate), nodePointHash),
+      reqStrPathThrowing('geometry.coordinates', wayFeature)
+    )
+  )(wayFeature);
+});
 /**
  * Construct an Overpass query to get all eligible highway ways or nodes for area of the given osmId or optionally
  * geojsonBOunds
@@ -193,7 +260,7 @@ const _constructHighwaysQuery = ({type}, {osmId, data}, geojsonBounds) => {
     }
     ${
     // Declare the node variables
-    _createQueryNodesDeclarations()
+    _createQueryNodesDeclarations(type)
     }
     ${
     _createQueryOutput(type)
@@ -224,8 +291,9 @@ const _createQueryWaysDeclarations = (areaId, geojsonBounds) => {
  * @returns {String} Overpass query syntax string that declares the way variable
  * @private
  */
-const _createQueryNodesDeclarations = () => {
-  return `node(w.ways)${highwayNodeFilters}->.nodes;`;
+const _createQueryNodesDeclarations = type => {
+  // We only need to generate this for a node query. Ways don't need nodes
+  return R.ifElse(R.equals('node'), R.always(`node(w.ways)${highwayNodeFilters}->.nodes;`), R.always(''))(type);
 };
 
 /**
@@ -236,15 +304,19 @@ const _createQueryNodesDeclarations = () => {
  */
 const _createQueryOutput = type => {
   // Either return nodes or ways. Can't do both because the API messes up the geojson
-  const outputVariable = R.cond([
-    [R.equals('way'), R.always('.matchingWays')],
-    [R.equals('node'), R.always('.matchingNodes')],
+  return R.cond([
+    [R.equals('node'), R.always(`foreach .ways -> .currentway(
+      (.ways; - .currentway;)->.allotherways;
+  node(w.currentway)->.nodesOfCurrentWay;
+  node(w.allotherways)->.nodesOfAllOtherWays;
+  node.nodesOfCurrentWay.nodesOfAllOtherWays -> .n;
+  (.n ; .result;) -> .result;
+  );
+.result out geom;`
+    )],
+    [R.equals('way'), R.always('.ways out geom;')],
     [R.T, () => {
       throw Error('type argument must specified and be "way" or "node"');
     }]
   ])(type);
-  return `
-    .ways -> .matchingWays;
-    .nodes -> .matchingNodes;
-    ${outputVariable} out geom;`;
 };

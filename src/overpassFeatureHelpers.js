@@ -30,8 +30,8 @@ export const hashPoint = point => {
  * @param nodeFeature
  * @param {String} A string representation of the point
  */
-const hashNodeFeature = nodeFeature => {
-  return hashPoint(nodeFeature.geometry.coordinates);
+export const hashNodeFeature = nodeFeature => {
+  return hashPoint(reqStrPathThrowing('geometry.coordinates', nodeFeature));
 };
 
 /**
@@ -43,11 +43,11 @@ const hashNodeFeatures = nodeFeatures => R.map(hashNodeFeature, nodeFeatures);
 
 /**
  * Hash the given way, a LineString Feature into an array of points
- * @param way
+ * @param wayFeature
  * @returns {[String]} Array of point hashes
  */
-const hashWay = way => {
-  return R.map(hashPoint, way.geometry.coordinates);
+export const hashWayFeature = wayFeature => {
+  return R.map(hashPoint, reqStrPathThrowing('geometry.coordinates', wayFeature));
 };
 
 
@@ -105,7 +105,7 @@ export const _reduceFeaturesByHeadAndLast = (result, feature) => {
  * It can match 0, 1, or both
  */
 const _lineStringFeatureEndNodeMatches = R.curry((nodePointHashes, lineStringFeature) => {
-  const lineStringPointHashes = hashWay(lineStringFeature);
+  const lineStringPointHashes = hashWayFeature(lineStringFeature);
   const headLastValues = ['head', 'last'];
   // Returns {head: true|false, last: true|false} if any node on the LineString matches the head node
   // and last node respectively
@@ -264,7 +264,7 @@ const _reverseNodesAndWayIfNeeded = (nodeMatches, nodeFeatures, wayFeature) => {
       // If both nodes match, find the closest to the head of the way and put that node first
       R.both(R.prop('last'), R.prop('head')),
       matches => {
-        const wayPointHashes = hashWay(wayFeature);
+        const wayPointHashes = hashWayFeature(wayFeature);
         const sortedNodeFeatures = R.sortBy(
           // Find the closest node to the start of the way
           nodeFeature => R.indexOf(hashNodeFeature(nodeFeature), wayPointHashes),

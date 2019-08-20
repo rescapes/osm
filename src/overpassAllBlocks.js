@@ -4,7 +4,9 @@ import {
   traverseReduceDeepResults,
   pickDeepPaths,
   resultToTaskWithResult,
-  compact
+  compact,
+  toNamedResponseAndInputs,
+  mapToNamedResponseAndInputs
 } from 'rescape-ramda';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
@@ -17,7 +19,8 @@ import * as Result from 'folktale/result';
 import {_queryLocationVariationsUntilFoundResultTask, getFeaturesOfBlock} from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
-import {hashPoint} from './overpassFeatureHelpers';
+import {hashNodeFeature, hashPoint, hashWayFeature} from './overpassFeatureHelpers';
+import {PropTypes} from 'prop-types';
 
 /**
  * Created by Andy Likuski on 2019.07.26
@@ -123,87 +126,184 @@ const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
  * Result.Error is returned. Object has a ways, nodes
  */
 const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: nodeQuery}) => {
-
-  // 4) Return all blocks found in {Ok: []}. All ways and nodes not used in {Error: []}
-  // 3) After traveling once.
-  //  A) If point reached is a node, then block is created. Hash block by node ids and in between way ids
-  //    (In between way ids can be fetched from the non-reduced ways) DONE
-  //  B) If point is wayendnode:
-  //    i) If wayendnode matches a node, this is a loop way. Make block and DONE
-  //    ii) If wayendnode has has another way, travel that way (reversing its nodes if needed to travel) DONE
-  //    iii) if wayendnode has no other way, dead end block. Store block by accumulated node and way(s) reduced to traversed waynodes.
-  //  C) If point is waynode: store accumulated waynode and go back to step 3 CONTINUE
-  // 2) Traveling. Hash the way segments by hashing the way id with the two node/endpoint id (order independent).
-  //  If this segment is already in the hash, abandon this travel (segment has been traversed) DONE
-  // 1) Travel from every node: Find ways of node and travel:
-  //  A) If starting at way end, travel other direction. Go to step 2 for the one direction CONTINUE
-  //  B) Else travel both directions to next node/way endpoint. Go to step 2 for each direction CONTINUEx2
-  // For area ways (pedestrian areas) find nodes within 5 meters of each waynode. Hash way
-  //    If the area way only matches one node, hash that matching waynode as a wayendnode.
-  //    (Above when we travel we'll start at the matching node and go around the area until we reach another node or the wayendnode at the starting point)
-  // For loop ways that match exactly 1 node in waynodehash, hash that matching waynode as a wayendnode in wayendnodehash
-  //    Above when we travel we'll start at the node and stop at the wayendnode at the same place. See 3.B.i
   return R.composeK(
     // Finally get the features from the response
     resultToTaskNeedingResult(
       ({way, node}) => {
         const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
-        // Hash intersection nodes by id. These are all intersections (nodehash)
-        const nodeIdToNode = R.indexBy(R.prop('id'), nodeFeatures);
-        const nodePointHash = R.indexBy(R.compose(hashPoint, reqStrPathThrowing('geometry.coordinates')), nodeFeatures);
-        const matchingNodes = findMatchingNodes(nodePointHash);
-        // Hash all way ids by intersection node if any waynode matches or is and area-way (pedestrian area) within 5m (waynodehash)
-        const wayIdToNodes = R.fromPairs(R.map(
-          wayFeature => [R.prop('id', wayFeature), matchingNodes(wayFeature)],
-          wayFeatures
-        ));
-        // node id to list of ways
-        const nodeIdToWays = R.reduce(
-          (hash, [wayId, nodes]) => {
-            const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
-            return R.reduce(
-              // Add the wayId to the nodeId key
-              (hsh, nodeId) => R.over(
-                // Lens to get the node id in the hash
-                R.lensProp(nodeId),
-                // Add the way id to the list of the nodeId
-                wayList => R.concat(wayList || [], [wayId]),
-                hsh
+        R.compose(
+          mapToNamedResponseAndInputs('4'
+            // 4) Return all blocks found in {Ok: []}. All ways and nodes not used in {Error: []}
+          ),
+          mapToNamedResponseAndInputs('3'
+            // 3) After traveling once.
+            //  A) If point reached is a node, then block is created. Hash block by node ids and in between way ids
+            //    (In between way ids can be fetched from the non-reduced ways) DONE
+            //  B) If point is wayendnode:
+            //    i) If wayendnode matches a node, this is a loop way. Make block and DONE
+            //    ii) If wayendnode has has another way, travel that way (reversing its nodes if needed to travel) DONE
+            //    iii) if wayendnode has no other way, dead end block. Store block by accumulated node and way(s) reduced to traversed waynodes.
+            //  C) If point is waynode: store accumulated waynode and go back to step 3 CONTINUE
+          ),
+          mapToNamedResponseAndInputs('2'
+            // 2) Traveling. Hash the way segments by hashing the way id with the two node/endpoint id (order independent).
+            //  If this segment is already in the hash, abandon this travel (segment has been traversed) DONE
+          ),
+          mapToNamedResponseAndInputs('1',
+            // 1) Travel from every node: Find ways of node and travel:
+            //  A) If starting at way end, travel other direction. Go to step 2 for the one direction CONTINUE
+            //  B) Else travel both directions to next node/way endpoint. Go to step 2 for each direction CONTINUEx2
+            // For area ways (pedestrian areas) find nodes within 5 meters of each waynode. Hash way
+            //    If the area way only matches one node, hash that matching waynode as a wayendnode.
+            //    (Above when we travel we'll start at the matching node and go around the area until we reach another node or the wayendnode at the starting point)
+            // For loop ways that match exactly 1 node in waynodehash, hash that matching waynode as a wayendnode in wayendnodehash
+            //    Above when we travel we'll start at the node and stop at the wayendnode at the same place. See 3.B.i
+            ({wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToWays, node, nodeIdToNodePoint}) => R.mapObjIndexed(
+              ({ways, nodeId}) => {
+                const nodePoint = reqStrPathThrowing(node.id, nodeIdToNodePoint);
+                return R.map(
+                  way => {
+                    const isNodeAtWayEndPoint = way => R.compose(
+                      nodes => R.find(node => R.propEq('id', nodeId, node), nodes),
+                      way => reqStrPathThrowing(R.prop('id', way), wayEndPointToNodes)
+                    )(way);
+                    return R.cond([
+                      // A way end touches the node
+                      [way => isNodeAtWayEndPoint(way), way => {
+                        // Travel in one direction
+                        return {
+                          nodeId
+
+                        };
+                      }],
+                      // B Else ]
+                      [R.T, way => {
+
+                      }]
+                    ])(way);
+                  },
+                  ways
+                );
+              },
+              nodeIdToWays
+            )
+          ),
+
+          //... splitting up and reversing way coordinates
+          // so that the coordinates flow from each node until the next node or end of the way
+          // This allows us to travel from any node along all its connected ways until we reach another
+          // node or the way end. If we reach another node we are done with the block. If we reach a way
+          // end that doesn't touch anothger way end we have a dead end block and are done. If we reach
+          // a way end that has a matching way end we need to join it with the matching way end later
+          // Also split the ways
+
+          toNamedResponseAndInputs('wayEndPointToDirectionalWays',
+            // Hash way endings (wayendnode) ids unless it matches a node in the nodePointToNode (wayendnodehash)
+            ({wayFeatures, wayIdToWayPoints, nodePointToNode}) => R.compose(
+              // way end points will usually be unique, but some will match two ways when two ways meet at a place
+              // that is not an intersection
+              // This produces {wayEndPoint: [...ways with that end point], ...}
+              endPointToWayPair => R.reduceBy(
+                (acc, [endPoint, way]) => R.concat(acc, [way]),
+                [],
+                ([endPoint]) => endPoint,
+                endPointToWayPair
               ),
-              hash,
-              nodeIds
-            );
-          },
-          {},
-          R.toPairs(wayIdToNodes)
-        );
-        // Hash way endings (wayendnode) ids unless it matches a node in the nodehash (wayendnodehash)
-        const wayEndPointHashToNodes = R.map(
-          wayFeature => {
-            const wayCoordinates = reqStrPathThrowing('geometry.coordinates', wayFeature);
-            return R.compose(
-              // Filter out points that are already nodes
-              endPointObjs => R.filter(({endPoint}) => R.not(R.propOr(false, hashPoint(endPoint), nodePointHash), endPointObjs)),
-              // Get the first and last point of the way
-              wayCoordinates => R.map(
-                prop => (
-                  {
-                    endPoint: R[prop](wayCoordinates),
-                    way: R.when(
-                      () => R.equals('tail', prop),
-                      // For the tail end point, created a copy of the wayFeature with the coordinates reversed
-                      // This makes it easy to traverse the ways from their endPoints.
-                      // Since we hash ways independent of directions, we'll still detect ways we've already traversed
-                      wayFeature => R.over(R.lensPath(['geometry', 'coordinates']), R.reverse, wayFeature)
-                    )(wayFeature)
-                  }
-                ),
-                ['head', 'last']
+              R.chain(
+                wayFeature => {
+                  const wayCoordinates = reqStrPathThrowing(R.prop('id', wayFeature), wayIdToWayPoints);
+                  return R.compose(
+                    endPointObjs => R.map(({endPoint, way}) => [endPoint, way], endPointObjs),
+                    // Filter out points that are already nodes
+                    endPointObjs => R.filter(
+                      ({endPoint}) => R.not(R.propOr(false, endPoint, nodePointToNode)),
+                      endPointObjs
+                    ),
+                    // Get the first and last point of the way
+                    wayCoordinates => R.map(
+                      prop => (
+                        {
+                          endPoint: R[prop](wayCoordinates),
+                          way: R.when(
+                            () => R.equals('tail', prop),
+                            // For the tail end point, created a copy of the wayFeature with the coordinates reversed
+                            // This makes it easy to traverse the ways from their endPoints.
+                            // Since we hash ways independent of directions, we'll still detect ways we've already traversed
+                            wayFeature => R.over(R.lensPath(['geometry', 'coordinates']), R.reverse, wayFeature)
+                          )(wayFeature)
+                        }
+                      ),
+                      ['head', 'last']
+                    )
+                  )(wayCoordinates);
+                }
               )
-            )(wayCoordinates);
-          },
-          wayFeatures
-        );
+            )(wayFeatures)
+          ),
+          toNamedResponseAndInputs('nodeIdToWays',
+            // "Invert" wayIdToNodes to create nodeIdToWays
+            ({wayIdToNodes}) => R.reduce(
+              (hash, [wayId, nodes]) => {
+                const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
+                return R.reduce(
+                  // Add the wayId to the nodeId key
+                  (hsh, nodeId) => R.over(
+                    // Lens to get the node id in the hash
+                    R.lensProp(nodeId),
+                    // Add the way id to the list of the nodeId
+                    wayList => R.concat(wayList || [], [wayId]),
+                    hsh
+                  ),
+                  hash,
+                  nodeIds
+                );
+              },
+              {},
+              R.toPairs(wayIdToNodes)
+            )
+          ),
+          toNamedResponseAndInputs('wayIdToWayPoints',
+            // Map the way id to its points
+            ({wayFeatures}) => R.fromPairs(R.map(
+              wayFeature => [
+                R.prop('id', wayFeature),
+                hashWayFeature(wayFeature),
+              ],
+              wayFeatures
+            ))
+          ),
+          toNamedResponseAndInputs('wayIdToNodes',
+            // Hash all way ids by intersection node if any waynode matches or
+            // is an area-way (pedestrian area) within 5m (waynodehash) <-- TODO
+            ({nodePointToNode, wayFeatures}) => {
+              return R.fromPairs(R.map(
+                wayFeature => [R.prop('id', wayFeature), findMatchingNodes(nodePointToNode, wayFeature)],
+                wayFeatures
+              ));
+            }
+          ),
+          toNamedResponseAndInputs('nodePointToNode',
+            // Hash the node points to match ways to them
+            ({nodeFeatures}) => R.indexBy(
+              nodeFeature => hashNodeFeature(nodeFeature),
+              nodeFeatures
+            )
+          ),
+          toNamedResponseAndInputs('nodeIdToNodePoint',
+            // Hash intersection nodes by id. These are all intersections (nodehash)
+            ({nodeIdToNode}) => R.map(
+              nodeFeature => hashNodeFeature(nodeFeature),
+              nodeIdToNode
+            )
+          ),
+          toNamedResponseAndInputs('nodeIdToNode',
+            // Hash intersection nodes by id. These are all intersections (nodehash)
+            ({nodeFeatures}) => R.indexBy(
+              R.prop('id'),
+              nodeFeatures
+            )
+          )
+        )({wayFeatures, nodeFeatures});
       }
     ),
 

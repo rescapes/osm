@@ -163,24 +163,42 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
                 const nodePoint = reqStrPathThrowing(node.id, nodeIdToNodePoint);
                 return R.map(
                   way => {
-                    const isNodeAtWayEndPoint = way => R.compose(
-                      nodes => R.find(node => R.propEq('id', nodeId, node), nodes),
-                      way => reqStrPathThrowing(R.prop('id', way), wayEndPointToNodes)
-                    )(way);
-                    return R.cond([
-                      // A way end touches the node
-                      [way => isNodeAtWayEndPoint(way), way => {
-                        // Travel in one direction
-                        return {
-                          nodeId
-
-                        };
-                      }],
-                      // B Else ]
-                      [R.T, way => {
-
-                      }]
-                    ])(way);
+                    const wayToSplitAndOrderedWays = way => R.compose(
+                      ({way, wayPoints, index}) => R.map(
+                        // Process splits, maybe reverse the partial way points to start at the node index
+                        partialWayPoints => {
+                          const orderedWayPartialPoints = R.unless(
+                            R.compose(
+                              R.equals(0),
+                              R.indexOf(nodePoint)
+                            ),
+                            R.reverse
+                          )(partialWayPoints);
+                          // Create a new version of the way with these points
+                          return R.set(R.lensPath(['geometry', 'coordinates'], orderedWayPartialPoints, way));
+                        },
+                        // Split the way points at the node index (ignoring intersections with other nodes)
+                        R.splitAt(index, wayPoints)
+                      ),
+                      ({wayPoints}) => toNamedResponseAndInputs('index',
+                        // Get the index of the node in the way's points
+                        R.indexOf(nodePoint, wayPoints)
+                      ),
+                      ({way}) => toNamedResponseAndInputs('wayPoints',
+                        // Get the way points of the way
+                        reqStrPathThrowing(R.prop('id', way), wayIdToWayPoints)
+                      )
+                    )({way});
+                    // Travel in one or both directions
+                    return R.map(
+                      partialWay => {
+                        // 1. Join the end of the ways to ways that share a common end point that isn't a node
+                        // 2. When we get to a node on this way or a joined way, grap the node and quit
+                        const {endNode, partialWays} = traverseUntilNodeOrDeadEnd(nodeId, partialWay)
+                        return {nodes: [nodeId, R.prop('id', endNode)], ways: partialWays};
+                      },
+                      wayToSplitAndOrderedWays(way)
+                    );
                   },
                   ways
                 );
@@ -267,7 +285,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
             ({wayFeatures}) => R.fromPairs(R.map(
               wayFeature => [
                 R.prop('id', wayFeature),
-                hashWayFeature(wayFeature),
+                hashWayFeature(wayFeature)
               ],
               wayFeatures
             ))

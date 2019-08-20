@@ -1,12 +1,12 @@
 import {
   reqStrPathThrowing,
   resultToTaskNeedingResult,
-  traverseReduceDeepResults,
   pickDeepPaths,
   resultToTaskWithResult,
-  compact,
   toNamedResponseAndInputs,
-  mapToNamedResponseAndInputs
+  compactEmpty,
+  chainObjToValues,
+  compact
 } from 'rescape-ramda';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
@@ -16,11 +16,10 @@ import {
   osmIdToAreaId
 } from './overpass';
 import * as Result from 'folktale/result';
-import {_queryLocationVariationsUntilFoundResultTask, getFeaturesOfBlock} from './overpassBlockHelpers';
+import {_queryLocationVariationsUntilFoundResultTask} from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
-import {hashNodeFeature, hashPoint, hashWayFeature} from './overpassFeatureHelpers';
-import {PropTypes} from 'prop-types';
+import {findMatchingNodes, hashNodeFeature, hashPoint, hashWayFeature} from './overpassFeatureHelpers';
 
 /**
  * Created by Andy Likuski on 2019.07.26
@@ -132,10 +131,10 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
       ({way, node}) => {
         const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
         R.compose(
-          mapToNamedResponseAndInputs('4'
+          toNamedResponseAndInputs('4'
             // 4) Return all blocks found in {Ok: []}. All ways and nodes not used in {Error: []}
           ),
-          mapToNamedResponseAndInputs('3'
+          toNamedResponseAndInputs('3'
             // 3) After traveling once.
             //  A) If point reached is a node, then block is created. Hash block by node ids and in between way ids
             //    (In between way ids can be fetched from the non-reduced ways) DONE
@@ -145,22 +144,37 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
             //    iii) if wayendnode has no other way, dead end block. Store block by accumulated node and way(s) reduced to traversed waynodes.
             //  C) If point is waynode: store accumulated waynode and go back to step 3 CONTINUE
           ),
-          mapToNamedResponseAndInputs('2'
-            // 2) Traveling. Hash the way segments by hashing the way id with the two node/endpoint id (order independent).
+          toNamedResponseAndInputs('blocks',
+            // 2) Finish traveling. Hash the way segments by hashing the way id with the two node/endpoint id (order independent).
             //  If this segment is already in the hash, abandon this travel (segment has been traversed) DONE
+            ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
+              R.map(
+                partialBlock => recursivelyBuildBlock(
+                  {wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint},
+                  partialBlock
+                ),
+                partialBlocks
+              );
+              // 1. Join the end of the ways to ways that share a common end point that isn't a node
+              // 2. When we get to a node on this way or a joined way, grap the node and quit
+              // For loops it can be the same node
+              //const {endNode, partialWays} = traverseUntilNodeOrDeadEnd(nodeId, partialWay)
+              //return {nodes: [nodeId, R.prop('id', endNode)], ways: partialWays};
+            }
           ),
-          mapToNamedResponseAndInputs('1',
-            // 1) Travel from every node: Find ways of node and travel:
-            //  A) If starting at way end, travel other direction. Go to step 2 for the one direction CONTINUE
-            //  B) Else travel both directions to next node/way endpoint. Go to step 2 for each direction CONTINUEx2
-            // For area ways (pedestrian areas) find nodes within 5 meters of each waynode. Hash way
+          toNamedResponseAndInputs('partialBlocks',
+            // 1 Travel from every node along the directional ways
+            //  A If starting at way end, travel other direction. Go to step 2 for the one direction CONTINUE
+            //  B Else travel both directions to next node/way endpoint. Go to step 2 for each direction CONTINUEx2
+            // For area ways (pedestrian areas) find nodes within 5 meters of each waynode. Hash way <-- TODO
             //    If the area way only matches one node, hash that matching waynode as a wayendnode.
             //    (Above when we travel we'll start at the matching node and go around the area until we reach another node or the wayendnode at the starting point)
-            // For loop ways that match exactly 1 node in waynodehash, hash that matching waynode as a wayendnode in wayendnodehash
-            //    Above when we travel we'll start at the node and stop at the wayendnode at the same place. See 3.B.i
-            ({wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToWays, node, nodeIdToNodePoint}) => R.mapObjIndexed(
-              ({ways, nodeId}) => {
-                const nodePoint = reqStrPathThrowing(node.id, nodeIdToNodePoint);
+            // At the end of this process we have a list of objects with nodes and ways.
+            // nodes has just the start node and ways has just one directional (partial) way whose first point
+            // is the node
+            ({wayIdToWayPoints, nodeIdToWays, nodeIdToNodePoint}) => R.unnest(chainObjToValues(
+              (ways, nodeId) => {
+                const nodePoint = reqStrPathThrowing(nodeId, nodeIdToNodePoint);
                 return R.map(
                   way => {
                     const wayToSplitAndOrderedWays = way => R.compose(
@@ -175,27 +189,24 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
                             R.reverse
                           )(partialWayPoints);
                           // Create a new version of the way with these points
-                          return R.set(R.lensPath(['geometry', 'coordinates'], orderedWayPartialPoints, way));
+                          return R.set(R.lensPath(['geometry', 'coordinates']), orderedWayPartialPoints, way);
                         },
                         // Split the way points at the node index (ignoring intersections with other nodes)
-                        R.splitAt(index, wayPoints)
+                        compactEmpty(R.splitAt(index, wayPoints))
                       ),
-                      ({wayPoints}) => toNamedResponseAndInputs('index',
+                      toNamedResponseAndInputs('index',
                         // Get the index of the node in the way's points
-                        R.indexOf(nodePoint, wayPoints)
+                        ({wayPoints}) => R.indexOf(nodePoint, wayPoints)
                       ),
-                      ({way}) => toNamedResponseAndInputs('wayPoints',
+                      toNamedResponseAndInputs('wayPoints',
                         // Get the way points of the way
-                        reqStrPathThrowing(R.prop('id', way), wayIdToWayPoints)
+                        ({way}) => reqStrPathThrowing(R.prop('id', way), wayIdToWayPoints)
                       )
                     )({way});
-                    // Travel in one or both directions
+                    // Travel in one or both directions returning a separate object for each node with one ordered ways coming from it
                     return R.map(
                       partialWay => {
-                        // 1. Join the end of the ways to ways that share a common end point that isn't a node
-                        // 2. When we get to a node on this way or a joined way, grap the node and quit
-                        const {endNode, partialWays} = traverseUntilNodeOrDeadEnd(nodeId, partialWay)
-                        return {nodes: [nodeId, R.prop('id', endNode)], ways: partialWays};
+                        return {nodes: [nodeId], ways: [partialWay]};
                       },
                       wayToSplitAndOrderedWays(way)
                     );
@@ -204,17 +215,8 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
                 );
               },
               nodeIdToWays
-            )
+            ))
           ),
-
-          //... splitting up and reversing way coordinates
-          // so that the coordinates flow from each node until the next node or end of the way
-          // This allows us to travel from any node along all its connected ways until we reach another
-          // node or the way end. If we reach another node we are done with the block. If we reach a way
-          // end that doesn't touch anothger way end we have a dead end block and are done. If we reach
-          // a way end that has a matching way end we need to join it with the matching way end later
-          // Also split the ways
-
           toNamedResponseAndInputs('wayEndPointToDirectionalWays',
             // Hash way endings (wayendnode) ids unless it matches a node in the nodePointToNode (wayendnodehash)
             ({wayFeatures, wayIdToWayPoints, nodePointToNode}) => R.compose(
@@ -260,7 +262,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
           ),
           toNamedResponseAndInputs('nodeIdToWays',
             // "Invert" wayIdToNodes to create nodeIdToWays
-            ({wayIdToNodes}) => R.reduce(
+            ({wayIdToNodes, wayIdToWay}) => R.reduce(
               (hash, [wayId, nodes]) => {
                 const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
                 return R.reduce(
@@ -268,8 +270,8 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
                   (hsh, nodeId) => R.over(
                     // Lens to get the node id in the hash
                     R.lensProp(nodeId),
-                    // Add the way id to the list of the nodeId
-                    wayList => R.concat(wayList || [], [wayId]),
+                    // Add the way to the list of the nodeId
+                    wayList => R.concat(wayList || [], [R.prop(wayId, wayIdToWay)]),
                     hsh
                   ),
                   hash,
@@ -300,18 +302,27 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
               ));
             }
           ),
-          toNamedResponseAndInputs('nodePointToNode',
-            // Hash the node points to match ways to them
-            ({nodeFeatures}) => R.indexBy(
-              nodeFeature => hashNodeFeature(nodeFeature),
-              nodeFeatures
-            )
+          toNamedResponseAndInputs('wayIdToWay',
+            // way id to way
+            ({wayFeatures}) => {
+              return R.indexBy(
+                R.prop('id'),
+                wayFeatures
+              );
+            }
           ),
           toNamedResponseAndInputs('nodeIdToNodePoint',
             // Hash intersection nodes by id. These are all intersections (nodehash)
             ({nodeIdToNode}) => R.map(
               nodeFeature => hashNodeFeature(nodeFeature),
               nodeIdToNode
+            )
+          ),
+          toNamedResponseAndInputs('nodePointToNode',
+            // Hash the node points to match ways to them
+            ({nodeFeatures}) => R.indexBy(
+              nodeFeature => hashNodeFeature(nodeFeature),
+              nodeFeatures
             )
           ),
           toNamedResponseAndInputs('nodeIdToNode',
@@ -330,21 +341,72 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
   )({way: wayQuery, node: nodeQuery});
 };
 
-/**
- * Given a list of node features creates a function that expects a way feature and finds the nodes features
- * that the way intersects
- * @param {Object} nodePointHash A list of nodes hashed by point geojson
- * @returns {[Object]} The matching nodes
- */
-const findMatchingNodes = R.curry((nodePointHash, wayFeature) => {
-  return R.compose(
-    nodes => compact(nodes),
-    wayFeature => R.map(
-      coordinate => R.propOr(null, hashPoint(coordinate), nodePointHash),
-      reqStrPathThrowing('geometry.coordinates', wayFeature)
+const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint}, partialNodeRoute) => {
+  // We only have 1 node until we finish, but we could have any number of ways
+  const {nodes, ways} = partialNodeRoute;
+  // Get the current final way of the partial block
+  const currentFinalWay = R.last(ways);
+  // Get the remaining way points, excluding the first point that the node is on
+  const remainingWayPoints = R.compose(
+    R.tail,
+    id => reqStrPathThrowing(id, wayIdToWayPoints),
+    way => R.prop('id', way)
+  )(currentFinalWay);
+
+  // Get the first node along this final way, excluding the starting point.
+  // If the way is a loop with no other nodes, it could be the same node we started with
+  const firstNodeOfFinalWay = R.compose(
+    // Sort the nodes find the closest one, meaning the one that intersects first with the
+    // remaining way points. Again, if the way points form an uninterrupted loop, then our same
+    // node will match with the last point of remainingWayPoints
+    nodes => R.sortBy(
+      node => R.compose(
+        nodePoint => R.indexOf(nodePoint, remainingWayPoints),
+        nodeId => nodeIdToNodePoint(nodeId),
+        node => R.prop('id', node)
+      )(node),
+      nodes
+    ),
+    // Get the nodes of the way
+    currentFinalWayId => reqStrPathThrowing(
+      currentFinalWayId,
+      wayIdToNodes
+    ),
+    currentFinalWay => R.prop('id', currentFinalWay)
+  )(currentFinalWay);
+
+  // If no node was found, look for the ways at the of the currentFinalWay
+  // There might be a way or we might be at a dead end where there is no connecting way
+  const waysAtEndOfFinalWay = R.ifElse(R.isNil,
+    () => R.compose(
+      // Minus the current final way itself
+      ways => R.reject(R.equals(currentFinalWay), ways),
+      // Any way touching the end point of the current final way
+      endPoint => wayEndPointToDirectionalWays(endPoint),
+      // Get the last point of the current final way
+      wayPoints => R.last(wayPoints)
+    )(remainingWayPoints),
+    () => []
+  )(firstNodeOfFinalWay);
+
+  const block = {
+    // Combine nodes (always 1 node) with firstNodeOfFinalWay if it was found
+    nodes: R.concat(nodes, compact([firstNodeOfFinalWay])),
+    // Combine current ways with waysAtEndOfFinalWay if firstNodeOfFinalWay was null
+    // and a connect way was found
+    ways: R.concat(ways, waysAtEndOfFinalWay)
+  };
+  // If the block is complete just return it, otherwise recurse to travel
+  // to reach a node along the new way, reach another way, or reach a dead end
+  return R.when(
+    block => R.compose(R.equals(1), R.length, R.prop('nodes'))(block),
+    block => recursivelyBuildBlock(
+      {wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint},
+      block
     )
-  )(wayFeature);
-});
+  )(block)
+}
+
 /**
  * Construct an Overpass query to get all eligible highway ways or nodes for area of the given osmId or optionally
  * geojsonBOunds

@@ -446,3 +446,19 @@ export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeIdToWa
     nodeIdToWaysOfNodeFeatures
   );
 };
+
+/**
+ * Given a list of node features creates a function that expects a way feature and finds the nodes features
+ * that the way intersects
+ * @param {Object} nodePointHash A list of nodes hashed by point geojson
+ * @returns {[Object]} The matching nodes
+ */
+export const findMatchingNodes = R.curry((nodePointHash, wayFeature) => {
+  return R.compose(
+    nodes => compact(nodes),
+    wayFeature => R.map(
+      coordinate => R.propOr(null, hashPoint(coordinate), nodePointHash),
+      reqStrPathThrowing('geometry.coordinates', wayFeature)
+    )
+  )(wayFeature);
+});

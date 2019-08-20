@@ -17,10 +17,16 @@ import {
   osmIdToAreaId
 } from './overpass';
 import * as Result from 'folktale/result';
-import {_blocksToGeojson, _blockToGeojson, _queryLocationVariationsUntilFoundResultTask} from './overpassBlockHelpers';
+import {
+  _blocksToGeojson,
+  _blockToGeojson, _chooseBlockWithMostAlphabeticalOrdering,
+  _hashBlock,
+  _queryLocationVariationsUntilFoundResultTask
+} from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {
+  _intersectionStreetNamesFromWaysAndNodes,
   findMatchingNodes,
   hashNodeFeature,
   hashPoint,
@@ -144,7 +150,26 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
             f => f
           ),
           toNamedResponseAndInputs('3',
-            ({blocks}) => _blocksToGeojson(R.slice(0, 100, blocks))
+            // Reduce by blocks with the same has using reduceBy
+            //({blocks}) => _blocksToGeojson(R.slice(0, 1000, blocks))
+            ({blocks, nodeIdToWays}) => R.compose(
+              blocks => R.reduceBy(
+                (otherBlock, block) => R.unless(() => R.isNil(otherBlock), block => _chooseBlockWithMostAlphabeticalOrdering([otherBlock, block]))(block),
+                null,
+                block => _hashBlock(block),
+                blocks
+              ),
+              ({blocks, nodeIdToWays}) => R.map(
+                block => R.merge(block, {
+                    intersections: _intersectionStreetNamesFromWaysAndNodes(
+                      R.prop('ways', block),
+                      nodeIdToWays
+                    )
+                  }
+                ),
+                blocks
+              )
+            )({blocks, nodeIdToWays})
           ),
           toNamedResponseAndInputs('blocks',
             // For each block travel along it and accumulate connected ways until we reach a node or dead end
@@ -152,7 +177,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
             ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
               return R.map(
                 partialBlock => recursivelyBuildBlock(
-                  {wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint},
+                  {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
                   partialBlock
                 ),
                 partialBlocks
@@ -353,7 +378,6 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
  * travel from the one node to find the closest node, or failing that the next connected way, or failing that
  * end because we have a dead end
  * @param wayIdToNodes
- * @param wayIdToWayPoints
  * @param wayEndPointToDirectionalWays
  * @param nodeIdToNodePoint
  * @param partialBlock
@@ -364,7 +388,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
  * two unless the block is a dead end. Ways are 1 or more, depending how many ways are need to connect to the
  * closest node (intersection). Al
  */
-const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint}, partialBlock) => {
+const recursivelyBuildBlock = ({wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint}, partialBlock) => {
   // We only have 1 node until we finish, but we could have any number of ways
   const {nodes, ways} = partialBlock;
   // Get the current final way of the partial block
@@ -372,8 +396,7 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDir
   // Get the remaining way points, excluding the first point that the node is on
   const remainingWayPoints = R.compose(
     R.tail,
-    id => reqStrPathThrowing(id, wayIdToWayPoints),
-    way => R.prop('id', way)
+    currentFinalWay => hashWayFeature(currentFinalWay)
   )(currentFinalWay);
 
   // Get the first node along this final way, excluding the starting point.
@@ -397,6 +420,10 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDir
     // Take the closest node
     nodeObjs => R.head(nodeObjs),
     nodeObjs => R.sortBy(R.prop('index'), nodeObjs),
+    nodeObjs => {
+      _blockToGeojson({nodes: R.map(R.prop('node'), nodeObjs), ways});
+      return nodeObjs;
+    },
     // Filter out non-matching (i.e. the node we started with)
     nodeObjs => R.reject(R.compose(R.equals(-1), R.prop('index')))(nodeObjs),
     // Sort the nodes find the closest one, meaning the one that intersects first with the
@@ -420,7 +447,7 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDir
     currentFinalWay => R.prop('id', currentFinalWay)
   )(currentFinalWay);
   // Replaced the last way of ways with the trimmedWay
-  const trimmedWays = R.concat(R.init(ways), [trimmedWay || R.last(ways)])
+  const trimmedWays = R.concat(R.init(ways), [trimmedWay || R.last(ways)]);
 
   // If no node was found, look for the ways at the of the currentFinalWay
   // There might be a way or we might be at a dead end where there is no connecting way
@@ -445,6 +472,7 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDir
     // with waysAtEndOfFinalWay if firstNodeOfFinalWay was null and a connect way was found
     ways: R.concat(trimmedWays, waysAtEndOfFinalWay)
   };
+  _blockToGeojson(block);
   // If the block is complete because there are two blocks now, or failing that we didn't find a joining way,
   // just return the block, otherwise recurse to travel more to
   // reach a node along the new way, reach another way, or reach a dead end
@@ -456,7 +484,7 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDir
       () => R.compose(R.equals(1), R.length)(waysAtEndOfFinalWay)
     )(block),
     block => recursivelyBuildBlock(
-      {wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint},
+      {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
       block
     )
   )(block);

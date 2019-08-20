@@ -13,7 +13,7 @@ import * as R from 'ramda';
 import {
   _cleanGeojson,
   _intersectionStreetNamesFromWaysAndNodes, _linkedFeatures,
-  _reduceFeaturesByHeadAndLast
+  _reduceFeaturesByHeadAndLast, hashWayFeature
 } from './overpassFeatureHelpers';
 import {of} from 'folktale/concurrency/task';
 import {
@@ -383,15 +383,45 @@ export const _blockToGeojson = ({nodes, ways}) => JSON.stringify({
   }, null, '\t'
 );
 
+/**
+ * Same as _blockToGeojson, but with lists of blocks
+ * @param blocks
+ * @returns {string}
+ * @private
+ */
 export const _blocksToGeojson = blocks => JSON.stringify({
     "type": "FeatureCollection",
     "generator": "overpass-ide",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
     "timestamp": "",
     "features": R.reduce(
-      (acc, {nodes, ways}) => R.concat(acc, R.concat(nodes, ways)),
+      (acc, {nodes, ways}) => R.concat(acc, ways),
       [],
       blocks
     )
   }, null, '\t'
 );
+
+/**
+ * Create a hash based on the nodes and ways based on node ids and way points but independent of order
+ * This allows us to match up blocks that are the same point but going in different directions
+ * @param nodes
+ * @param ways
+ * @private
+ */
+export const _hashBlock = ({nodes, ways}) => {
+  const nodeIds = R.compose(
+    R.map(R.prop('id')),
+    R.sortBy(R.prop('id'))
+  )(nodes);
+  const wayPoints = R.compose(
+    wayPoints => R.sort(R.identity, wayPoints),
+    wayPoints => R.uniq(wayPoints),
+    ways => R.chain(way => hashWayFeature(way), ways)
+  )(ways)
+  return `{nodes:[${R.join(',', nodeIds)}], wayPoints:[${R.join(',', wayPoints)}]}`;
+};
+
+export const _chooseBlockWithMostAlphabeticalOrdering = blocks => {
+  R.sortBy(({nodes}) => scoreStreetNames, blocks)
+}

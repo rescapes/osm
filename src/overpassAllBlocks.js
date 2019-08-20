@@ -135,18 +135,10 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
             // 4) Return all blocks found in {Ok: []}. All ways and nodes not used in {Error: []}
           ),
           toNamedResponseAndInputs('3'
-            // 3) After traveling once.
-            //  A) If point reached is a node, then block is created. Hash block by node ids and in between way ids
-            //    (In between way ids can be fetched from the non-reduced ways) DONE
-            //  B) If point is wayendnode:
-            //    i) If wayendnode matches a node, this is a loop way. Make block and DONE
-            //    ii) If wayendnode has has another way, travel that way (reversing its nodes if needed to travel) DONE
-            //    iii) if wayendnode has no other way, dead end block. Store block by accumulated node and way(s) reduced to traversed waynodes.
-            //  C) If point is waynode: store accumulated waynode and go back to step 3 CONTINUE
           ),
           toNamedResponseAndInputs('blocks',
-            // 2) Finish traveling. Hash the way segments by hashing the way id with the two node/endpoint id (order independent).
-            //  If this segment is already in the hash, abandon this travel (segment has been traversed) DONE
+            // For each block travel along it and accumulate connected ways until we reach a node or dead end
+            // If a node is reached trim the last way to end at that node
             ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
               R.map(
                 partialBlock => recursivelyBuildBlock(
@@ -155,11 +147,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
                 ),
                 partialBlocks
               );
-              // 1. Join the end of the ways to ways that share a common end point that isn't a node
-              // 2. When we get to a node on this way or a joined way, grap the node and quit
-              // For loops it can be the same node
-              //const {endNode, partialWays} = traverseUntilNodeOrDeadEnd(nodeId, partialWay)
-              //return {nodes: [nodeId, R.prop('id', endNode)], ways: partialWays};
+
             }
           ),
           toNamedResponseAndInputs('partialBlocks',
@@ -341,9 +329,25 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
   )({way: wayQuery, node: nodeQuery});
 };
 
-const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint}, partialNodeRoute) => {
+/**
+ * Given a partial block, meaning a block with one node and one or more connected directional ways, recursively
+ * travel from the one node to find the closest node, or failing that the next connected way, or failing that
+ * end because we have a dead end
+ * @param wayIdToNodes
+ * @param wayIdToWayPoints
+ * @param wayEndPointToDirectionalWays
+ * @param nodeIdToNodePoint
+ * @param partialBlock
+ * @returns {Object} A complete block that has {
+ * nodes: [one or two nodes],
+ * ways: [one or more ways],
+ * }. Nodes is normally
+ * two unless the block is a dead end. Ways are 1 or more, depending how many ways are need to connect to the
+ * closest node (intersection). Al
+ */
+const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint}, partialBlock) => {
   // We only have 1 node until we finish, but we could have any number of ways
-  const {nodes, ways} = partialNodeRoute;
+  const {nodes, ways} = partialBlock;
   // Get the current final way of the partial block
   const currentFinalWay = R.last(ways);
   // Get the remaining way points, excluding the first point that the node is on
@@ -355,16 +359,35 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDir
 
   // Get the first node along this final way, excluding the starting point.
   // If the way is a loop with no other nodes, it could be the same node we started with
-  const firstNodeOfFinalWay = R.compose(
+  const {firstNodeOfFinalWay, trimmedWay} = R.compose(
+    // Chop the way at the node intersection
+    nodeObj => R.ifElse(R.identity, {
+        firstNodeOfFinalWay: R.prop('node', nodeObj),
+        // Shorten the way points to the index of the node
+        trimmedWay: R.over(
+          R.lensPath(['geometry', 'coordinates']),
+          // Slice the coordinates to the found node index
+          coordinates => R.slice(0, R.prop('index', nodeObj), coordinates),
+          currentFinalWay
+        )
+      },
+      // Null case
+      () => ({})
+    )(nodeObj),
+    // Take the closest node
+    nodeObjs => R.head(nodeObjs),
+    nodeObjs => R.sortBy(R.prop('index'), nodeObjs),
     // Sort the nodes find the closest one, meaning the one that intersects first with the
     // remaining way points. Again, if the way points form an uninterrupted loop, then our same
     // node will match with the last point of remainingWayPoints
-    nodes => R.sortBy(
-      node => R.compose(
-        nodePoint => R.indexOf(nodePoint, remainingWayPoints),
-        nodeId => nodeIdToNodePoint(nodeId),
-        node => R.prop('id', node)
-      )(node),
+    nodes => R.map(
+      node => ({
+        node, index: R.compose(
+          nodePoint => R.indexOf(nodePoint, remainingWayPoints),
+          nodeId => nodeIdToNodePoint(nodeId),
+          node => R.prop('id', node)
+        )(node)
+      }),
       nodes
     ),
     // Get the nodes of the way
@@ -374,9 +397,13 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDir
     ),
     currentFinalWay => R.prop('id', currentFinalWay)
   )(currentFinalWay);
+  // Replaced the last way of ways with the trimmedWay
+  const trimmedWays = R.concat(R.init(ways), [trimmedWay || R.last(ways)])
 
   // If no node was found, look for the ways at the of the currentFinalWay
   // There might be a way or we might be at a dead end where there is no connecting way
+  // The found ways points will flow in the right direction since wayEndPointToDirectionalWays directs
+  // ways from the end point
   const waysAtEndOfFinalWay = R.ifElse(R.isNil,
     () => R.compose(
       // Minus the current final way itself
@@ -392,20 +419,26 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDir
   const block = {
     // Combine nodes (always 1 node) with firstNodeOfFinalWay if it was found
     nodes: R.concat(nodes, compact([firstNodeOfFinalWay])),
-    // Combine current ways with waysAtEndOfFinalWay if firstNodeOfFinalWay was null
-    // and a connect way was found
-    ways: R.concat(ways, waysAtEndOfFinalWay)
+    // Combine current ways (with the last current way possibly shortened)
+    // with waysAtEndOfFinalWay if firstNodeOfFinalWay was null and a connect way was found
+    ways: R.concat(trimmedWays, waysAtEndOfFinalWay)
   };
-  // If the block is complete just return it, otherwise recurse to travel
-  // to reach a node along the new way, reach another way, or reach a dead end
+  // If the block is complete because there are two blocks now, or failing that we didn't find a joining way,
+  // just return the block, otherwise recurse to travel more to
+  // reach a node along the new way, reach another way, or reach a dead end
   return R.when(
-    block => R.compose(R.equals(1), R.length, R.prop('nodes'))(block),
+    block => R.both(
+      // Only 1 node so far
+      block => R.compose(R.equals(1), R.length, R.prop('nodes'))(block),
+      // And we added a new way, so can recurse
+      () => R.compose(R.equals(1), R.length)(waysAtEndOfFinalWay)
+    )(block),
     block => recursivelyBuildBlock(
       {wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint},
       block
     )
-  )(block)
-}
+  )(block);
+};
 
 /**
  * Construct an Overpass query to get all eligible highway ways or nodes for area of the given osmId or optionally

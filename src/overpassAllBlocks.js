@@ -4,10 +4,7 @@ import {
   pickDeepPaths,
   resultToTaskWithResult,
   toNamedResponseAndInputs,
-  compactEmpty,
-  chainObjToValues,
   compact,
-  splitAtInclusive
 } from 'rescape-ramda';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
@@ -18,10 +15,9 @@ import {
 } from './overpass';
 import * as Result from 'folktale/result';
 import {
-  _blocksToGeojson,
-  _blockToGeojson, _chooseBlockWithMostAlphabeticalOrdering,
+  _blockToGeojson, _buildPartialBlocks, _chooseBlockWithMostAlphabeticalOrdering,
   _hashBlock,
-  _queryLocationVariationsUntilFoundResultTask
+  _queryLocationVariationsUntilFoundResultTask, _wayEndPointToDirectionalWays
 } from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
@@ -29,8 +25,6 @@ import {
   _intersectionStreetNamesFromWaysAndNodes,
   findMatchingNodes,
   hashNodeFeature,
-  hashPoint,
-  hashPointsToWayCoordinates,
   hashWayFeature
 } from './overpassFeatureHelpers';
 
@@ -68,7 +62,6 @@ export const locationToOsmAllBlocksQueryResultsTask = location => {
   const _queryOverpassForAllBlocksUntilFoundResultTask = _queryLocationVariationsUntilFoundResultTask(
     _queryOverpassWithLocationForAllBlocksResultTask
   );
-
 
   return R.composeK(
     resultToTaskWithResult(
@@ -140,20 +133,20 @@ const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
 const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: nodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
-    resultToTaskNeedingResult(
+    res => resultToTaskNeedingResult(
       ({way, node}) => {
         const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
         return R.compose(
-          goo => of(goo),
-          toNamedResponseAndInputs('4',
-            // 4) Return all blocks found in {Ok: []}. All ways and nodes not used in {Error: []}
-            f => f
-          ),
-          toNamedResponseAndInputs('3',
-            // Reduce by blocks with the same has using reduceBy
-            //({blocks}) => _blocksToGeojson(R.slice(0, 1000, blocks))
+          ({blocks}) => of({
+            Ok: blocks,
+            Errors: [], // TODO any blocks that don't process
+          }),
+          toNamedResponseAndInputs('blocks',
             ({blocks, nodeIdToWays}) => R.compose(
+              // Once we pick the best version of the block, simply take to values and disgard the hash keys,
+              hashToBestBlock => R.values(hashToBestBlock),
               blocks => R.reduceBy(
+                // TODO I never get matching blocks? Is _hashBlock direction sensitive or do I not have duplicates
                 (otherBlock, block) => R.unless(() => R.isNil(otherBlock), block => _chooseBlockWithMostAlphabeticalOrdering([otherBlock, block]))(block),
                 null,
                 block => _hashBlock(block),
@@ -163,6 +156,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
                 block => R.merge(block, {
                     intersections: _intersectionStreetNamesFromWaysAndNodes(
                       R.prop('ways', block),
+                      R.prop('nodes', block),
                       nodeIdToWays
                     )
                   }
@@ -174,7 +168,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
           toNamedResponseAndInputs('blocks',
             // For each block travel along it and accumulate connected ways until we reach a node or dead end
             // If a node is reached trim the last way to end at that node
-            ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
+            ({wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
               return R.map(
                 partialBlock => recursivelyBuildBlock(
                   {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
@@ -185,112 +179,16 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
             }
           ),
           toNamedResponseAndInputs('partialBlocks',
-            // 1 Travel from every node along the directional ways
-            //  A If starting at way end, travel other direction. Go to step 2 for the one direction CONTINUE
-            //  B Else travel both directions to next node/way endpoint. Go to step 2 for each direction CONTINUEx2
-            // For area ways (pedestrian areas) find nodes within 5 meters of each waynode. Hash way <-- TODO
-            //    If the area way only matches one node, hash that matching waynode as a wayendnode.
-            //    (Above when we travel we'll start at the matching node and go around the area until we reach another node or the wayendnode at the starting point)
-            // At the end of this process we have a list of objects with nodes and ways.
-            // nodes has just the start node and ways has just one directional (partial) way whose first point
-            // is the node
-            ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => R.unnest(chainObjToValues(
-              (ways, nodeId) => {
-                const nodePoint = reqStrPathThrowing(nodeId, nodeIdToNodePoint);
-                return R.map(
-                  way => {
-                    const wayToSplitAndOrderedWays = way => R.compose(
-                      ({way, wayPoints, index}) => R.map(
-                        // Process splits, maybe reverse the partial way points to start at the node index
-                        partialWayPoints => {
-                          const orderedWayPartialPoints = R.unless(
-                            R.compose(
-                              R.equals(0),
-                              R.indexOf(nodePoint)
-                            ),
-                            R.reverse
-                          )(partialWayPoints);
-                          // Create a new version of the way with these points
-                          return R.set(
-                            R.lensPath(['geometry', 'coordinates']),
-                            // Changed the hashed points pack to array pairs
-                            hashPointsToWayCoordinates(orderedWayPartialPoints),
-                            way
-                          );
-                        },
-                        // Split the way points at the node index (ignoring intersections with other nodes)
-                        // We split inclusively to get the split point in each result set, but reject single
-                        // point results
-                        R.reject(
-                          R.compose(R.equals(1), R.length),
-                          compactEmpty(splitAtInclusive(index, wayPoints))
-                        )
-                      ),
-                      toNamedResponseAndInputs('index',
-                        // Get the index of the node in the way's points
-                        ({wayPoints}) => R.indexOf(nodePoint, wayPoints)
-                      ),
-                      toNamedResponseAndInputs('wayPoints',
-                        // Get the way points of the way
-                        ({way}) => reqStrPathThrowing(R.prop('id', way), wayIdToWayPoints)
-                      )
-                    )({way});
-                    // Travel in one or both directions returning a separate object for each node with one ordered ways coming from it
-                    return R.map(
-                      partialWay => {
-                        return {nodes: [R.prop(nodeId, nodeIdToNode)], ways: [partialWay]};
-                      },
-                      wayToSplitAndOrderedWays(way)
-                    );
-                  },
-                  ways
-                );
-              },
-              nodeIdToWays
-            ))
+            ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => _buildPartialBlocks(
+              {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}
+            )
           ),
           toNamedResponseAndInputs('wayEndPointToDirectionalWays',
-            // Hash way endings (wayendnode) ids unless it matches a node in the nodePointToNode (wayendnodehash)
-            ({wayFeatures, wayIdToWayPoints, nodePointToNode}) => R.compose(
-              // way end points will usually be unique, but some will match two ways when two ways meet at a place
-              // that is not an intersection
-              // This produces {wayEndPoint: [...ways with that end point], ...}
-              endPointToWayPair => R.reduceBy(
-                (acc, [endPoint, way]) => R.concat(acc, [way]),
-                [],
-                ([endPoint]) => endPoint,
-                endPointToWayPair
-              ),
-              R.chain(
-                wayFeature => {
-                  const wayCoordinates = reqStrPathThrowing(R.prop('id', wayFeature), wayIdToWayPoints);
-                  return R.compose(
-                    endPointObjs => R.map(({endPoint, way}) => [endPoint, way], endPointObjs),
-                    // Filter out points that are already nodes
-                    endPointObjs => R.filter(
-                      ({endPoint}) => R.not(R.propOr(false, endPoint, nodePointToNode)),
-                      endPointObjs
-                    ),
-                    // Get the first and last point of the way
-                    wayCoordinates => R.map(
-                      prop => (
-                        {
-                          endPoint: R[prop](wayCoordinates),
-                          way: R.when(
-                            () => R.equals('tail', prop),
-                            // For the tail end point, created a copy of the wayFeature with the coordinates reversed
-                            // This makes it easy to traverse the ways from their endPoints.
-                            // Since we hash ways independent of directions, we'll still detect ways we've already traversed
-                            wayFeature => R.over(R.lensPath(['geometry', 'coordinates']), R.reverse, wayFeature)
-                          )(wayFeature)
-                        }
-                      ),
-                      ['head', 'last']
-                    )
-                  )(wayCoordinates);
-                }
-              )
-            )(wayFeatures)
+            ({wayFeatures, wayIdToWayPoints, nodePointToNode}) => _wayEndPointToDirectionalWays({
+              wayFeatures,
+              wayIdToWayPoints,
+              nodePointToNode
+            })
           ),
           toNamedResponseAndInputs('nodeIdToWays',
             // "Invert" wayIdToNodes to create nodeIdToWays
@@ -326,7 +224,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
           ),
           toNamedResponseAndInputs('wayIdToNodes',
             // Hash all way ids by intersection node if any waynode matches or
-            // is an area-way (pedestrian area) within 5m (waynodehash) <-- TODO
+            // is an area-way (pedestrian area) within 5m  <-- TODO
             ({nodePointToNode, wayFeatures}) => {
               return R.fromPairs(R.map(
                 wayFeature => [R.prop('id', wayFeature), findMatchingNodes(nodePointToNode, wayFeature)],
@@ -336,15 +234,13 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
           ),
           toNamedResponseAndInputs('wayIdToWay',
             // way id to way
-            ({wayFeatures}) => {
-              return R.indexBy(
-                R.prop('id'),
-                wayFeatures
-              );
-            }
+            ({wayFeatures}) => R.indexBy(
+              R.prop('id'),
+              wayFeatures
+            )
           ),
           toNamedResponseAndInputs('nodeIdToNodePoint',
-            // Hash intersection nodes by id. These are all intersections (nodehash)
+            // Hash intersection nodes by id. These are all intersections
             ({nodeIdToNode}) => R.map(
               nodeFeature => hashNodeFeature(nodeFeature),
               nodeIdToNode
@@ -358,7 +254,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
             )
           ),
           toNamedResponseAndInputs('nodeIdToNode',
-            // Hash intersection nodes by id. These are all intersections (nodehash)
+            // Hash intersection nodes by id. These are all intersections
             ({nodeFeatures}) => R.indexBy(
               R.prop('id'),
               nodeFeatures
@@ -366,8 +262,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
           )
         )({wayFeatures, nodeFeatures});
       }
-    ),
-
+    )(res),
     // Query for the ways and nodes in parallel
     queries => parallelWayNodeQueriesResultTask(location, queries)
   )({way: wayQuery, node: nodeQuery});

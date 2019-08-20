@@ -407,9 +407,11 @@ export const _cleanGeojson = feature => {
  * Given the way features of a single block and a lookup that maps intersection node ids to the way features
  * that intersect the node (including but not limited to the wayFeatures ways), resolves the names of the
  * intersections of the wayFeatures (normally 2 intersections but possibly 1 for dead ends).
+ * @param {[Object]} nodeFeatures The node features of the single block. Usually 2 but possibly 1 for a dead end
+ * or >2 for a divided street
  * @param {[Object]} wayFeatures The way features of a single block. This could be one or more ways:
  * If the way splits half way through the block or if it's a boulevard, highway, etc with a divided roads
- * @param {Object} nodeIdToWaysOfNodeFeatures Keyed by node id and value by a list of way features that
+ * @param {Object} nodeIdToWayFeatures Keyed by node id and value by a list of way features that
  * intersect the node. Each node represents an intersection of the block. Note that this lookup can be larger
  * than just the needed nodes if you are calling this function multiple times on many blocks and have a comprehensive
  * list of lookups
@@ -421,13 +423,15 @@ export const _cleanGeojson = feature => {
  * such as {0: blockname, 24: street name 24 degrees clockwise or counterclockwise from block, 180:..., etc }
  * @private
  */
-export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeIdToWaysOfNodeFeatures) => {
+export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeFeatures, nodeIdToWayFeatures) => {
+  // Get the node id to way features matching our node features
+  const limitedNodeIdToWayFeatures = R.pick(R.map(R.prop('id'), nodeFeatures), nodeIdToWayFeatures)
   const nameOrIdOfFeature = feature => strPathOr(reqStrPathThrowing('id', feature), 'properties.tags.name', feature);
   const wayNames = R.map(nameOrIdOfFeature, wayFeatures);
   const wayIds = R.map(R.prop('id'), wayFeatures);
   const wayMatches = R.concat(wayIds, wayNames);
   // Scores a featureName 100 if it matches a way name or id, else 0
-  const wayMatchWeight = R.ifElse(featureName => R.contains(featureName, wayMatches), R.always(1), R.always(0));
+  const wayMatchWeight = R.ifElse(feature => R.contains(R.prop('name', feature), wayMatches), R.always(1), R.always(0));
 
   return R.map(
     waysOfNodeFeatures => {
@@ -456,7 +460,7 @@ export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeIdToWa
         )
       )(waysOfNodeFeatures);
     },
-    nodeIdToWaysOfNodeFeatures
+    limitedNodeIdToWayFeatures
   );
 };
 

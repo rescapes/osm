@@ -1,8 +1,8 @@
 import * as R from 'ramda';
-import {defaultRunToResultConfig, reqStrPathThrowing, resultToTaskWithResult} from 'rescape-ramda';
-import {locationToOsmAllBlocksQueryResultsTask, _queryForAllBlocksOfLocationsTask} from './overpassAllBlocks';
-import {nominatimLocationResultTask} from './nominatimLocationSearch';
+import {defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 import {of} from 'folktale/concurrency/task'
+import {_blocksToGeojson} from './overpassBlockHelpers';
 
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -24,27 +24,15 @@ describe('overpassBlocksRegion', () => {
       state: 'BC',
       city: 'Fernie'
     };
-    expect.assertions(3);
+    expect.assertions(1);
     R.composeK(
       hiphop => of(hiphop),
       location => locationToOsmAllBlocksQueryResultsTask(location)
     )(location).run().listen(defaultRunToResultConfig(
       {
-        onResolved: ({Ok: locationBlocks, Errors: errors}) => {
-          // Expect it to be two ways
-          expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/5707230']);
-          expect(R.map(R.prop('id'), R.prop('nodes', results))).toEqual(['node/42875319', 'node/42901997']);
-          // Expect our intersection names
-          expect(reqStrPathThrowing('intersections', results)).toEqual({
-            "node/42875319": [
-              "134th Street",
-              "South Conduit Avenue"
-            ],
-            "node/42901997": [
-              "134th Street",
-              "149th Avenue"
-            ]
-          });
+        onResolved: ({Ok: blocks, Errors: errors}) => {
+          _blocksToGeojson(blocks)
+          expect(R.length(blocks)).toEqual(2029)
         }
       }, errors, done)
     );

@@ -13,7 +13,7 @@ import * as R from 'ramda';
 import {
   _cleanGeojson,
   _intersectionStreetNamesFromWaysAndNodes, _linkedFeatures,
-  _reduceFeaturesByHeadAndLast, hashWayFeature
+  _reduceFeaturesByHeadAndLast, hashPointsToWayCoordinates, hashWayFeature
 } from './overpassFeatureHelpers';
 import {of} from 'folktale/concurrency/task';
 import {
@@ -27,7 +27,11 @@ import {
   mergeAllWithKey,
   strPathOr,
   taskToResultTask,
-  traverseReduceWhile
+  traverseReduceWhile,
+  compactEmpty,
+  chainObjToValues,
+  splitAtInclusive,
+  toNamedResponseAndInputs
 } from 'rescape-ramda';
 import {waitAll} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
@@ -267,7 +271,7 @@ export const createSingleBlockFeatures = ({wayFeatures, nodeFeatures, wayFeature
       // Normally there are only two unique streets for each intersection.
       // If one or both streets change names or for a >4-wayFeatures intersection, there can be more.
       // If we handle roundabouts correctly in the future these could also account for more
-      intersections: _intersectionStreetNamesFromWaysAndNodes(wayFeatures, wayFeaturesByNodeId)
+      intersections: _intersectionStreetNamesFromWaysAndNodes(wayFeatures, nodeFeatures, wayFeaturesByNodeId)
     },
     // Organize the ways and nodes, trimming the ways down to match the nodes
     // Then store the features in {ways: ..., nodes: ...}
@@ -395,7 +399,7 @@ export const _blocksToGeojson = blocks => JSON.stringify({
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
     "timestamp": "",
     "features": R.reduce(
-      (acc, {nodes, ways}) => R.concat(acc, ways),
+      (acc, {nodes, ways}) => R.concat(acc, R.concat(ways, nodes)),
       [],
       blocks
     )
@@ -418,10 +422,122 @@ export const _hashBlock = ({nodes, ways}) => {
     wayPoints => R.sort(R.identity, wayPoints),
     wayPoints => R.uniq(wayPoints),
     ways => R.chain(way => hashWayFeature(way), ways)
-  )(ways)
+  )(ways);
   return `{nodes:[${R.join(',', nodeIds)}], wayPoints:[${R.join(',', wayPoints)}]}`;
 };
 
 export const _chooseBlockWithMostAlphabeticalOrdering = blocks => {
-  R.sortBy(({nodes}) => scoreStreetNames, blocks)
-}
+  R.sortBy(({nodes}) => scoreStreetNames, blocks);
+};
+
+/**
+ *
+ * @param wayFeatures
+ * @param wayIdToWayPoints
+ * @param nodePointToNode
+ * @private
+ */
+export const _wayEndPointToDirectionalWays = ({wayFeatures, wayIdToWayPoints, nodePointToNode}) => R.compose(
+  // way end points will usually be unique, but some will match two ways when two ways meet at a place
+  // that is not an intersection
+  // This produces {wayEndPoint: [...ways with that end point], ...}
+  endPointToWayPair => R.reduceBy(
+    (acc, [endPoint, way]) => R.concat(acc, [way]),
+    [],
+    ([endPoint]) => endPoint,
+    endPointToWayPair
+  ),
+  R.chain(
+    wayFeature => {
+      const wayCoordinates = reqStrPathThrowing(R.prop('id', wayFeature), wayIdToWayPoints);
+      return R.compose(
+        endPointObjs => R.map(({endPoint, way}) => [endPoint, way], endPointObjs),
+        // Filter out points that are already nodes
+        endPointObjs => R.filter(
+          ({endPoint}) => R.not(R.propOr(false, endPoint, nodePointToNode)),
+          endPointObjs
+        ),
+        // Get the first and last point of the way
+        wayCoordinates => R.map(
+          prop => (
+            {
+              endPoint: R[prop](wayCoordinates),
+              way: R.when(
+                () => R.equals('tail', prop),
+                // For the tail end point, created a copy of the wayFeature with the coordinates reversed
+                // This makes it easy to traverse the ways from their endPoints.
+                // Since we hash ways independent of directions, we'll still detect ways we've already traversed
+                wayFeature => R.over(R.lensPath(['geometry', 'coordinates']), R.reverse, wayFeature)
+              )(wayFeature)
+            }
+          ),
+          ['head', 'last']
+        )
+      )(wayCoordinates);
+    }
+  )
+)(wayFeatures);
+
+// 1 Travel from every node along the directional ways
+//  A If starting at way end, travel other direction. Go to step 2 for the one direction CONTINUE
+//  B Else travel both directions to next node/way endpoint. Go to step 2 for each direction CONTINUEx2
+// For area ways (pedestrian areas) find nodes within 5 meters of each waynode. Hash way <-- TODO
+//    If the area way only matches one node, hash that matching waynode as a wayendnode.
+//    (Above when we travel we'll start at the matching node and go around the area until we reach another node or the wayendnode at the starting point)
+// At the end of this process we have a list of objects with nodes and ways.
+// nodes has just the start node and ways has just one directional (partial) way whose first point
+// is the node
+export const _buildPartialBlocks = ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => R.unnest(chainObjToValues(
+  (ways, nodeId) => {
+    const nodePoint = reqStrPathThrowing(nodeId, nodeIdToNodePoint);
+    return R.map(
+      way => {
+        const wayToSplitAndOrderedWays = way => R.compose(
+          ({way, wayPoints, index}) => R.map(
+            // Process splits, maybe reverse the partial way points to start at the node index
+            partialWayPoints => {
+              const orderedWayPartialPoints = R.unless(
+                R.compose(
+                  R.equals(0),
+                  R.indexOf(nodePoint)
+                ),
+                R.reverse
+              )(partialWayPoints);
+              // Create a new version of the way with these points
+              return R.set(
+                R.lensPath(['geometry', 'coordinates']),
+                // Changed the hashed points pack to array pairs
+                hashPointsToWayCoordinates(orderedWayPartialPoints),
+                way
+              );
+            },
+            // Split the way points at the node index (ignoring intersections with other nodes)
+            // We split inclusively to get the split point in each result set, but reject single
+            // point results
+            R.reject(
+              R.compose(R.equals(1), R.length),
+              compactEmpty(splitAtInclusive(index, wayPoints))
+            )
+          ),
+          toNamedResponseAndInputs('index',
+            // Get the index of the node in the way's points
+            ({wayPoints}) => R.indexOf(nodePoint, wayPoints)
+          ),
+          toNamedResponseAndInputs('wayPoints',
+            // Get the way points of the way
+            ({way}) => reqStrPathThrowing(R.prop('id', way), wayIdToWayPoints)
+          )
+        )({way});
+        // Travel in one or both directions returning a separate object for each node with one ordered ways coming from it
+        return R.map(
+          partialWay => {
+            return {nodes: [R.prop(nodeId, nodeIdToNode)], ways: [partialWay]};
+          },
+          wayToSplitAndOrderedWays(way)
+        );
+      },
+      ways
+    );
+  },
+  nodeIdToWays
+))

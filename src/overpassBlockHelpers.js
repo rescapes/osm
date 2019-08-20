@@ -15,7 +15,7 @@ import {
   _intersectionStreetNamesFromWaysAndNodes, _linkedFeatures,
   _reduceFeaturesByHeadAndLast
 } from './overpassFeatureHelpers';
-import {of} from 'folktale/concurrency/task'
+import {of} from 'folktale/concurrency/task';
 import {
   fetchOsmRawTask, highwayWayFilters,
   osmResultTask
@@ -366,3 +366,32 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
     linkedFeatures
   );
 };
+
+/**
+ * Utility function to generate geojson from nodes and ways for testing block creation
+ * @param nodes
+ * @param ways
+ * @returns {string} The complete geojson. View it at http://geojson.io/
+ * @private
+ */
+export const _blockToGeojson = ({nodes, ways}) => JSON.stringify({
+    "type": "FeatureCollection",
+    "generator": "overpass-ide",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
+    "timestamp": "",
+    "features": R.concat(nodes, ways)
+  }, null, '\t'
+);
+
+export const _blocksToGeojson = blocks => JSON.stringify({
+    "type": "FeatureCollection",
+    "generator": "overpass-ide",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
+    "timestamp": "",
+    "features": R.reduce(
+      (acc, {nodes, ways}) => R.concat(acc, R.concat(nodes, ways)),
+      [],
+      blocks
+    )
+  }, null, '\t'
+);

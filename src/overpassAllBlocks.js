@@ -6,7 +6,8 @@ import {
   toNamedResponseAndInputs,
   compactEmpty,
   chainObjToValues,
-  compact
+  compact,
+  splitAtInclusive
 } from 'rescape-ramda';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
@@ -16,10 +17,16 @@ import {
   osmIdToAreaId
 } from './overpass';
 import * as Result from 'folktale/result';
-import {_queryLocationVariationsUntilFoundResultTask} from './overpassBlockHelpers';
+import {_blocksToGeojson, _blockToGeojson, _queryLocationVariationsUntilFoundResultTask} from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
-import {findMatchingNodes, hashNodeFeature, hashPoint, hashWayFeature} from './overpassFeatureHelpers';
+import {
+  findMatchingNodes,
+  hashNodeFeature,
+  hashPoint,
+  hashPointsToWayCoordinates,
+  hashWayFeature
+} from './overpassFeatureHelpers';
 
 /**
  * Created by Andy Likuski on 2019.07.26
@@ -130,24 +137,26 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
     resultToTaskNeedingResult(
       ({way, node}) => {
         const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
-        R.compose(
-          toNamedResponseAndInputs('4'
+        return R.compose(
+          goo => of(goo),
+          toNamedResponseAndInputs('4',
             // 4) Return all blocks found in {Ok: []}. All ways and nodes not used in {Error: []}
+            f => f
           ),
-          toNamedResponseAndInputs('3'
+          toNamedResponseAndInputs('3',
+            ({blocks}) => _blocksToGeojson(R.slice(0, 100, blocks))
           ),
           toNamedResponseAndInputs('blocks',
             // For each block travel along it and accumulate connected ways until we reach a node or dead end
             // If a node is reached trim the last way to end at that node
             ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
-              R.map(
+              return R.map(
                 partialBlock => recursivelyBuildBlock(
                   {wayIdToNodes, wayIdToWayPoints, wayEndPointToDirectionalWays, nodeIdToNodePoint},
                   partialBlock
                 ),
                 partialBlocks
               );
-
             }
           ),
           toNamedResponseAndInputs('partialBlocks',
@@ -160,7 +169,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
             // At the end of this process we have a list of objects with nodes and ways.
             // nodes has just the start node and ways has just one directional (partial) way whose first point
             // is the node
-            ({wayIdToWayPoints, nodeIdToWays, nodeIdToNodePoint}) => R.unnest(chainObjToValues(
+            ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => R.unnest(chainObjToValues(
               (ways, nodeId) => {
                 const nodePoint = reqStrPathThrowing(nodeId, nodeIdToNodePoint);
                 return R.map(
@@ -177,10 +186,20 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
                             R.reverse
                           )(partialWayPoints);
                           // Create a new version of the way with these points
-                          return R.set(R.lensPath(['geometry', 'coordinates']), orderedWayPartialPoints, way);
+                          return R.set(
+                            R.lensPath(['geometry', 'coordinates']),
+                            // Changed the hashed points pack to array pairs
+                            hashPointsToWayCoordinates(orderedWayPartialPoints),
+                            way
+                          );
                         },
                         // Split the way points at the node index (ignoring intersections with other nodes)
-                        compactEmpty(R.splitAt(index, wayPoints))
+                        // We split inclusively to get the split point in each result set, but reject single
+                        // point results
+                        R.reject(
+                          R.compose(R.equals(1), R.length),
+                          compactEmpty(splitAtInclusive(index, wayPoints))
+                        )
                       ),
                       toNamedResponseAndInputs('index',
                         // Get the index of the node in the way's points
@@ -194,7 +213,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
                     // Travel in one or both directions returning a separate object for each node with one ordered ways coming from it
                     return R.map(
                       partialWay => {
-                        return {nodes: [nodeId], ways: [partialWay]};
+                        return {nodes: [R.prop(nodeId, nodeIdToNode)], ways: [partialWay]};
                       },
                       wayToSplitAndOrderedWays(way)
                     );
@@ -361,22 +380,25 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDir
   // If the way is a loop with no other nodes, it could be the same node we started with
   const {firstNodeOfFinalWay, trimmedWay} = R.compose(
     // Chop the way at the node intersection
-    nodeObj => R.ifElse(R.identity, {
+    nodeObj => R.ifElse(R.identity, nodeObj => ({
         firstNodeOfFinalWay: R.prop('node', nodeObj),
         // Shorten the way points to the index of the node
         trimmedWay: R.over(
           R.lensPath(['geometry', 'coordinates']),
           // Slice the coordinates to the found node index
-          coordinates => R.slice(0, R.prop('index', nodeObj), coordinates),
+          // (+2 because the index is based on remainingWayPoints and we want to be inclusive)
+          coordinates => R.slice(0, R.prop('index', nodeObj) + 2, coordinates),
           currentFinalWay
         )
-      },
+      }),
       // Null case
       () => ({})
     )(nodeObj),
     // Take the closest node
     nodeObjs => R.head(nodeObjs),
     nodeObjs => R.sortBy(R.prop('index'), nodeObjs),
+    // Filter out non-matching (i.e. the node we started with)
+    nodeObjs => R.reject(R.compose(R.equals(-1), R.prop('index')))(nodeObjs),
     // Sort the nodes find the closest one, meaning the one that intersects first with the
     // remaining way points. Again, if the way points form an uninterrupted loop, then our same
     // node will match with the last point of remainingWayPoints
@@ -384,7 +406,7 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDir
       node => ({
         node, index: R.compose(
           nodePoint => R.indexOf(nodePoint, remainingWayPoints),
-          nodeId => nodeIdToNodePoint(nodeId),
+          nodeId => R.prop(nodeId, nodeIdToNodePoint),
           node => R.prop('id', node)
         )(node)
       }),
@@ -409,7 +431,7 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayIdToWayPoints, wayEndPointToDir
       // Minus the current final way itself
       ways => R.reject(R.equals(currentFinalWay), ways),
       // Any way touching the end point of the current final way
-      endPoint => wayEndPointToDirectionalWays(endPoint),
+      endPoint => R.propOr([], endPoint, wayEndPointToDirectionalWays),
       // Get the last point of the current final way
       wayPoints => R.last(wayPoints)
     )(remainingWayPoints),

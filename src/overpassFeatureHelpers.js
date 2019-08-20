@@ -14,7 +14,8 @@ import {
   findOneThrowing,
   mapKeys,
   reqStrPathThrowing,
-  strPathOr
+  strPathOr,
+  mapMDeep
 } from 'rescape-ramda';
 import 'regenerator-runtime';
 
@@ -48,6 +49,18 @@ const hashNodeFeatures = nodeFeatures => R.map(hashNodeFeature, nodeFeatures);
  */
 export const hashWayFeature = wayFeature => {
   return R.map(hashPoint, reqStrPathThrowing('geometry.coordinates', wayFeature));
+};
+
+/**
+ * Reverses hashWayFeature by converting hashed points back to pairs and each number to a float
+ * @param hashPoints
+ * @returns {[[String]]} String pairs of lon/lat points
+ */
+export const hashPointsToWayCoordinates = hashPoints => {
+  return R.compose(
+    mapMDeep(2, str => parseFloat(str)),
+    R.map(R.split(':'))
+  )(hashPoints);
 };
 
 

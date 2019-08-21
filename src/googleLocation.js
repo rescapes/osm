@@ -14,6 +14,7 @@ import rhumbDistance from '@turf/rhumb-distance';
 import {featureCollection} from '@turf/helpers';
 import {Ok, Error} from 'folktale/result';
 import center from '@turf/center';
+import {compareTwoStrings} from 'string-similarity';
 import {
   reqStrPath,
   reqStrPathThrowing,

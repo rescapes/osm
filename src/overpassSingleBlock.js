@@ -29,7 +29,6 @@ import {
 } from './overpass';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {hasLatLngIntersections, isLatLng} from './locationHelpers';
-import {compareTwoStrings} from 'string-similarity';
 import {_googleResolveJurisdictionResultTask, googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
 import {

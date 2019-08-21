@@ -17,7 +17,8 @@ import {loggers} from 'rescape-log';
 const log = loggers.get('rescapeDefault');
 
 // Integration testing. Unmocked tests
-// requires are used below since the jest includes aren't available at compile time
+// TODO make mocks of the results of these tests and then move them to overpassBlockHelpers.spec.js
+
 describe('overpassIntegration', () => {
   if (process.env.ENABLE_INTEGRATION_TESTS == 'false') {
     log.warn("No tests enabled");

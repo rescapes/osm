@@ -271,9 +271,10 @@ export const taskQuery = (options, query) => {
     // Possibly delay each call to query_overpass to avoid request rate threshold
     // Since we are executing calls sequentially, this will pause sleepBetweenCalls before each call
     setTimeout(() => {
-        log.debug(`Requesting OSM query: ${query}`);
+        log.debug(`Requesting OSM query:\n${query}`);
         queryOverpass(query, (error, data) => {
           if (!error) {
+            log.debug(options)
             resolver.resolve(data);
           } else {
             resolver.reject(error);

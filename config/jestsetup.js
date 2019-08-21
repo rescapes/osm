@@ -11,6 +11,7 @@
 
 // TODO jest can't read this file as babel :<
 const {rescapeDefaultTransports} = require('rescape-log');
+require('@babel/register')({})
 
 // Set the loggers to debug level
 rescapeDefaultTransports.fileCombined.level = 'debug';

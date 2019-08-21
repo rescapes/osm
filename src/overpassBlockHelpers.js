@@ -165,8 +165,8 @@ export const parallelWayNodeQueriesResultTask = (location, queries) => R.compose
     objs => R.mergeAll(objs),
     waitAll(
       // When we have our own serve we can disable the delay
-      R.addIndex(mapObjToValues)(
-        (query, type, obj, i) => R.map(
+      mapObjToValues(
+        (query, type) => R.map(
           // Then map the task response to include the query for debugging/error resolution
           // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
           // if the OSM can't be resolved
@@ -184,6 +184,7 @@ export const parallelWayNodeQueriesResultTask = (location, queries) => R.compose
 
 /***
  * Given node results this finds all ways of each node so that we can resolve street names of the intersections
+ * @param {Object} location Only used for context for mock tests
  * @param {Object} queries
  * @param {Object} queries.way Currently non used but returned
  * @param {Object} queries.node Response contains the nodes
@@ -193,17 +194,17 @@ export const parallelWayNodeQueriesResultTask = (location, queries) => R.compose
  * @sig waysOfNodeTask:: Task <way: <query, response>, node: <query, response>>> ->
  * Task <way: <query, response>, node: <query, response>, waysByNodeId: <node: <query, response>>>> ->
  */
-export const waysByNodeIdTask = ({way, node}) => R.map(
+export const waysByNodeIdTask = (location, {way, node}) => R.map(
   // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
   objs => ({way, node, waysByNodeId: R.mergeAll(objs)}),
   waitAll(
-    R.addIndex(R.map)(
-      (nodeId, i) => R.map(
+    R.map(
+      (nodeId) => R.map(
         // Then map the task response to include the query for debugging/error resolution
         // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
         response => ({[nodeId]: {query: waysOfNodeQuery(nodeId), response: response.value}}),
         // Perform the task
-        osmResultTask({name: 'waysOfNodeQuery'},
+        osmResultTask({name: 'waysOfNodeQuery', testMockJsonToKey: R.merge({nodeId, type: 'waysOfNode'}, location)},
           options => fetchOsmRawTask(options, waysOfNodeQuery(nodeId))
         )
       ),

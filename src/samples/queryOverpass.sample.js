@@ -51710,4 +51710,892 @@ export const FERNIE_NODES = {
       }
     }
   ]
-}
+};
+
+export const QUEENS_NODES = {
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "node/42875319",
+      "properties": {
+        "type": "node",
+        "id": 42875319,
+        "tags": {},
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.8057802,
+          40.6661498
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/42901997",
+      "properties": {
+        "type": "node",
+        "id": 42901997,
+        "tags": {},
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -73.806031,
+          40.665278
+        ]
+      }
+    }
+  ]
+};
+export const QUEENS_WAYS = {
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "way/5707230",
+      "properties": {
+        "type": "way",
+        "id": 5707230,
+        "tags": {
+          "highway": "residential",
+          "name": "134th Street",
+          "oneway": "no",
+          "surface": "asphalt"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -73.8057802,
+            40.6661498
+          ],
+          [
+            -73.8058111,
+            40.6660424
+          ],
+          [
+            -73.8058874,
+            40.6657773
+          ],
+          [
+            -73.8059512,
+            40.6655552
+          ],
+          [
+            -73.806031,
+            40.665278
+          ]
+        ]
+      }
+    }
+  ]
+};
+export const QUEENS_WAYS_OF_NODE_42901997 = {
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "way/5707230",
+      "properties": {
+        "type": "way",
+        "id": 5707230,
+        "tags": {
+          "highway": "residential",
+          "name": "134th Street",
+          "oneway": "no",
+          "surface": "asphalt"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -73.8057802,
+            40.6661498
+          ],
+          [
+            -73.8058111,
+            40.6660424
+          ],
+          [
+            -73.8058874,
+            40.6657773
+          ],
+          [
+            -73.8059512,
+            40.6655552
+          ],
+          [
+            -73.806031,
+            40.665278
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/219610989",
+      "properties": {
+        "type": "way",
+        "id": 219610989,
+        "tags": {
+          "highway": "residential",
+          "name": "149th Avenue",
+          "oneway": "no",
+          "surface": "asphalt"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -73.806031,
+            40.665278
+          ],
+          [
+            -73.8062598,
+            40.6653204
+          ],
+          [
+            -73.806619,
+            40.665387
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/219610991",
+      "properties": {
+        "type": "way",
+        "id": 219610991,
+        "tags": {
+          "highway": "unclassified",
+          "name": "134th Street",
+          "surface": "asphalt"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -73.806031,
+            40.665278
+          ],
+          [
+            -73.8063846,
+            40.6641035
+          ],
+          [
+            -73.8064618,
+            40.6638496
+          ],
+          [
+            -73.8072515,
+            40.6613169
+          ],
+          [
+            -73.807406,
+            40.660822
+          ],
+          [
+            -73.8074661,
+            40.6606918
+          ],
+          [
+            -73.8075776,
+            40.6605876
+          ]
+        ]
+      }
+    }
+  ]
+};
+export const QUEENS_WAYS_OF_NODE_42875319 = {
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "way/5707230",
+      "properties": {
+        "type": "way",
+        "id": 5707230,
+        "tags": {
+          "highway": "residential",
+          "name": "134th Street",
+          "oneway": "no",
+          "surface": "asphalt"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -73.8057802,
+            40.6661498
+          ],
+          [
+            -73.8058111,
+            40.6660424
+          ],
+          [
+            -73.8058874,
+            40.6657773
+          ],
+          [
+            -73.8059512,
+            40.6655552
+          ],
+          [
+            -73.806031,
+            40.665278
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/122633464",
+      "properties": {
+        "type": "way",
+        "id": 122633464,
+        "tags": {
+          "hgv": "designated",
+          "highway": "primary",
+          "lanes": "2",
+          "name": "South Conduit Avenue",
+          "oneway": "yes",
+          "ref": "NY 27",
+          "source:hgv": "Rules of the City of New York Title 34 §4-13 http://24.97.137.100/nyc/rcny/Title34_4-13.asp",
+          "surface": "asphalt",
+          "tiger:zip_left": "11422",
+          "tiger:zip_right": "11422"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -73.8074623,
+            40.6662302
+          ],
+          [
+            -73.8068055,
+            40.6661988
+          ],
+          [
+            -73.8063709,
+            40.6661781
+          ],
+          [
+            -73.8057802,
+            40.6661498
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/220107105",
+      "properties": {
+        "type": "way",
+        "id": 220107105,
+        "tags": {
+          "hgv": "designated",
+          "highway": "primary",
+          "lanes": "2",
+          "name": "South Conduit Avenue",
+          "oneway": "yes",
+          "ref": "NY 27",
+          "source:hgv": "Rules of the City of New York Title 34 §4-13 http://24.97.137.100/nyc/rcny/Title34_4-13.asp",
+          "surface": "asphalt",
+          "tiger:zip_left": "11422",
+          "tiger:zip_right": "11422"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -73.8057802,
+            40.6661498
+          ],
+          [
+            -73.8046238,
+            40.6661123
+          ]
+        ]
+      }
+    }
+  ]
+};
+
+export const LILLESTROM_PEDESTRIAN_AREA_WAYS = {
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "way/570781859",
+      "properties": {
+        "type": "way",
+        "id": 570781859,
+        "tags": {
+          "area": "yes",
+          "highway": "pedestrian",
+          "surface": "paving_stones"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              11.0459614,
+              59.9525202
+            ],
+            [
+              11.045819,
+              59.9524905
+            ],
+            [
+              11.0456358,
+              59.9524364
+            ],
+            [
+              11.0456157,
+              59.9524227
+            ],
+            [
+              11.0456029,
+              59.9524045
+            ],
+            [
+              11.0455989,
+              59.9523864
+            ],
+            [
+              11.0456036,
+              59.9523716
+            ],
+            [
+              11.0456116,
+              59.9523599
+            ],
+            [
+              11.0456939,
+              59.9522406
+            ],
+            [
+              11.045727,
+              59.9521934
+            ],
+            [
+              11.0457591,
+              59.9521995
+            ],
+            [
+              11.0458127,
+              59.9522098
+            ],
+            [
+              11.0462191,
+              59.952288
+            ],
+            [
+              11.0469333,
+              59.9522109
+            ],
+            [
+              11.0469011,
+              59.9522975
+            ],
+            [
+              11.0460596,
+              59.9523877
+            ],
+            [
+              11.0460387,
+              59.9524159
+            ],
+            [
+              11.0459725,
+              59.9525051
+            ],
+            [
+              11.0459674,
+              59.9525121
+            ],
+            [
+              11.0459614,
+              59.9525202
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+};
+export const LILLESTROM_PEDESTRIAN_AREA_NODES = {
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "node/706705268",
+      "properties": {
+        "type": "node",
+        "id": 706705268,
+        "tags": {},
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          11.0470684,
+          59.9522425
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/1287797787",
+      "properties": {
+        "type": "node",
+        "id": 1287797787,
+        "tags": {},
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          11.0456939,
+          59.9522406
+        ]
+      }
+    }
+  ]
+};
+export const LILLESTROM_PEDESTRIAN_AREA_WAYS_OF_NODE_706705268 = {
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "way/570781859",
+      "properties": {
+        "type": "way",
+        "id": 570781859,
+        "tags": {
+          "area": "yes",
+          "highway": "pedestrian",
+          "surface": "paving_stones"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              11.0459614,
+              59.9525202
+            ],
+            [
+              11.045819,
+              59.9524905
+            ],
+            [
+              11.0456358,
+              59.9524364
+            ],
+            [
+              11.0456157,
+              59.9524227
+            ],
+            [
+              11.0456029,
+              59.9524045
+            ],
+            [
+              11.0455989,
+              59.9523864
+            ],
+            [
+              11.0456036,
+              59.9523716
+            ],
+            [
+              11.0456116,
+              59.9523599
+            ],
+            [
+              11.0456939,
+              59.9522406
+            ],
+            [
+              11.045727,
+              59.9521934
+            ],
+            [
+              11.0457591,
+              59.9521995
+            ],
+            [
+              11.0458127,
+              59.9522098
+            ],
+            [
+              11.0462191,
+              59.952288
+            ],
+            [
+              11.0469333,
+              59.9522109
+            ],
+            [
+              11.0469011,
+              59.9522975
+            ],
+            [
+              11.0460596,
+              59.9523877
+            ],
+            [
+              11.0460387,
+              59.9524159
+            ],
+            [
+              11.0459725,
+              59.9525051
+            ],
+            [
+              11.0459674,
+              59.9525121
+            ],
+            [
+              11.0459614,
+              59.9525202
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/56324132",
+      "properties": {
+        "type": "way",
+        "id": 56324132,
+        "tags": {
+          "highway": "residential",
+          "name": "Tærudgata",
+          "surface": "asphalt"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            11.0467272,
+            59.9527111
+          ],
+          [
+            11.0470684,
+            59.9522425
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/56324140",
+      "properties": {
+        "type": "way",
+        "id": 56324140,
+        "tags": {
+          "foot": "yes",
+          "highway": "service",
+          "name": "Tærudgata",
+          "service": "alley"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            11.0470684,
+            59.9522425
+          ],
+          [
+            11.0472899,
+            59.952281
+          ],
+          [
+            11.0476618,
+            59.9522008
+          ],
+          [
+            11.0479748,
+            59.952135
+          ],
+          [
+            11.0481428,
+            59.9520987
+          ],
+          [
+            11.0483186,
+            59.9520607
+          ],
+          [
+            11.0487119,
+            59.9519794
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/113574832",
+      "properties": {
+        "type": "way",
+        "id": 113574832,
+        "tags": {
+          "highway": "service",
+          "name": "Tærudgata",
+          "service": "alley"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            11.0472305,
+            59.9520678
+          ],
+          [
+            11.0471715,
+            59.9520946
+          ],
+          [
+            11.0470684,
+            59.9522425
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/195999518",
+      "properties": {
+        "type": "way",
+        "id": 195999518,
+        "tags": {
+          "highway": "service",
+          "name": "Tærudgata",
+          "service": "alley"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            11.0470684,
+            59.9522425
+          ],
+          [
+            11.0471688,
+            59.952223
+          ],
+          [
+            11.047245,
+            59.9521177
+          ],
+          [
+            11.0475367,
+            59.9520468
+          ],
+          [
+            11.0478507,
+            59.9519812
+          ],
+          [
+            11.0481948,
+            59.95191
+          ],
+          [
+            11.0484137,
+            59.951866
+          ]
+        ]
+      }
+    }
+  ]
+};
+export const LILLESTROM_PEDESTRIAN_AREA_WAYS_OF_NODE_1287797787 = {
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "way/570781859",
+      "properties": {
+        "type": "way",
+        "id": 570781859,
+        "tags": {
+          "area": "yes",
+          "highway": "pedestrian",
+          "surface": "paving_stones"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              11.0459614,
+              59.9525202
+            ],
+            [
+              11.045819,
+              59.9524905
+            ],
+            [
+              11.0456358,
+              59.9524364
+            ],
+            [
+              11.0456157,
+              59.9524227
+            ],
+            [
+              11.0456029,
+              59.9524045
+            ],
+            [
+              11.0455989,
+              59.9523864
+            ],
+            [
+              11.0456036,
+              59.9523716
+            ],
+            [
+              11.0456116,
+              59.9523599
+            ],
+            [
+              11.0456939,
+              59.9522406
+            ],
+            [
+              11.045727,
+              59.9521934
+            ],
+            [
+              11.0457591,
+              59.9521995
+            ],
+            [
+              11.0458127,
+              59.9522098
+            ],
+            [
+              11.0462191,
+              59.952288
+            ],
+            [
+              11.0469333,
+              59.9522109
+            ],
+            [
+              11.0469011,
+              59.9522975
+            ],
+            [
+              11.0460596,
+              59.9523877
+            ],
+            [
+              11.0460387,
+              59.9524159
+            ],
+            [
+              11.0459725,
+              59.9525051
+            ],
+            [
+              11.0459674,
+              59.9525121
+            ],
+            [
+              11.0459614,
+              59.9525202
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/703449786",
+      "properties": {
+        "type": "way",
+        "id": 703449786,
+        "tags": {
+          "highway": "footway",
+          "lit": "yes",
+          "source": "bing",
+          "surface": "paving_stones"
+        },
+        "relations": [],
+        "meta": {}
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            11.0457243,
+            59.9522451
+          ],
+          [
+            11.0456939,
+            59.9522406
+          ]
+        ]
+      }
+    }
+  ]
+};

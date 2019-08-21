@@ -20,7 +20,9 @@ import {
   traverseReduce,
   traverseReduceWhile,
   mapMDeep,
-  mapToNamedResponseAndInputs, reqPathThrowing
+  mapToNamedResponseAndInputs,
+  reqPathThrowing,
+  strPathOr
 } from 'rescape-ramda';
 import googleMapsClient from './googleMapsClient';
 import {
@@ -44,7 +46,7 @@ const log = loggers.get('rescapeDefault');
 // Make sure that the key here is enabled to convert addresses to geocode and to use streetview
 // https://log.developers.google.com/apis/api/geocoding_backend?project=_
 // https://log.developers.google.com/apis/api/directions_backend?project=_
-const apiKey = process.env.GOOGLE_API_KEY;
+const apiKey = reqStrPathThrowing('GOOGLE_API_KEY', process.env);
 const googleMaps = googleMapsClient(apiKey);
 // HTTP OK response
 const OK_STATUS = 200;
@@ -98,39 +100,42 @@ export const geocodeAddressTask = R.curry((location, address) => {
               geojson: locationToTurfPoint(R.map(parseFloat, R.split(',', address))),
               // Add this special property that can be used to modify our location later with
               // the jurisdictions found by Google
-              locationWithJurisdictions: resolveJurisdictionFromGeocodeResult(location, results)
+              locationWithJurisdictions: resolveJurisdictionFromGeocodeResult(location, results).matchWith({
+                Ok: ({value}) => value,
+                // If there's an error just assign this to the locationWithJurisdictions
+                Error: ({value}) => value
+              })
             };
           },
           // Otherwise find the best result from the geocoding
           results => R.filter(
-              result => R.when(
-                R.always(R.and(
-                  R.has('intersections', location),
-                  R.length(R.prop('intersections', location))
-                )),
-                r => R.allPass([
-                  // The first address component must be 'intersection'
-                  r => reqStrPath('address_components.0.types.0', r).matchWith({
-                    Ok: ({value}) => R.equals('intersection', value),
-                    Error: R.F
-                  }),
-                  // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE location
-                  r => R.contains(r.geometry.location_type, ['GEOMETRIC_CENTER']),
-                  // No partial matches allowed. TODO this seems to give ok results
-                  // r => R.not(R.prop('partial_match', r)),
-                  // It must be an intersection, thus have & in the address
-                  r => R.contains('&', r.formatted_address)
-                ])(r)
-              )(result),
-              results
-            )
+            result => R.when(
+              R.always(R.and(
+                R.has('intersections', location),
+                R.length(R.prop('intersections', location))
+              )),
+              r => R.allPass([
+                // The first address component must be 'intersection'
+                r => reqStrPath('address_components.0.types.0', r).matchWith({
+                  Ok: ({value}) => R.equals('intersection', value),
+                  Error: R.F
+                }),
+                // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE location
+                r => R.contains(r.geometry.location_type, ['GEOMETRIC_CENTER']),
+                // No partial matches allowed. TODO this seems to give ok results
+                // r => R.not(R.prop('partial_match', r)),
+                // It must be an intersection, thus have & in the address
+                r => R.contains('&', r.formatted_address)
+              ])(r)
+            )(result),
+            results
+          )
         )(response.json.results);
 
         if (isLatLng(address)) {
           // Always resolve lat lons
-          resolver.resolve(Result.of(results))
-        }
-        else if (R.equals(1, R.length(results))) {
+          resolver.resolve(Result.of(results));
+        } else if (R.equals(1, R.length(results))) {
           const result = R.head(results);
           // Result to indicate success
           log.debug(`Successfully geocoded location ${R.propOr('(no id given)', 'id', location)}, ${address}`);
@@ -600,29 +605,40 @@ export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResu
 
   // If we already have a country and city, assume the jurisdiction is resolved
   if (R.both(R.prop('country'), R.prop('city'))(location)) {
-    return Result.Ok(location)
+    return Result.Ok(location);
   }
 
   // Match the current naming convention for these countries
   // TODO update database to use long name and remove this
   const countryAliasMap = {'United States': 'USA', 'United Kingdom': 'UK'};
+  // Maps our concept of a jurisdiction to what Google uses
+  const lookups = {
+    neighborhood: 'neighborhood',
+    city: 'locality',
+    borough: 'sublocality',
+    county: 'administrative_area_level_2',
+    state: 'administrative_area_level_1',
+    country: 'country'
+  };
   const mapToName = {
     country: obj => R.compose(name => R.propOr(name, name, countryAliasMap), R.prop('long_name'))(obj),
     state: obj => R.prop('short_name', obj),
     neighborhood: obj => R.prop('long_name', obj),
-    city: obj => {
+    borough: obj => R.prop('long_name', obj),
+    county: obj => R.prop('long_name', obj),
+    city: (obj, values) => {
       return R.cond([
-        // For some reason New York cities locations don't return New York, I guess because the state equals the city
-        // Seems like a bug
+        // For some reason New York location locations don't return New York as a city,
+        // I guess because the state equals the city. Seems like a bug
         [
-          obj => R.both(
+          ({values}) => R.both(
             R.compose(R.isNil, R.prop('city')),
-            R.compose(R.equals('New York'), R.prop('state'))
-          )(obj),
+            R.compose(R.equals('New York'), strPathOr(null, 'state.long_name'))
+          )(values),
           R.always('New York')
         ],
-        [R.T, obj => R.prop('long_name', obj)]
-      ])(obj);
+        [R.T, ({obj}) => R.prop('long_name', obj)]
+      ])({obj, values});
     }
   };
   return R.compose(
@@ -635,10 +651,15 @@ export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResu
       location => Ok(location),
       location => Error({error: 'Could not extract country and/or city from Google geocode results', location})
     )(location),
-    R.merge(location),
-    R.mapObjIndexed((value, key) => mapToName[key](value)),
+    names => R.merge(location, names),
+    values => R.mapObjIndexed(
+      (value, key) => mapToName[key](value, values),
+      values
+    ),
     keyToAddressComponentType => R.map(
+      // For each key value (e.g. locality for city)
       type => R.find(
+        // Look in each of addressComponent.types and try to find a match
         ({types}) => R.contains(
           type,
           types
@@ -647,5 +668,66 @@ export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResu
       ),
       keyToAddressComponentType
     )
-  )({neighborhood: 'neighborhood', city: 'locality', state: 'administrative_area_level_1', country: 'country'});
+  )(lookups);
 };
+
+/**
+ * Use Google to resolve full jurisdiction names. If Google can't resolve either intersection a Result.Error
+ * is returned. Otherwise a Result.Ok containing the location with the updated location.intersections
+ * also maintain the Google results. We can use either the intersections or the Google geojson to
+ * resolve OSM data.
+ * @param {Object} location Location object
+ * @returns {Object} the resolved jurisdiction values: country, state, city, neighborhood merged into the location,
+ * where any explicit location values get priority over what Google found. Also merges in an intersections property
+ * which is arrays of intersection names. These get priority over location.intersections
+ * @private
+ */
+export const _googleResolveJurisdictionResultTask = location => mapMDeep(2,
+  // Replace the intersections with the fully qualified names
+  googleIntersectionObjs => {
+    // If either intersection was a lat/lon it will return a locationWithJurisdictions
+    // property. Use the first one we find to populate missing jurisdiction info in the location
+    // if needed
+    const jurisdiction = R.compose(
+      R.ifElse(
+        Result.Ok.hasInstance,
+        result => R.pick(['country', 'state', 'city', 'neighborhood'], result.value),
+        R.always({})
+      ),
+      R.when(R.identity, R.prop('locationWithJurisdictions')),
+      R.find(R.has('locationWithJurisdictions'))
+    )(googleIntersectionObjs);
+    return R.mergeAll([
+      // Any retrieved jurisdiction info gets lower priority than what is already in the location
+      // That way if jurisdiction data with a lat/lon the Google jurisdiction won't trump
+      jurisdiction,
+      location,
+      {
+        intersections: R.zipWith(
+          (googleIntersectionObj, locationIntersection) => {
+            // If our intersection is a 'lat/lon' string, not a pair of streets, just return it
+            if (R.is(String, locationIntersection)) {
+              return locationIntersection;
+            }
+            const googleIntersection = R.prop('intersection', googleIntersectionObj);
+            // Make sure the order of the googleIntersection streets match the original, even though
+            // the Google one might be different to correct the name
+            return R.sort(
+              // Use compareTwoStrings to rank the similarity and subtract from 1 so the most similar
+              // wins
+              googleIntersectionStreetname => 1 - compareTwoStrings(
+                googleIntersectionStreetname,
+                reqStrPathThrowing('0', locationIntersection)
+              ),
+              googleIntersection
+            );
+          },
+          googleIntersectionObjs,
+          R.prop('intersections', location)
+        ),
+        googleIntersectionObjs
+      }
+    ]);
+  },
+  googleIntersectionTask(location)
+);

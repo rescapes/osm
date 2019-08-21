@@ -98,6 +98,9 @@ nohup $EXEC_DIR/bin/apply_osc_to_db.sh "diffs/" auto --meta=yes &
 
 (the following is not in the docs, which uses apache)
 
+# Create an environmental variable $OSM_SERVER=[server name] for your eventual server name
+# (you'll set up https below)
+
 sudo apt install nginx
 
 sudo apt-get install python-software-properties software-properties-common
@@ -132,6 +135,7 @@ systemctl status nginx
 cd $BASE_DIR
 cp -pR "rules" $DB_DIR
 
+# This takes about 30 hours to complete
 nohup $EXEC_DIR/bin/dispatcher --areas --db-dir=$DB_DIR &
 # If you have problems because of a previous run, delete the following marker files
 # rm -f /dev/shm/osm3s_v0.7.55_osm_areas
@@ -149,6 +153,11 @@ ps -ef | grep rules
 Take the task and run
 renice -n 19 -p PID
 ionice -c 2 -n 7 -p PID
+
+### Environmental variables ###
+# Figure out a dns entry that can point to the server. You need a domain name so you can setup https
+# Create an environmental variable $OSM_SERVER=[server name]
+# Create an environmental variable $OSM_SERVERS='https://[server name]/api/interpreter'
 
 #### Setup a certificate
 

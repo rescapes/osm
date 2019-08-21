@@ -16,7 +16,8 @@ import {
   reqStrPathThrowing,
   resultToTaskNeedingResult,
   resultToTaskWithResult,
-  pickDeepPaths
+  pickDeepPaths,
+  mapToNamedResponseAndInputs
 } from 'rescape-ramda';
 import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
@@ -29,7 +30,7 @@ import {
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {hasLatLngIntersections, isLatLng} from './locationHelpers';
 import {compareTwoStrings} from 'string-similarity';
-import {googleIntersectionTask} from './googleLocation';
+import {_googleResolveJurisdictionResultTask, googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
 import {
   _queryLocationVariationsUntilFoundResultTask,
@@ -88,58 +89,7 @@ export const queryLocationForOsmBlockResultsTask = location => {
       // is returned. Otherwise a Result.Ok containing the location with the updated location.intersections
       // Also maintain the Google results. We can use either the intersections or the Google geojson to
       // resolve OSM data.
-      [R.T,
-        // Task Result -> Task Result
-        location => mapMDeep(2,
-          // Replace the intersections with the fully qualified names
-          googleIntersectionObjs => {
-            // If either intersection was a lat/lon it will return a locationWithJurisdictions
-            // property. Use the first one we find to populate missing jurisdiction info in the location
-            // if needed
-            const jurisdiction = R.compose(
-              R.ifElse(
-                Result.Ok.hasInstance,
-                result => R.pick(['country', 'state', 'city', 'neighborhood'], result.value),
-                R.always({})
-              ),
-              R.when(R.identity, R.prop('locationWithJurisdictions')),
-              R.find(R.has('locationWithJurisdictions'))
-            )(googleIntersectionObjs);
-            return R.mergeAll([
-              // Any retrieved jurisdiction info gets lower priority than what is already in the location
-              // That way if jurisdiction data with a lat/lon the Google jurisdiction won't trump
-              jurisdiction,
-              location,
-              {
-                intersections: R.zipWith(
-                  (googleIntersectionObj, locationIntersection) => {
-                    // If our intersection is a 'lat/lon' string, not a pair of streets, just return it
-                    if (R.is(String, locationIntersection)) {
-                      return locationIntersection;
-                    }
-                    const googleIntersection = R.prop('intersection', googleIntersectionObj);
-                    // Make sure the order of the googleIntersection streets match the original, even though
-                    // the Google one might be different to correct the name
-                    return R.sort(
-                      // Use compareTwoStrings to rank the similarity and subtract from 1 so the most similar
-                      // wins
-                      googleIntersectionStreetname => 1 - compareTwoStrings(
-                        googleIntersectionStreetname,
-                        reqStrPathThrowing('0', locationIntersection)
-                      ),
-                      googleIntersection
-                    );
-                  },
-                  googleIntersectionObjs,
-                  R.prop('intersections', location)
-                ),
-                googleIntersectionObjs
-              }
-            ]);
-          },
-          googleIntersectionTask(location)
-        )
-      ]
+      [R.T, location => _googleResolveJurisdictionResultTask(location)]
     ])(location)
   )(location);
 };
@@ -168,26 +118,30 @@ export const queryLocationForOsmBlockResultsTask = location => {
  */
 const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geojsonPoints) => {
   return R.composeK(
-    ({way: wayQuery, node: nodeQuery}) => _queryOverpassForSingleBlockResultTask(
+    ({locationWithOsm, queries: {way: wayQuery, node: nodeQuery}}) => _queryOverpassForSingleBlockResultTask(
+      locationWithOsm,
       {way: wayQuery, node: nodeQuery}
     ),
     // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
-    locationWithOsm => of(
-      R.fromPairs(R.map(
-        type => [
-          type,
-          _constructInstersectionsQuery(
-            {type},
-            // These are the only properties we might need from the location
-            pickDeepPaths(['intersections', 'osmId', 'data.osmOverrides'], locationWithOsm),
-            geojsonPoints
-          )
-        ],
-        ['way', 'node']
-      ))
+    mapToNamedResponseAndInputs('queries',
+      // Location l, String w, String n: l -> <way: w, node: n>
+      ({locationWithOsm}) => of(
+        R.fromPairs(R.map(
+          type => [
+            type,
+            _constructInstersectionsQuery(
+              {type},
+              // These are the only properties we might need from the location
+              pickDeepPaths(['intersections', 'osmId', 'data.osmOverrides'], locationWithOsm),
+              geojsonPoints
+            )
+          ],
+          ['way', 'node']
+        ))
+      )
     )
-  )(locationWithOsm);
+  )({locationWithOsm});
 };
 
 /**
@@ -207,6 +161,7 @@ const _queryOverpassBasedLocationPropsForSingleBlockResultTask = locationWithOsm
     // If the query has lat/lng points use them
     locationWithOsm => [
       _queryOverpassWithLocationForSingleBlockResultTask(
+        // Remove the lat/lng intersections so we can replace them with street names or failing that way ids from OSM
         R.omit(['intersections'], locationWithOsm),
         geojsonPoints)
     ],
@@ -290,6 +245,7 @@ const _locationToOsmSingleBlockQueryResultsTask = location => {
 /**
  * Given a location with an osmId included, query the Overpass API and cleanup the results to get a single block
  * of geojson representing the location's two intersections and the block
+ * @param {Object} location only used for context in mock tests
  * @param {[String]} queries Queries generated by _queryOverpassForBlockWithOptionalOsmOverrides
  * or _queryOverpassForBlockWithGoogleGeojson. Right now there must be exactly 2 queries, first
  * the query for the ways of block and second the query for the nodes at the intersections of the block.
@@ -303,7 +259,7 @@ const _locationToOsmSingleBlockQueryResultsTask = location => {
  * If one or both streets change names or for a >4-way intersection, there can be more.
  * If we handle roundabouts correctly in the future these could also account for more
  */
-const _queryOverpassForSingleBlockResultTask = ({location, way: wayQuery, node: nodeQuery}) => {
+const _queryOverpassForSingleBlockResultTask = (location, {way: wayQuery, node: nodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
     resultToTaskNeedingResult(
@@ -357,13 +313,13 @@ const _queryOverpassForSingleBlockResultTask = ({location, way: wayQuery, node: 
     // Task Result.Ok <way: <query, response>, node: <query, response>>> ->
     // Task Result.Ok <way: <query, response>, node: <query, response>, waysByNodeId: <node: <query, response>>>> ->
     resultToTaskNeedingResult(
-      ({way, node}) => waysByNodeIdTask({way, node})
+      ({location, way, node}) => waysByNodeIdTask(location, {way, node})
     ),
 
     // Query for the ways and nodes in parallel
     // <way: <query, node: <query> -> Task <way: <query, response>, node: <query, response>>>
-    queries => parallelWayNodeQueriesResultTask(location, queries)
-  )({way: wayQuery, node: nodeQuery});
+    ({location, way, node}) => parallelWayNodeQueriesResultTask(location, {way, node})
+  )({location, way: wayQuery, node: nodeQuery});
 };
 
 

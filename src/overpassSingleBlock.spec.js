@@ -14,9 +14,6 @@ import * as R from 'ramda';
  */
 
 
-// TODO no mock data ready. It can be added to samples/queryOverpass and __mocks__/query-overpass
-jest.unmock('query-overpass');
-
 describe('overpassBlocks', () => {
 
   test('fetchLatLonOnyLocation', done => {
@@ -60,8 +57,8 @@ describe('overpassBlocks', () => {
           // Expect our intersection names
           expect(reqStrPathThrowing('intersections', results)).toEqual({
             "node/706705268": [
+              "way/570781859",
               "Tærudgata",
-              "way/570781859"
             ],
             "node/1287797787": [
               "way/570781859",

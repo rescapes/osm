@@ -69,6 +69,7 @@ describe('overpassBlocks', () => {
       }, errors, done));
   }, 50000);
 
+
   /*
   test('getFeaturesOfBlock', done => {
     // Weird case where on way is a loop

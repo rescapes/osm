@@ -102,7 +102,7 @@
     "rescape-helpers": ">=1.1.99",
     "rescape-helpers-test": ">=0.0.28",
     "rescape-log": ">=0.1.13",
-    "rescape-ramda": ">=1.6.1",
+    "rescape-ramda": ">=1.6.7",
     "rescape-sample-data": ">=1.2.60"
   },
   "jest": {

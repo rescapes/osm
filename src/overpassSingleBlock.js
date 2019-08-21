@@ -237,7 +237,7 @@ const _locationToOsmSingleBlockQueryResultsTask = location => {
     // Use OSM Nominatim to get relation of the neighborhood (if it exists) and the city
     // We'll use one of these to query an area in Overpass.
     // If we have a new location that only has lat/lon this will fail and we'll process the lat/lons above
-    location => nominatimLocationResultTask(location)
+    location => nominatimLocationResultTask(location).map(n => n)
   )(location);
 };
 

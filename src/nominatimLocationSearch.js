@@ -12,7 +12,7 @@
 import xhr from 'xhr';
 import {task, waitAll, of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
-import {compactEmpty, promiseToTask, compact, resultToTaskNeedingResult, traverseReduce} from 'rescape-ramda';
+import {compactEmpty, promiseToTask, compact, traverseReduceDeepResults} from 'rescape-ramda';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
@@ -61,16 +61,27 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
  * connecting to the server a Result.Error returns
  */
 export const nominatimLocationResultTask = location => R.composeK(
-  results => of(traverseReduce(
-    // Accept the non-null results
-    (previousResultValues, resultValue) => R.concat(previousResultValues, compact([resultValue])),
-    Result.Ok([]),
+  // Convert the list of good results to a Result.Ok and disgard the Errors
+  results => of(Result.Ok(results.Ok)),
+  results => of(traverseReduceDeepResults(1,
+    // The accumulator
+    (res, okObj) => R.concat(
+      res,
+      [okObj]
+    ),
+    // The accumulator of errors
+    (res, errorObj) => R.concat(
+      res,
+      [errorObj]
+    ),
+    // Our initial value is a Task with an object can contain Result.Ok and Result.Error results
+    {Ok: [], Error: []},
     results
   )),
   location => waitAll(R.map(
     keys => {
       const locationProps = R.pick(keys, location);
-      log.debug(`Nomanitim query for the following values ${JSON.stringify(locationProps)}`);
+      log.debug(`Nomanatim query for the following values ${JSON.stringify(locationProps)}`);
       return nominatimResultTask(locationProps)
         .map(responseResult => responseResult.map(value => {
             // bounding box comes as two lats, then two lon, so fix

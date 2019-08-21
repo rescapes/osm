@@ -220,5 +220,39 @@ describe('overpassIntegration', () => {
       }));
   }, 90000);
 
+
+  test("Hetlandsgata", done => {
+    const location = {
+      "country": "Norway",
+      "city": "Stavanger",
+      "neighborhood": "Stavanger Sentrum",
+      "blockname": "Hetlandsgata",
+      "intersc1": "Bergelandsgata ",
+      "intersc2": "Vaisenhusgata",
+      "intersections": [
+        [
+          "Hetlandsgata",
+          "Bergelandsgata "
+        ],
+        [
+          "Hetlandsgata",
+          "Vaisenhusgata"
+        ]
+      ]
+    };
+    const errors = [];
+    expect.assertions(1);
+    queryLocationForOsmBlockResultsTask(location).run().listen(defaultRunConfig(
+      {
+        onResolved: responseResult => responseResult.map(
+          ({results, location}) => {
+            expect(
+              R.length(reqStrPathThrowing('nodes', results))
+            ).toEqual(2);
+            done();
+          }
+        )
+      }, errors, done));
+  }, 500000);
 });
 

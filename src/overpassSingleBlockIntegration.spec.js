@@ -9,7 +9,7 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {queryLocationForOsmBlockResultsTask} from './overpassSingleBlock';
+import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import * as R from 'ramda';
 import {loggers} from 'rescape-log';
@@ -30,7 +30,7 @@ describe('overpassIntegration', () => {
   test('fetchOsmOaklandBlock', done => {
     expect.assertions(1);
     const errors = [];
-    queryLocationForOsmBlockResultsTask({
+    queryLocationForOsmSingleBlockResultTask({
       country: 'USA',
       state: 'California',
       city: 'Oakland',
@@ -49,7 +49,7 @@ describe('overpassIntegration', () => {
 
   test('fetchOsmBlockOslo', done => {
     expect.assertions(1);
-    queryLocationForOsmBlockResultsTask({
+    queryLocationForOsmSingleBlockResultTask({
       country: 'Norway',
       city: 'Oslo',
       neighborhood: 'Sentrum',
@@ -71,7 +71,7 @@ describe('overpassIntegration', () => {
     // However Google geocoding gives us points so we eventually resolve the way
     expect.assertions(1);
     const errors = [];
-    queryLocationForOsmBlockResultsTask({
+    queryLocationForOsmSingleBlockResultTask({
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
@@ -92,7 +92,7 @@ describe('overpassIntegration', () => {
     // to querying the lat/lons that came from Google
     const errors = [];
     expect.assertions(1);
-    queryLocationForOsmBlockResultsTask({
+    queryLocationForOsmSingleBlockResultTask({
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
@@ -121,7 +121,7 @@ describe('overpassIntegration', () => {
     // Even Google can't save us
     const errors = [];
     expect.assertions(1);
-    queryLocationForOsmBlockResultsTask({
+    queryLocationForOsmSingleBlockResultTask({
       country: 'USA',
       // BAD SPELLING
       city: 'Los Angleles',
@@ -140,7 +140,7 @@ describe('overpassIntegration', () => {
 
   test('fetchOsmBlockStavanger', done => {
     expect.assertions(1);
-    queryLocationForOsmBlockResultsTask({
+    queryLocationForOsmSingleBlockResultTask({
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
@@ -172,7 +172,7 @@ describe('overpassIntegration', () => {
   test('fetchOsmBlockWithSeparatedLanesAndTrafficSignalNodes', done => {
     expect.assertions(1);
     const errors = [];
-    queryLocationForOsmBlockResultsTask({
+    queryLocationForOsmSingleBlockResultTask({
       country: 'USA',
       state: 'NC',
       city: 'Charlotte',
@@ -198,7 +198,7 @@ describe('overpassIntegration', () => {
   // Here East Columbia Avenue becomes West Columbia Avenue
   test('fetchOSMBlockWhereMainBlockChangesName', done => {
     expect.assertions(1);
-    queryLocationForOsmBlockResultsTask({
+    queryLocationForOsmSingleBlockResultTask({
       country: 'USA',
       state: 'IL',
       city: 'Champaign',
@@ -242,7 +242,7 @@ describe('overpassIntegration', () => {
     };
     const errors = [];
     expect.assertions(1);
-    queryLocationForOsmBlockResultsTask(location).run().listen(defaultRunConfig(
+    queryLocationForOsmSingleBlockResultTask(location).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
           ({results, location}) => {

@@ -9,6 +9,8 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
+
 export {
   calculateRouteTask,
   calculateOpposingRoutesTask,
@@ -32,8 +34,11 @@ export {
   addressStrings,
   streetAddressString,
   removeStateFromSomeCountriesForSearch,
-  intersectionsByNodeIdToSortedIntersections
+  intersectionsByNodeIdToSortedIntersections,
+  isResolvableSingleBlockLocation,
+  isResolvableAllBlocksLocation
 } from './locationHelpers';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';
-export {queryLocationForOsmBlockResultsTask} from './overpassSingleBlock';
+export {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
+export {locationToOsmAllBlocksQueryResultsTask, queryLocationForOsmBlockOrAllResultsTask} from './overpassAllBlocks';

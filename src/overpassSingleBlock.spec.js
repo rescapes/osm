@@ -1,4 +1,4 @@
-import {queryLocationForOsmBlockResultsTask} from './overpassSingleBlock';
+import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 import {defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
 import * as R from 'ramda';
 
@@ -19,7 +19,7 @@ describe('overpassBlocks', () => {
   test('fetchLatLonOnyLocation', done => {
     const errors = [];
     expect.assertions(3);
-    queryLocationForOsmBlockResultsTask({
+    queryLocationForOsmSingleBlockResultTask({
       intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']
     }).run().listen(defaultRunToResultConfig(
       {
@@ -46,7 +46,7 @@ describe('overpassBlocks', () => {
     // This is where the block is a pedestrian area, not a simple line.
     const errors = [];
     expect.assertions(3);
-    queryLocationForOsmBlockResultsTask({
+    queryLocationForOsmSingleBlockResultTask({
       intersections: ['59.952305, 11.047053', '59.952248, 11.045588']
     }).run().listen(defaultRunToResultConfig(
       {

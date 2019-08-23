@@ -4,7 +4,7 @@ import {
   pickDeepPaths,
   resultToTaskWithResult,
   toNamedResponseAndInputs,
-  compact,
+  compact
 } from 'rescape-ramda';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
@@ -27,6 +27,8 @@ import {
   hashNodeFeature,
   hashWayFeature
 } from './overpassFeatureHelpers';
+import {isResolvableAllBlocksLocation, isResolvableSingleBlockLocation} from './locationHelpers';
+import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 
 /**
  * Created by Andy Likuski on 2019.07.26
@@ -40,6 +42,44 @@ import {
  */
 
 /**
+ * Queries locationToOsmAllBlocksQueryResultsTask or queryLocationForOsmSingleBlockResultTask
+ * @param {Object} location A location that must be resolvable to a block or city/neighborhood area
+ * @returns {Task<{Ok: Result.Ok, Error: Result.Error}>} Successful values in the Ok: [] array and errors in the Error: [] array.
+ * Single block query will only have one result. The result value is {location, results} where location
+ * is the location block object (either from the single block query or each block of multiple results) and
+ * results are the OSM results {way: way features, node: node features, intersections: {keyed by node id valued by street names of the intersection}}
+ */
+export const queryLocationForOsmBlockOrAllResultsTask = location => {
+  return R.cond([
+    [
+      location => isResolvableSingleBlockLocation(location),
+      location => {
+        return R.map(
+          result => {
+            // Match the format of locationToOsmAllBlocksQueryResultsTask
+            return result.matchWith({
+              Ok: ({value}) => ({Ok: [value]}),
+              Error: ({value}) => ({Error: [value]})
+            });
+          },
+          queryLocationForOsmSingleBlockResultTask(location)
+        );
+      }
+    ],
+    [
+      location => isResolvableAllBlocksLocation(location),
+      location => locationToOsmAllBlocksQueryResultsTask(location)
+    ],
+    [
+      R.T,
+      () => {
+        throw new Error(`Location ${JSON.stringify(location)} is neither resolvable as a block nor city/neighborhood area`);
+      }
+    ]
+  ])(location);
+};
+
+/**
  * Resolve the location and then query for the all of its blocks in overpass.
  * This process will first use nominatimResultTask to query nomatim.openstreetmap.org for the relationship
  * of the neighborhood of the city. If it fails it will try the entire city. With this result we
@@ -48,11 +88,13 @@ import {
  * we retry with the city area. TODO If we have a full city query when we want a neighborhood we should reduce
  * the results somewhow
  * @param {Object} location A location object
- * @returns {Task<Result<Object>>} Result.Ok in the form {location,  results} if data is found,
- * otherwise Result.Error in the form {errors: {errors, location}, location} where the internal
+ * @returns {Task<{Ok: blocks, Errors: errors>}>}
+ * In Ok a list of results found in the form [{location,  results}]
+ * Where each location represents a block and the results are the OSM geojson data
+ * The results contain nodes and ways and intersections (the street intersections of each node)
+ * Error contains Result.Errors in the form {errors: {errors, location}, location} where the internal
  * location are varieties of the original with an osm area id added. Result.Error is only returned
  * if no variation of the location succeeds in returning a result
- * The results contain nodes and ways
  */
 export const locationToOsmAllBlocksQueryResultsTask = location => {
 
@@ -60,10 +102,18 @@ export const locationToOsmAllBlocksQueryResultsTask = location => {
   // of _queryForAllBlocksOfLocationsTask for the location variation that overpass can resolve
   // (currently either a neighborhood level query or failing that city level query)
   const _queryOverpassForAllBlocksUntilFoundResultTask = _queryLocationVariationsUntilFoundResultTask(
-    _queryOverpassWithLocationForAllBlocksResultTask
+    locationWithOsm => R.map(
+      // Wrap the task results in a Result.Ok to match what _queryLocationVariationsUntilFoundResultTask expects
+      results => Result.Ok(results),
+      _queryOverpassWithLocationForAllBlocksResultsTask(locationWithOsm)
+    )
   );
 
   return R.composeK(
+    // Unwrap the result we created for _queryLocationVariationsUntilFoundResultTask
+    result => of(result.matchWith({
+      Ok: ({value}) => value
+    })),
     resultToTaskWithResult(
       locationVariationsWithOsm => R.cond([
         [R.length,
@@ -96,12 +146,12 @@ export const locationToOsmAllBlocksQueryResultsTask = location => {
  * Queries for all blocks matching the Osm area id in the given location
  * @param {Object} locationWithOsm Location object with  bbox, osmId, placeId from
  * @private
- * @returns {Task<Result<[Object]>>} The block represented as locations
+ * @returns {Task<Result<[Object]>>} Each block {location, results} with the location block
+ * and results containing OSM data
  */
-const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
+const _queryOverpassWithLocationForAllBlocksResultsTask = (locationWithOsm) => {
   return R.composeK(
-    result => of(result),
-    ({way: wayQuery, node: nodeQuery}) => _queryOverpassForAllBlocksResultTask(
+    ({way: wayQuery, node: nodeQuery}) => _queryOverpassForAllBlocksResultsTask(
       {location: locationWithOsm, way: wayQuery, node: nodeQuery}
     ),
     // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
@@ -127,44 +177,65 @@ const _queryOverpassWithLocationForAllBlocksResultTask = (locationWithOsm) => {
  * @param location {Object} Only used for context for testing mocks
  * @param {String} wayQuery The Overpass way query
  * @param {String} nodeQuery The overpass node query
- * @returns {Task<Result<Object>>} The Geojson nodes and way features in a Result.Ok. If an error occurs,
+ * @returns {Task<Object>} { Ok: location blocks, Errors: []
+ * Each location block, node features, way features, and intersections in the Ok array
+ * Errors in the errors array
  * Result.Error is returned. Object has a ways, nodes
  */
-const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: nodeQuery}) => {
+const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: nodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
-    res => resultToTaskNeedingResult(
+    res => resultToTaskWithResult(
       ({way, node}) => {
         const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
         return R.compose(
-          ({blocks}) => of({
+          blocks => of({
             Ok: blocks,
-            Errors: [], // TODO any blocks that don't process
+            Errors: [] // TODO any blocks that don't process
           }),
-          toNamedResponseAndInputs('blocks',
-            ({blocks, nodeIdToWays}) => R.compose(
-              // Once we pick the best version of the block, simply take to values and disgard the hash keys,
-              hashToBestBlock => R.values(hashToBestBlock),
-              blocks => R.reduceBy(
-                // TODO I never get matching blocks? Is _hashBlock direction sensitive or do I not have duplicates
-                (otherBlock, block) => R.unless(() => R.isNil(otherBlock), block => _chooseBlockWithMostAlphabeticalOrdering([otherBlock, block]))(block),
-                null,
-                block => _hashBlock(block),
-                blocks
+          ({blocks, nodeIdToWays, location}) => R.compose(
+            blocks => R.map(
+              block => {
+                const nodesToIntersectingStreets = _intersectionStreetNamesFromWaysAndNodes(
+                  R.prop('ways', block),
+                  R.prop('nodes', block),
+                  nodeIdToWays
+                );
+                return {
+                  // Put the OSM results together
+                  results: R.merge(block, {intersections: nodesToIntersectingStreets}),
+                  // Add the interesections to the location and return it
+                  location: R.merge(
+                    location,
+                    {
+                      intersections: R.values(nodesToIntersectingStreets)
+                    }
+                  )
+                };
+              },
+              blocks
+            ),
+            // Once we pick the best version of the block, simply take to values and disgard the hash keys,
+            hashToBestBlock => R.values(hashToBestBlock),
+            blocks => R.reduceBy(
+              // TODO I never get matching blocks? Is _hashBlock direction sensitive or do I not have duplicates
+              (otherBlock, block) => R.unless(() => R.isNil(otherBlock), block => _chooseBlockWithMostAlphabeticalOrdering([otherBlock, block]))(block),
+              null,
+              block => _hashBlock(block),
+              blocks
+            ),
+            ({blocks, nodeIdToWays}) => R.map(
+              block => R.merge(block, {
+                  intersections: _intersectionStreetNamesFromWaysAndNodes(
+                    R.prop('ways', block),
+                    R.prop('nodes', block),
+                    nodeIdToWays
+                  )
+                }
               ),
-              ({blocks, nodeIdToWays}) => R.map(
-                block => R.merge(block, {
-                    intersections: _intersectionStreetNamesFromWaysAndNodes(
-                      R.prop('ways', block),
-                      R.prop('nodes', block),
-                      nodeIdToWays
-                    )
-                  }
-                ),
-                blocks
-              )
-            )({blocks, nodeIdToWays})
-          ),
+              blocks
+            )
+          )({blocks, nodeIdToWays, location}),
           toNamedResponseAndInputs('blocks',
             // For each block travel along it and accumulate connected ways until we reach a node or dead end
             // If a node is reached trim the last way to end at that node
@@ -260,7 +331,7 @@ const _queryOverpassForAllBlocksResultTask = ({location, way: wayQuery, node: no
               nodeFeatures
             )
           )
-        )({wayFeatures, nodeFeatures});
+        )({wayFeatures, nodeFeatures, location});
       }
     )(res),
     // Query for the ways and nodes in parallel

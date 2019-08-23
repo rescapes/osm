@@ -1,4 +1,4 @@
-import {LA_BOUNDS, LA_SAMPLE} from './queryOverpass.sample';
+import {LA_BOUNDS, LA_SAMPLE} from './samples/queryOverpass.sample';
 import {osmAlways, osmNotEqual} from './overpass';
 import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import {fetchTransitOsm} from './overpassTransit';

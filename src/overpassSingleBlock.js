@@ -61,14 +61,14 @@ const log = loggers.get('rescapeDefault');
  * location are varieties of the original with an osm area id added. Result.Error is only returned
  * if no variation of the location succeeds in returning a result
  */
-export const queryLocationForOsmBlockResultsTask = location => {
+export const queryLocationForOsmSingleBlockResultTask = location => {
   return R.composeK(
     // Task (Result.Ok Object | Result.Error) -> Task Result.Ok Object | Task Result.Error
     locationResult => {
       return resultToTaskWithResult(
         location => mapMDeep(2,
           results => ({location, results}),
-          _locationToOsmSingleBlockQueryResultsTask(location)
+          _locationToOsmSingleBlockQueryResultTask(location)
         ),
         locationResult
       );
@@ -206,7 +206,7 @@ const _queryOverpassBasedLocationPropsForSingleBlockResultTask = locationWithOsm
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
  */
-const _locationToOsmSingleBlockQueryResultsTask = location => {
+const _locationToOsmSingleBlockQueryResultTask = location => {
   const queryOverpassForSingleBlockUntilFoundResultTask = _queryLocationVariationsUntilFoundResultTask(
     _queryOverpassBasedLocationPropsForSingleBlockResultTask
   );

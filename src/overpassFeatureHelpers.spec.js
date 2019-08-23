@@ -81,7 +81,7 @@ describe('overpassFeatureHelpers', () => {
         }
       ];
       const nodeIdToWaysOfNodeFeatures = {
-        "42875319": [
+        "node/42875319": [
           {
             "type": "Feature",
             "id": "way/5707230",
@@ -116,7 +116,7 @@ describe('overpassFeatureHelpers', () => {
             }
           }
         ],
-        "42901997": [
+        "node/42901997": [
           {
             "type": "Feature",
             "id": "way/5707230",
@@ -155,7 +155,7 @@ describe('overpassFeatureHelpers', () => {
       expect(
         _intersectionStreetNamesFromWaysAndNodes(wayFeatures, nodeFeatures, nodeIdToWaysOfNodeFeatures)
       ).toEqual(
-        {"42875319": ["134th Street", "South Conduit Avenue"], "42901997": ["134th Street", "149th Avenue"]}
+        {"node/42875319": ["134th Street", "South Conduit Avenue"], "node/42901997": ["134th Street", "149th Avenue"]}
       );
     }
   );

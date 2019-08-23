@@ -8,7 +8,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import {compactEmpty, mapMDeep, reqStrPathThrowing} from 'rescape-ramda';
+import {compactEmpty, reqStrPathThrowing, strPathOr} from 'rescape-ramda';
 import * as R from 'ramda';
 
 // The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
@@ -249,4 +249,28 @@ export const intersectionsByNodeIdToSortedIntersections = nodesToIntersectingStr
       streetIntersectionSets
     )
   );
+};
+
+
+/**
+ * Resolvable block locations are currently limited to those that have explicit intersections
+ * or node overrides to allow us to find the single block in OpenStreetMap
+ * @param {Object} location Location props
+ * @returns {Boolean} True if resolvable, else false
+ */
+export const isResolvableSingleBlockLocation = location => R.either(
+  location => R.compose(R.equals(2), R.length, R.propOr([], 'intersections'))(location),
+  location => R.compose(R.equals(2), R.length, strPathOr([], 'osmOverrides.nodes'))(location)
+)(location);
+
+/**
+ * Resolvable to all blocks in an OSM area, like a city or neighborhood requires that
+ * at least a country and city be specified
+ * TODO support geojson bounds in the future
+ * @param {Object} location Location props
+ * @returns {Boolean} True if resolvable, else false
+ */
+export const isResolvableAllBlocksLocation = location => {
+  const requiredProps = ['country', 'city'];
+  return R.all(prop => R.prop(prop, location), requiredProps);
 };

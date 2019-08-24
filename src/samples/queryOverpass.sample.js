@@ -52599,3 +52599,5 @@ export const LILLESTROM_PEDESTRIAN_AREA_WAYS_OF_NODE_1287797787 = {
     }
   ]
 };
+
+export const FERNIE_BLOCKS_OF_WAY = {}

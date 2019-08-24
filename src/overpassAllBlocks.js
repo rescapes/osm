@@ -9,6 +9,7 @@ import {
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import {
+  fetchOsmRawTask,
   highwayNodeFilters,
   highwayWayFilters,
   osmIdToAreaId
@@ -359,6 +360,7 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayEndPointToDirectionalWays, node
   const {nodes, ways} = partialBlock;
   // Get the current final way of the partial block
   const currentFinalWay = R.last(ways);
+  //_blockToGeojson({nodes: nodes, ways:[currentFinalWay]})
   // Get the remaining way points, excluding the first point that the node is on
   const remainingWayPoints = R.compose(
     R.tail,
@@ -367,10 +369,10 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayEndPointToDirectionalWays, node
 
   // Get the first node along this final way, excluding the starting point.
   // If the way is a loop with no other nodes, it could be the same node we started with
-  const {firstNodeOfFinalWay, trimmedWay} = R.compose(
+  const {firstFoundNodeOfFinalWay, trimmedWay} = R.compose(
     // Chop the way at the node intersection
     nodeObj => R.ifElse(R.identity, nodeObj => ({
-        firstNodeOfFinalWay: R.prop('node', nodeObj),
+        firstFoundNodeOfFinalWay: R.prop('node', nodeObj),
         // Shorten the way points to the index of the node
         trimmedWay: R.over(
           R.lensPath(['geometry', 'coordinates']),
@@ -387,7 +389,8 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayEndPointToDirectionalWays, node
     nodeObjs => R.head(nodeObjs),
     nodeObjs => R.sortBy(R.prop('index'), nodeObjs),
     nodeObjs => {
-      _blockToGeojson({nodes: R.map(R.prop('node'), nodeObjs), ways});
+      // Debug view of the block's geojson
+      //_blockToGeojson({nodes: R.map(R.prop('node'), nodeObjs), ways});
       return nodeObjs;
     },
     // Filter out non-matching (i.e. the node we started with)
@@ -421,24 +424,31 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayEndPointToDirectionalWays, node
   // ways from the end point
   const waysAtEndOfFinalWay = R.ifElse(R.isNil,
     () => R.compose(
-      // Minus the current final way itself
-      ways => R.reject(R.equals(currentFinalWay), ways),
+      // Minus the current final way itself. Use the id for comparison because we don't want a trimmed
+      // way to evaluate to be not equal to the full version of the same way
+      ways => R.reject(R.eqProps('id', currentFinalWay), ways),
       // Any way touching the end point of the current final way
       endPoint => R.propOr([], endPoint, wayEndPointToDirectionalWays),
       // Get the last point of the current final way
       wayPoints => R.last(wayPoints)
     )(remainingWayPoints),
     () => []
-  )(firstNodeOfFinalWay);
+  )(firstFoundNodeOfFinalWay);
 
+  const lastNodeOfWay = way => {
+    fetchOsmRawTask
+  }
+  lastWayOfNode(R.last(trimmedWays))
   const block = {
-    // Combine nodes (always 1 node) with firstNodeOfFinalWay if it was found
-    nodes: R.concat(nodes, compact([firstNodeOfFinalWay])),
+    // Combine nodes (always 1 node) with firstFoundNodeOfFinalWay if it was found
+    // If no firstFoundNodeOfFinalWay was found, we have a dead end. We need the node
+    // id of the dead end, so query for the nodes of the way and take the one matching the end of the way
+    nodes: R.concat(nodes, compact([firstFoundNodeOfFinalWay])),
     // Combine current ways (with the last current way possibly shortened)
-    // with waysAtEndOfFinalWay if firstNodeOfFinalWay was null and a connect way was found
+    // with waysAtEndOfFinalWay if firstFoundNodeOfFinalWay was null and a connect way was found
     ways: R.concat(trimmedWays, waysAtEndOfFinalWay)
   };
-  _blockToGeojson(block);
+  //_blockToGeojson(block);
   // If the block is complete because there are two blocks now, or failing that we didn't find a joining way,
   // just return the block, otherwise recurse to travel more to
   // reach a node along the new way, reach another way, or reach a dead end

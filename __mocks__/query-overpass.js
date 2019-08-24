@@ -22,7 +22,8 @@ const {
   PARIS_SAMPLE,
   LA_SAMPLE,
   FERNIE_NODES,
-  FERNIE_WAYS
+  FERNIE_WAYS,
+  FERNIE_BLOCKS_OF_WAY
 } = require('../src/samples/queryOverpass.sample');
 const {
   flattenObj

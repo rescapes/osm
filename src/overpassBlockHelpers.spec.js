@@ -9,9 +9,10 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {reqStrPathThrowing} from 'rescape-ramda';
+import {reqStrPathThrowing, defaultRunConfig} from 'rescape-ramda';
 import * as R from 'ramda';
-import {getFeaturesOfBlock} from './overpassBlockHelpers';
+import {getFeaturesOfBlock, nodesByWayIdTask} from './overpassBlockHelpers';
+import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 
 
 describe('overpassBlockHelpers', () => {
@@ -128,4 +129,86 @@ describe('overpassBlockHelpers', () => {
     expect(R.length(reqStrPathThrowing('ways.0.geometry.coordinates', features))).toEqual(2);
   });
 
+  test('nodesOfWaysTask', done => {
+    const errors = [];
+    expect.assertions(1);
+    nodesByWayIdTask(
+      {
+        country: 'Canada',
+        state: 'BC',
+        city: 'Fernie'
+      },
+      {
+        way: {
+          response: {
+            "features": [
+              {
+                "type": "Feature",
+                "properties": {
+                  "@id": "way/498142930",
+                  "highway": "track"
+                },
+                "geometry": {
+                  "type": "LineString",
+                  "coordinates": [
+                    [
+                      -115.0482484,
+                      49.516364
+                    ],
+                    [
+                      -115.0483759,
+                      49.5164119
+                    ],
+                    [
+                      -115.0486471,
+                      49.5163319
+                    ],
+                    [
+                      -115.0491092,
+                      49.5162759
+                    ],
+                    [
+                      -115.0497378,
+                      49.5160359
+                    ],
+                    [
+                      -115.0502923,
+                      49.5158919
+                    ],
+                    [
+                      -115.0505573,
+                      49.5156958
+                    ],
+                    [
+                      -115.0509578,
+                      49.5155118
+                    ],
+                    [
+                      -115.0511181,
+                      49.5153238
+                    ],
+                    [
+                      -115.0518021,
+                      49.5150277
+                    ],
+                    [
+                      -115.0523505,
+                      49.5148477
+                    ]
+                  ]
+                },
+                "id": "way/498142930"
+              }
+            ]
+          }
+        }
+      }).run().listen(defaultRunConfig({
+        onResolved: ({results}) => {
+          // Expect it to be two ways
+          expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/417728789', 'way/417728790']);
+          done();
+        }
+      }, errors, done)
+    );
+  }, 50000);
 });

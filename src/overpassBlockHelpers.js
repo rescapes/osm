@@ -17,7 +17,7 @@ import {
 } from './overpassFeatureHelpers';
 import {of} from 'folktale/concurrency/task';
 import {
-  fetchOsmRawTask, highwayWayFilters,
+  fetchOsmRawTask, highwayNodeFilters, highwayWayFilters,
   osmResultTask
 } from './overpass';
 import {
@@ -69,6 +69,27 @@ const waysOfNodeQuery = nodeId => {
     way(bn.matchingNode)[area != "yes"]${highwayWayFilters};
     )->.matchingWays;
     .matchingWays out geom;
+  `;
+};
+
+/**
+ * Query to get all nodes of the given way, not just intersection nodes
+ * @param wayId
+ * @returns {string}
+ */
+const nodesOfWayQuery = wayId => {
+  const id = R.compose(
+    R.last,
+    R.split('/')
+  )(wayId);
+  return `
+    way(id:${id})[area = "yes"]->.matchingAreaWay;
+    way(id:${id})[area != "yes"]->.matchingWay;
+    // Find nodes within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
+    (node(around.w.matchingAreaWay:10)${highwayNodeFilters};
+    node(w.matchingWay)${highwayNodeFilters};
+    )->.matchingNodes;
+    .matchingNodes out geom;
   `;
 };
 
@@ -213,6 +234,38 @@ export const waysByNodeIdTask = (location, {way, node}) => R.map(
         R.map(reqStrPathThrowing('id')),
         reqStrPathThrowing('response.features')
       )(node)
+    )
+  )
+);
+
+/***
+ * Given way results this finds all nodes of each way. Not just intersections nodes.
+ * @param {Object} location Only used for context for mock tests
+ * @param {Object} queries
+ * @param {Object} queries.way Response contains the ways
+ * @returns {Task<Object>} Object with nodesByWayId, keyed by way and valued by nodes of the way
+ * @sig nodesOfWayTask:: Task <way: <query, response>>>> ->
+ * Task <way: <query, response>, node: <query, response>, nodesByWayId: <node: <query, response>>>> ->
+ */
+export const nodesByWayIdTask = (location, {way}) => R.map(
+  // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
+  objs => ({way, waysByNodeId: R.mergeAll(objs)}),
+  waitAll(
+    R.map(
+      (wayId) => R.map(
+        // Then map the task response to include the query for debugging/error resolution
+        // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
+        response => ({[wayId]: {query: nodesOfWayQuery(wayId), response: response.value}}),
+        // Perform the task
+        osmResultTask({name: 'nodesOfWayQuery', testMockJsonToKey: R.merge({wayId, type: 'nodesOfWay'}, location)},
+          options => fetchOsmRawTask(options, nodesOfWayQuery(wayId))
+        )
+      ),
+      // Extract the id of each node
+      R.compose(
+        R.map(reqStrPathThrowing('id')),
+        reqStrPathThrowing('response.features')
+      )(way)
     )
   )
 );
@@ -384,7 +437,7 @@ export const _blockToGeojson = ({nodes, ways}) => JSON.stringify({
     "generator": "overpass-ide",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
     "timestamp": "",
-    "features": R.concat(nodes, ways)
+    "features": R.concat(nodes || [], ways || [])
   }, null, '\t'
 );
 

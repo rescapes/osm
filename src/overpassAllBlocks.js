@@ -1,10 +1,11 @@
 import {
   reqStrPathThrowing,
-  resultToTaskNeedingResult,
   pickDeepPaths,
   resultToTaskWithResult,
   toNamedResponseAndInputs,
-  compact
+  mapToNamedResponseAndInputs,
+  compact,
+  waitAllBucketed
 } from 'rescape-ramda';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
@@ -18,7 +19,7 @@ import * as Result from 'folktale/result';
 import {
   _blockToGeojson, _buildPartialBlocks, _chooseBlockWithMostAlphabeticalOrdering,
   _hashBlock,
-  _queryLocationVariationsUntilFoundResultTask, _wayEndPointToDirectionalWays
+  _queryLocationVariationsUntilFoundResultTask, _wayEndPointToDirectionalWays, nodesByWayIdTask
 } from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
@@ -189,149 +190,80 @@ const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: n
     res => resultToTaskWithResult(
       ({way, node}) => {
         const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
-        return R.compose(
+        return R.composeK(
           blocks => of({
             Ok: blocks,
             Errors: [] // TODO any blocks that don't process
           }),
-          ({blocks, nodeIdToWays, location}) => R.compose(
-            blocks => R.map(
-              block => {
-                const nodesToIntersectingStreets = _intersectionStreetNamesFromWaysAndNodes(
-                  R.prop('ways', block),
-                  R.prop('nodes', block),
-                  nodeIdToWays
-                );
-                return {
-                  // Put the OSM results together
-                  results: R.merge(block, {intersections: nodesToIntersectingStreets}),
-                  // Add the interesections to the location and return it
-                  location: R.merge(
-                    location,
-                    {
-                      intersections: R.values(nodesToIntersectingStreets)
-                    }
-                  )
-                };
-              },
-              blocks
-            ),
-            // Once we pick the best version of the block, simply take to values and disgard the hash keys,
-            hashToBestBlock => R.values(hashToBestBlock),
-            blocks => R.reduceBy(
+          ({blocks, nodeIdToWays}) => of(R.map(
+            block => {
+              const nodesToIntersectingStreets = _intersectionStreetNamesFromWaysAndNodes(
+                R.prop('ways', block),
+                R.prop('nodes', block),
+                nodeIdToWays
+              );
+              return {
+                // Put the OSM results together
+                results: R.merge(block, {intersections: nodesToIntersectingStreets}),
+                // Add the interesections to the location and return it
+                location: R.merge(
+                  location,
+                  {
+                    intersections: R.values(nodesToIntersectingStreets)
+                  }
+                )
+              };
+            },
+            blocks
+          )),
+          // Once we pick the best version of the block, simply take to values and disgard the hash keys,
+          mapToNamedResponseAndInputs('blocks',
+            ({hashToBestBlock}) => of(R.values(hashToBestBlock))
+          ),
+          mapToNamedResponseAndInputs('hashToBestBlock',
+            ({blocks}) => of(R.reduceBy(
               // TODO I never get matching blocks? Is _hashBlock direction sensitive or do I not have duplicates
               (otherBlock, block) => R.unless(() => R.isNil(otherBlock), block => _chooseBlockWithMostAlphabeticalOrdering([otherBlock, block]))(block),
               null,
               block => _hashBlock(block),
               blocks
-            ),
-            ({blocks, nodeIdToWays}) => R.map(
-              block => R.merge(block, {
-                  intersections: _intersectionStreetNamesFromWaysAndNodes(
-                    R.prop('ways', block),
-                    R.prop('nodes', block),
-                    nodeIdToWays
-                  )
-                }
-              ),
-              blocks
-            )
-          )({blocks, nodeIdToWays, location}),
-          toNamedResponseAndInputs('blocks',
+            ))
+          ),
+          mapToNamedResponseAndInputs('blocks',
+            ({blocks, nodeIdToWays}) => {
+              return of(R.map(
+                // Add intersections to the blocks based on the ways and nodes' properties
+                block => R.merge(block, {
+                    intersections: _intersectionStreetNamesFromWaysAndNodes(
+                      R.prop('ways', block),
+                      R.prop('nodes', block),
+                      nodeIdToWays
+                    )
+                  }
+                ),
+                blocks
+              ));
+            }
+          ),
+          mapToNamedResponseAndInputs('blocks',
             // For each block travel along it and accumulate connected ways until we reach a node or dead end
             // If a node is reached trim the last way to end at that node
             ({wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
-              return R.map(
-                partialBlock => recursivelyBuildBlock(
+              // Block b:: [b] -> Task [b]
+              // Wait in parallel but bucket tasks to prevent stack overflow
+              return waitAllBucketed(R.map(
+                partialBlock => recursivelyBuildBlockTask(
                   {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
                   partialBlock
                 ),
                 partialBlocks
-              );
-            }
-          ),
-          toNamedResponseAndInputs('partialBlocks',
-            ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => _buildPartialBlocks(
-              {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}
-            )
-          ),
-          toNamedResponseAndInputs('wayEndPointToDirectionalWays',
-            ({wayFeatures, wayIdToWayPoints, nodePointToNode}) => _wayEndPointToDirectionalWays({
-              wayFeatures,
-              wayIdToWayPoints,
-              nodePointToNode
-            })
-          ),
-          toNamedResponseAndInputs('nodeIdToWays',
-            // "Invert" wayIdToNodes to create nodeIdToWays
-            ({wayIdToNodes, wayIdToWay}) => R.reduce(
-              (hash, [wayId, nodes]) => {
-                const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
-                return R.reduce(
-                  // Add the wayId to the nodeId key
-                  (hsh, nodeId) => R.over(
-                    // Lens to get the node id in the hash
-                    R.lensProp(nodeId),
-                    // Add the way to the list of the nodeId
-                    wayList => R.concat(wayList || [], [R.prop(wayId, wayIdToWay)]),
-                    hsh
-                  ),
-                  hash,
-                  nodeIds
-                );
-              },
-              {},
-              R.toPairs(wayIdToNodes)
-            )
-          ),
-          toNamedResponseAndInputs('wayIdToWayPoints',
-            // Map the way id to its points
-            ({wayFeatures}) => R.fromPairs(R.map(
-              wayFeature => [
-                R.prop('id', wayFeature),
-                hashWayFeature(wayFeature)
-              ],
-              wayFeatures
-            ))
-          ),
-          toNamedResponseAndInputs('wayIdToNodes',
-            // Hash all way ids by intersection node if any waynode matches or
-            // is an area-way (pedestrian area) within 5m  <-- TODO
-            ({nodePointToNode, wayFeatures}) => {
-              return R.fromPairs(R.map(
-                wayFeature => [R.prop('id', wayFeature), findMatchingNodes(nodePointToNode, wayFeature)],
-                wayFeatures
               ));
             }
           ),
-          toNamedResponseAndInputs('wayIdToWay',
-            // way id to way
-            ({wayFeatures}) => R.indexBy(
-              R.prop('id'),
-              wayFeatures
-            )
-          ),
-          toNamedResponseAndInputs('nodeIdToNodePoint',
-            // Hash intersection nodes by id. These are all intersections
-            ({nodeIdToNode}) => R.map(
-              nodeFeature => hashNodeFeature(nodeFeature),
-              nodeIdToNode
-            )
-          ),
-          toNamedResponseAndInputs('nodePointToNode',
-            // Hash the node points to match ways to them
-            ({nodeFeatures}) => R.indexBy(
-              nodeFeature => hashNodeFeature(nodeFeature),
-              nodeFeatures
-            )
-          ),
-          toNamedResponseAndInputs('nodeIdToNode',
-            // Hash intersection nodes by id. These are all intersections
-            ({nodeFeatures}) => R.indexBy(
-              R.prop('id'),
-              nodeFeatures
-            )
-          )
+          // Creates helpers and partialBlocks, which are blocks with a node and one directional way
+          // from which we'll complete all our blocks
+          // {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks}
+          ({wayFeatures, nodeFeatures, location}) => of(_createPartialBlocks({wayFeatures, nodeFeatures, location}))
         )({wayFeatures, nodeFeatures, location});
       }
     )(res),
@@ -339,6 +271,102 @@ const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: n
     queries => parallelWayNodeQueriesResultTask(location, queries)
   )({way: wayQuery, node: nodeQuery});
 };
+
+/**
+ * Creates a bunch of data structures and ultimately the partialBlocks, which are blocks that
+ * have a node and one way, where all are unique pairs of a node and directional way.
+ * Also returns the data structures for further use
+ * @param {[Object]} wayFeatures All the way features of the sought blocks
+ * @param {[Object]} nodeFeatures All the node features of the sought blocks
+ * @param {Object} location Location defining the bounds of all blocks
+ * @returns {Object} {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks} where
+ * partialBlocks is the main return value and the others are helpers
+ * @private
+ */
+const _createPartialBlocks = ({wayFeatures, nodeFeatures, location}) => R.compose(
+  toNamedResponseAndInputs('partialBlocks',
+    ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => _buildPartialBlocks(
+      {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}
+    )
+  ),
+  toNamedResponseAndInputs('wayEndPointToDirectionalWays',
+    ({wayFeatures, wayIdToWayPoints, nodePointToNode}) => _wayEndPointToDirectionalWays({
+      wayFeatures,
+      wayIdToWayPoints,
+      nodePointToNode
+    })
+  ),
+  toNamedResponseAndInputs('nodeIdToWays',
+    // "Invert" wayIdToNodes to create nodeIdToWays
+    ({wayIdToNodes, wayIdToWay}) => R.reduce(
+      (hash, [wayId, nodes]) => {
+        const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
+        return R.reduce(
+          // Add the wayId to the nodeId key
+          (hsh, nodeId) => R.over(
+            // Lens to get the node id in the hash
+            R.lensProp(nodeId),
+            // Add the way to the list of the nodeId
+            wayList => R.concat(wayList || [], [R.prop(wayId, wayIdToWay)]),
+            hsh
+          ),
+          hash,
+          nodeIds
+        );
+      },
+      {},
+      R.toPairs(wayIdToNodes)
+    )
+  ),
+  toNamedResponseAndInputs('wayIdToWayPoints',
+    // Map the way id to its points
+    ({wayFeatures}) => R.fromPairs(R.map(
+      wayFeature => [
+        R.prop('id', wayFeature),
+        hashWayFeature(wayFeature)
+      ],
+      wayFeatures
+    ))
+  ),
+  toNamedResponseAndInputs('wayIdToNodes',
+    // Hash all way ids by intersection node if any waynode matches or
+    // is an area-way (pedestrian area) within 5m  <-- TODO
+    ({nodePointToNode, wayFeatures}) => {
+      return R.fromPairs(R.map(
+        wayFeature => [R.prop('id', wayFeature), findMatchingNodes(nodePointToNode, wayFeature)],
+        wayFeatures
+      ));
+    }
+  ),
+  toNamedResponseAndInputs('wayIdToWay',
+    // way id to way
+    ({wayFeatures}) => R.indexBy(
+      R.prop('id'),
+      wayFeatures
+    )
+  ),
+  toNamedResponseAndInputs('nodeIdToNodePoint',
+    // Hash intersection nodes by id. These are all intersections
+    ({nodeIdToNode}) => R.map(
+      nodeFeature => hashNodeFeature(nodeFeature),
+      nodeIdToNode
+    )
+  ),
+  toNamedResponseAndInputs('nodePointToNode',
+    // Hash the node points to match ways to them
+    ({nodeFeatures}) => R.indexBy(
+      nodeFeature => hashNodeFeature(nodeFeature),
+      nodeFeatures
+    )
+  ),
+  toNamedResponseAndInputs('nodeIdToNode',
+    // Hash intersection nodes by id. These are all intersections
+    ({nodeFeatures}) => R.indexBy(
+      R.prop('id'),
+      nodeFeatures
+    )
+  )
+)({wayFeatures, nodeFeatures, location});
 
 /**
  * Given a partial block, meaning a block with one node and one or more connected directional ways, recursively
@@ -355,7 +383,7 @@ const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: n
  * two unless the block is a dead end. Ways are 1 or more, depending how many ways are need to connect to the
  * closest node (intersection). Al
  */
-const recursivelyBuildBlock = ({wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint}, partialBlock) => {
+const recursivelyBuildBlockTask = ({wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint}, partialBlock) => {
   // We only have 1 node until we finish, but we could have any number of ways
   const {nodes, ways} = partialBlock;
   // Get the current final way of the partial block
@@ -435,35 +463,88 @@ const recursivelyBuildBlock = ({wayIdToNodes, wayEndPointToDirectionalWays, node
     () => []
   )(firstFoundNodeOfFinalWay);
 
-  const lastNodeOfWay = way => {
-    fetchOsmRawTask
-  }
-  lastWayOfNode(R.last(trimmedWays))
-  const block = {
-    // Combine nodes (always 1 node) with firstFoundNodeOfFinalWay if it was found
-    // If no firstFoundNodeOfFinalWay was found, we have a dead end. We need the node
-    // id of the dead end, so query for the nodes of the way and take the one matching the end of the way
-    nodes: R.concat(nodes, compact([firstFoundNodeOfFinalWay])),
-    // Combine current ways (with the last current way possibly shortened)
-    // with waysAtEndOfFinalWay if firstFoundNodeOfFinalWay was null and a connect way was found
-    ways: R.concat(trimmedWays, waysAtEndOfFinalWay)
-  };
-  //_blockToGeojson(block);
-  // If the block is complete because there are two blocks now, or failing that we didn't find a joining way,
-  // just return the block, otherwise recurse to travel more to
-  // reach a node along the new way, reach another way, or reach a dead end
-  return R.when(
-    block => R.both(
-      // Only 1 node so far
-      block => R.compose(R.equals(1), R.length, R.prop('nodes'))(block),
-      // And we added a new way, so can recurse
-      () => R.compose(R.equals(1), R.length)(waysAtEndOfFinalWay)
-    )(block),
-    block => recursivelyBuildBlock(
-      {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
-      block
+  return R.composeK(
+    node => {
+      const block = ({
+        // Combine nodes (always 1 node) with firstFoundNodeOfFinalWay if it was found
+        // If no firstFoundNodeOfFinalWay was found, we have a dead end. We need the node
+        // id of the dead end, so query for the nodes of the way and take the one matching the end of the way
+        nodes: R.concat(nodes, compact([node])),
+        // Combine current ways (with the last current way possibly shortened)
+        // with waysAtEndOfFinalWay if firstFoundNodeOfFinalWay was null and a connect way was found
+        ways: R.concat(trimmedWays, waysAtEndOfFinalWay)
+      });
+      //_blockToGeojson(block);
+      // If the block is complete because there are two blocks now, or failing that we didn't find a joining way,
+      // just return the block, otherwise recurse to travel more to
+      // reach a node along the new way, reach another way, or reach a dead end
+      return R.ifElse(
+        block => R.both(
+          // If only 1 node so far
+          block => R.compose(R.equals(1), R.length, R.prop('nodes'))(block),
+          // And we added a new way, so can recurse
+          () => R.compose(R.equals(1), R.length)(waysAtEndOfFinalWay)
+        )(block),
+        // If we aren't done recurse
+        block => recursivelyBuildBlockTask(
+          {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
+          block
+        ),
+        // Done
+        block => of(block)
+      )(block);
+    },
+
+    // If we didn't get firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, we have a dead end and need
+    // to query overpass for the node of at the end of the trimmedWays
+    ({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay}) => R.ifElse(
+      ({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay}) => R.and(
+        R.isNil(firstFoundNodeOfFinalWay),
+        R.isEmpty(waysAtEndOfFinalWay)
+      ),
+      // Find the dead-end node
+      () => _deadEndNodeOfWayTask({}, R.last(trimmedWays)),
+      // We have a firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, pass the node (which might be null)
+      () => of(firstFoundNodeOfFinalWay)
+    )({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay})
+  )({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay});
+};
+/**
+ *
+ * Queries for the nodes of the given way and returns the node that matches the last point of the way (for dead ends)
+ * @param {Object} [location] Default {} Only used for context in unit tests to identify matching mock results
+ * @param {Object} way The way to find nodes of
+ * @returns {Object} <way.id: [node]> And object keyed by way id and valued by it's nodes
+ * @private
+ */
+const _deadEndNodeOfWayTask = (location, way) => {
+  // There are too many of these to mock the results in tests
+  const lastPointOfWay = R.last(reqStrPathThrowing('geometry.coordinates', way));
+  return R.map(
+    ({nodesByWayId}) => R.compose(
+      node => _blockToGeojson({nodes: [node]}),
+      ({response}) => R.find(
+        // Find the node matching the last way point
+        node => R.equals(lastPointOfWay, reqStrPathThrowing('geometry.coordinates', node)),
+        reqStrPathThrowing('features', response)
+      ),
+      // Only one way response
+      // <wayId: <response, query>> -> <response, query>
+      R.head,
+      // Remove way ids keys
+      R.values
+    )(nodesByWayId),
+    nodesByWayIdTask(
+      location || {},
+      {
+        way: {
+          response: {
+            features: [way]
+          }
+        }
+      }
     )
-  )(block);
+  );
 };
 
 /**
@@ -558,4 +639,8 @@ const _createQueryOutput = type => {
       throw Error('type argument must specified and be "way" or "node"');
     }]
   ])(type);
+};
+
+const _pooky = (f, l) => {
+  return R.map(f, l);
 };

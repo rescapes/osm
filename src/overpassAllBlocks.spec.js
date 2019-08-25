@@ -16,6 +16,8 @@ import {_blocksToGeojson} from './overpassBlockHelpers';
 
 
 describe('overpassBlocksRegion', () => {
+  // This mocks the overall response but has to go to the server to get node dead end queries.
+  // There are too many of the latter to bother mocking and they run fast on the server
   test('locationToOsmAllBlocksQueryResultsTask', done => {
     expect.assertions(1);
     const errors = [];
@@ -34,7 +36,7 @@ describe('overpassBlocksRegion', () => {
       }, errors, done)
     );
 
-  }, 100000);
+  }, 1000000);
 
   test('queryLocationForOsmBlockOrAllResultsTask', done => {
     expect.assertions(4);

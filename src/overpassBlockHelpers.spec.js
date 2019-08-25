@@ -12,7 +12,6 @@
 import {reqStrPathThrowing, defaultRunConfig} from 'rescape-ramda';
 import * as R from 'ramda';
 import {getFeaturesOfBlock, nodesByWayIdTask} from './overpassBlockHelpers';
-import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 
 
 describe('overpassBlockHelpers', () => {
@@ -203,9 +202,16 @@ describe('overpassBlockHelpers', () => {
           }
         }
       }).run().listen(defaultRunConfig({
-        onResolved: ({results}) => {
+        onResolved: result => {
           // Expect it to be two ways
-          expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/417728789', 'way/417728790']);
+          expect(
+            reqStrPathThrowing('nodesByWayId', result)
+          ).toEqual({
+            "way/498142930": {
+            "query": "\n    way(id:498142930)[area = \"yes\"]->.matchingAreaWay;\n    way(id:498142930)[area != \"yes\"]->.matchingWay;\n    // Find nodes within 10 meters of the node for ways with area==\"yes\" and ways containing the node otherwise\n    (node(around.w.matchingAreaWay:10)[\"traffic_signals\" != \"signal\"];\n    node(w.matchingWay)[\"traffic_signals\" != \"signal\"];\n    )->.matchingNodes;\n    .matchingNodes out geom;\n  ",
+              "response": {}
+            }
+          });
           done();
         }
       }, errors, done)

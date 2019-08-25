@@ -9,6 +9,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+const _unmocked = require('query-overpass')
 const {
   LILLESTROM_PEDESTRIAN_AREA_NODES,
   LILLESTROM_PEDESTRIAN_AREA_WAYS,
@@ -23,7 +24,6 @@ const {
   LA_SAMPLE,
   FERNIE_NODES,
   FERNIE_WAYS,
-  FERNIE_BLOCKS_OF_WAY
 } = require('../src/samples/queryOverpass.sample');
 const {
   flattenObj
@@ -131,7 +131,7 @@ const responses = R.map(
     [{
       "nodeId": "node/1287797787",
       "type": "waysOfNode"
-    }, LILLESTROM_PEDESTRIAN_AREA_WAYS_OF_NODE_1287797787]
+    }, LILLESTROM_PEDESTRIAN_AREA_WAYS_OF_NODE_1287797787],
   ]
 );
 
@@ -167,6 +167,10 @@ const getResponse = (mockRequestContext) => {
  * @return {Promise}
  */
 module.exports = (query, cb, options) => {
+  // We can't mock nodesOfWay queries, there are too many
+  if (R.propEq('type', 'nodesOfWay', options.testMockJsonToKey)) {
+    return _unmocked(query, cb, options);
+  }
   const response = getResponse(options.testMockJsonToKey);
   process.nextTick(
     () => response ?

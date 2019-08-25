@@ -212,7 +212,7 @@ export const parallelWayNodeQueriesResultTask = (location, queries) => R.compose
  * @param {Object} queries.node.response Response containing the nodes
  * @returns {Task<Object>} Object keyed by way, node, and waysByNodeId. waysByNodeId is and object keyed
  * by nodeId and valued by a query and response
- * @sig waysOfNodeTask:: Task <way: <query, response>, node: <query, response>>> ->
+ * @sig waysByNodeIdTask:: Task <way: <query, response>, node: <query, response>>> ->
  * Task <way: <query, response>, node: <query, response>, waysByNodeId: <node: <query, response>>>> ->
  */
 export const waysByNodeIdTask = (location, {way, node}) => R.map(
@@ -249,7 +249,7 @@ export const waysByNodeIdTask = (location, {way, node}) => R.map(
  */
 export const nodesByWayIdTask = (location, {way}) => R.map(
   // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
-  objs => ({way, waysByNodeId: R.mergeAll(objs)}),
+  objs => ({way, nodesByWayId: R.mergeAll(objs)}),
   waitAll(
     R.map(
       (wayId) => R.map(

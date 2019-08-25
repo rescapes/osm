@@ -101,16 +101,6 @@ describe('LocationSelector', () => {
         "country": "Canada",
         "state": "BC",
         "city": "Fernie",
-        "intersections": [
-          [
-            "way/498142936",
-            "way/498142939"
-          ],
-          [
-            "way/498142936",
-            "way/498142939"
-          ]
-        ],
         "geojson": {
           "features": [
             {
@@ -126,25 +116,22 @@ describe('LocationSelector', () => {
               "id": "way/498142936",
               "properties": {
                 "type": "way",
-                "id": 498142936
+                "id": 498142936,
+                "tags": {
+                  "name": "Purpose St"
+                }
               }
             }
           ]
         }
       },
       {
-        "node/4896277399": [
-          "way/498142936",
-          "way/498142939"
-        ],
-        "node/4896277397": [
-          "way/498142936",
-          "way/498142939"
-        ]
+        ['node/4896277399']: ['CantEscape Corral', 'Purpose St', 'Quagmire Ct'],
+        ['node/4896277397']: ['Ataboy Alley', 'Purpose St', 'Quagmire Ct', 'Zebra Steps']
       }
     )).toEqual([
-        ['way/498142936', 'way/498142939'],
-        ['way/498142936', 'way/498142939']
+        ['Purpose St', 'Ataboy Alley', 'Quagmire Ct', 'Zebra Steps'],
+        ['Purpose St', 'CantEscape Corral', 'Quagmire Ct']
       ]
     );
   });

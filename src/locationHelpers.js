@@ -228,7 +228,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
     );
     // Use the name of the way or failing that the id
     // This will probably always match one the names in each intersection, unless the way is super weird
-    common = strPathOr(wayFeature.id, 'properties.tags.name', wayFeature)
+    common = [strPathOr(wayFeature.id, 'properties.tags.name', wayFeature)]
   }
   const ascends = R.compose(
     // Map that something to R.ascend for each index of the intersections
@@ -245,7 +245,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
     // First sort by the common street
     R.ascend(
       R.ifElse(
-        R.equals(R.head(common)),
+        s => R.equals(R.head(common), s),
         R.always(0),
         R.always(1)
       )

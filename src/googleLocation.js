@@ -160,7 +160,7 @@ export const geocodeAddressTask = R.curry((location, address) => {
       err => {
         // Handle error
         // Error to give up
-        log.warn(`Failed to geocode ${R.propOr('(no id given)', 'id', location)}, ${address}. Error ${err.json.error_message}`);
+        log.warn(`Failed to geocode ${R.propOr('(no id given)', 'id', location)}, ${address}. Error ${strPathOr('Unknown', 'json.error_message', err)}`);
         resolver.resolve(Result.Error({error: err.json.error_message, response: err}));
       }
     );

@@ -22,7 +22,12 @@ const GOOGLE_STREET_REPLACEMENTS = [
   R.replace(/North/g, 'N'),
   R.replace(/South/g, 'S'),
   R.replace(/East/g, 'E'),
-  R.replace(/West/g, 'W')
+  R.replace(/West/g, 'W'),
+  // OpenStreetMap uses full names, Google likes abbreviations
+  R.replace(/ Road/g, 'Rd'),
+  R.replace(/ Street/g, 'St'),
+  R.replace(/ Avenue/g, 'Ave'),
+  R.replace(/ Lane/g, 'Ln')
 ];
 
 const latLngRegExp = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
@@ -201,21 +206,29 @@ export const addressPair = location => {
  * Then sorts the intersections alphabetically based on the second street. If no second street exists
  * because the intersection is a dead end, then it gets lower priority
  * first by the first street of the intersection, then by the second if the first are the same, then by the third, etc
- * @param {Object} intersectionsByNodeId Keyed by node id and valued by an array of 2 or more street names
+ * @param {Object} location location.geojson.features are used to help pick the main street
+ * @param {Object} nodesToIntersectingStreets Keyed by node id and valued by an array of 2 or more street names
  * @returns {[[String]]} Sort lists of the intersections without the node ids
  * @private
  */
-export const intersectionsByNodeIdToSortedIntersections = nodesToIntersectingStreets => {
+export const intersectionsByNodeIdToSortedIntersections = (location, nodesToIntersectingStreets) => {
   const streetIntersectionSets = R.values(nodesToIntersectingStreets);
-  // Extract the common street from the set. There must be exactly one or we err
-  const common = R.reduce(
+  // Extract the common street from the set. There must be exactly one or we rr
+  let common = R.reduce(
     (intersecting, b) => R.intersection(intersecting, b),
     // Start with all eligible
     R.compose(R.uniq, R.flatten)(streetIntersectionSets),
     streetIntersectionSets
   );
   if (R.compose(R.not, R.equals(1), R.length)(common)) {
-    throw new Error(`Expected a common street but got ${JSON.stringify(streetIntersectionSets)}`);
+    // If there's a question about who's the main block, consult location
+    const wayFeature = R.find(
+      feature => R.contains('way', R.prop('id', feature)),
+      reqStrPathThrowing('geojson.features', location)
+    );
+    // Use the name of the way or failing that the id
+    // This will probably always match one the names in each intersection, unless the way is super weird
+    common = strPathOr(wayFeature.id, 'properties.name', wayFeature)
   }
   const ascends = R.compose(
     // Map that something to R.ascend for each index of the intersections

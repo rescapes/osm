@@ -135,4 +135,59 @@ describe('LocationSelector', () => {
       ]
     );
   });
+  test('intersectionsByNodeForWayWithDeadEnd', () => {
+    const location = {
+      "country": "Canada",
+      "state": "BC",
+      "city": "Fernie",
+      "intersections": [
+        [
+          "Cokato Road",
+          "Earle Road"
+        ]
+      ],
+      "geojson": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "node/1859551276",
+            "properties": {
+              "type": "node",
+              "id": 1859551276
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "node/4505199830",
+            "properties": {
+              "type": "node",
+              "id": 4505199830
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/486651906",
+            "properties": {
+              "type": "way",
+              "id": 486651906,
+              "tags": {
+                "name": "Cokato Road"
+              }
+            }
+          }
+        ]
+      }
+    };
+    const nodesToIntersectingStreets = {
+      "node/1859551276": [
+        "Cokato Road",
+        "Earle Road"
+      ]
+    };
+    expect(intersectionsByNodeIdToSortedIntersections(location, nodesToIntersectingStreets)).toEqual([
+      ["Cokato Road", "Earle Road"],
+      ["Cokato Road", "node/4505199830"],
+    ])
+  });
 });

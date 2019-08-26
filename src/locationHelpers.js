@@ -202,24 +202,26 @@ export const addressPair = location => {
 
 
 /**
- * Finds the common street of the intersections.
- * Then sorts the intersections alphabetically based on the second street. If no second street exists
- * because the intersection is a dead end, then it gets lower priority
- * first by the first street of the intersection, then by the second if the first are the same, then by the third, etc
+ * Finds the common street of the intersections then sorts the intersections alphabetically based on the second street.
+ * The streets at each intersection are listed alphabetically following the street that represents the block.
+ * If a node represents a dead-end rather than an intersection then the one intersection is returned along
+ * with a pseudo intersection that is the block name and the dead-end node id.
  * @param {Object} location location.geojson.features are used to help pick the main street
  * @param {Object} nodesToIntersectingStreets Keyed by node id and valued by an array of 2 or more street names
- * @returns {[[String]]} Sort lists of the intersections without the node ids
+ * @returns {[[String]]} Two intersections (where one might be a pseudo dead-end intersection). Each has a list
+ * of two or more street names. The block name is always first followed by the others alphabetically
  * @private
  */
 export const intersectionsByNodeIdToSortedIntersections = (location, nodesToIntersectingStreets) => {
-  const streetIntersectionSets = R.values(nodesToIntersectingStreets);
+  let streetIntersectionSets = R.values(nodesToIntersectingStreets);
   // Extract the common street from the set. There must be exactly one or we rr
-  let common = R.reduce(
+  const common = R.reduce(
     (intersecting, b) => R.intersection(intersecting, b),
     // Start with all eligible
     R.compose(R.uniq, R.flatten)(streetIntersectionSets),
     streetIntersectionSets
   );
+  let blockname = null;
   if (R.compose(R.not, R.equals(1), R.length)(common)) {
     // If there's a question about who's the main block, consult location
     const wayFeature = R.find(
@@ -228,8 +230,35 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
     );
     // Use the name of the way or failing that the id
     // This will probably always match one the names in each intersection, unless the way is super weird
-    common = [strPathOr(wayFeature.id, 'properties.tags.name', wayFeature)]
+    blockname = strPathOr(wayFeature.id, 'properties.tags.name', wayFeature);
+  } else {
+    blockname = R.head(common);
   }
+
+  // If we only have one node in streetIntersectionSets then we need to add the dead-end
+  streetIntersectionSets = R.when(
+    R.compose(R.equals(1), R.length),
+    streetIntersectionSets => R.append(
+      // Find the location geojson feature node that doesn't occur in nodesToIntersectingStreets.
+      // This must be our dead-end node. Grab it's id and use that as it's street name
+      [
+        blockname,
+        // dead-end node id
+        R.find(
+          featureId => R.both(
+            R.contains('node'),
+            // node id doesn't equal the real intersection's node
+            R.complement(R.equals)(
+              R.compose(R.head, R.keys)(nodesToIntersectingStreets)
+            )
+          )(featureId),
+          R.map(R.prop('id'), location.geojson.features)
+        )
+      ],
+      streetIntersectionSets
+    )
+  )(streetIntersectionSets);
+
   const ascends = R.compose(
     // Map that something to R.ascend for each index of the intersections
     times => R.addIndex(R.map)((_, i) => R.ascend(R.view(R.lensIndex(i))), times),
@@ -241,11 +270,11 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
     R.map(R.length)
   )(streetIntersectionSets);
 
-  const commonThenAlphabetical = [
+  const blocknameThenAlphabetical = [
     // First sort by the common street
     R.ascend(
       R.ifElse(
-        s => R.equals(R.head(common), s),
+        s => R.equals(blockname, s),
         R.always(0),
         R.always(1)
       )
@@ -254,11 +283,11 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
     R.ascend(R.identity)
   ];
   return R.sortWith(
-    // Sort the sets by which has the most alphabetical non-common street(s)
+    // Sort the sets by which has the most alphabetical non-blockname street(s)
     ascends,
     R.map(
-      // Sort each set placing the common street first followed by alphabetical
-      R.sortWith(commonThenAlphabetical),
+      // Sort each set placing the blockname first followed by alphabetical
+      R.sortWith(blocknameThenAlphabetical),
       streetIntersectionSets
     )
   );

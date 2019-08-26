@@ -397,58 +397,15 @@ const recursivelyBuildBlockTask = ({wayIdToNodes, wayEndPointToDirectionalWays, 
 
   // Get the first node along this final way, excluding the starting point.
   // If the way is a loop with no other nodes, it could be the same node we started with
-  const {firstFoundNodeOfFinalWay, trimmedWay} = R.compose(
-    // Chop the way at the node intersection
-    nodeObj => R.ifElse(R.identity, nodeObj => ({
-        firstFoundNodeOfFinalWay: R.prop('node', nodeObj),
-        // Shorten the way points to the index of the node
-        trimmedWay: R.over(
-          R.lensPath(['geometry', 'coordinates']),
-          // Slice the coordinates to the found node index
-          // (+2 because the index is based on remainingWayPoints and we want to be inclusive)
-          coordinates => R.slice(0, R.prop('index', nodeObj) + 2, coordinates),
-          currentFinalWay
-        )
-      }),
-      // Null case
-      () => ({})
-    )(nodeObj),
-    // Take the closest node
-    nodeObjs => R.head(nodeObjs),
-    nodeObjs => R.sortBy(R.prop('index'), nodeObjs),
-    nodeObjs => {
-      // Debug view of the block's geojson
-      //_blockToGeojson({nodes: R.map(R.prop('node'), nodeObjs), ways});
-      return nodeObjs;
-    },
-    // Filter out non-matching (i.e. the node we started with)
-    nodeObjs => R.reject(R.compose(R.equals(-1), R.prop('index')))(nodeObjs),
-    // Sort the nodes find the closest one, meaning the one that intersects first with the
-    // remaining way points. Again, if the way points form an uninterrupted loop, then our same
-    // node will match with the last point of remainingWayPoints
-    nodes => R.map(
-      node => ({
-        node, index: R.compose(
-          nodePoint => R.indexOf(nodePoint, remainingWayPoints),
-          nodeId => R.prop(nodeId, nodeIdToNodePoint),
-          node => R.prop('id', node)
-        )(node)
-      }),
-      nodes
-    ),
-    // Get the nodes of the way
-    currentFinalWayId => reqStrPathThrowing(
-      currentFinalWayId,
-      wayIdToNodes
-    ),
-    currentFinalWay => R.prop('id', currentFinalWay)
-  )(currentFinalWay);
-  // Replaced the last way of ways with the trimmedWay
-  const trimmedWays = R.concat(R.init(ways), [trimmedWay || R.last(ways)]);
+  const {firstFoundNodeOfFinalWay, trimmedWay} = _findFirstNodeOfWayAndTrimWay(
+    {wayIdToNodes, nodeIdToNodePoint},
+    currentFinalWay,
+    remainingWayPoints
+  );
 
   // If no node was found, look for the ways at the of the currentFinalWay
   // There might be a way or we might be at a dead end where there is no connecting way
-  // The found ways points will flow in the right direction since wayEndPointToDirectionalWays directs
+  // The found ways points will flow in the correct direction since wayEndPointToDirectionalWays directs
   // ways from the end point
   const waysAtEndOfFinalWay = R.ifElse(R.isNil,
     () => R.compose(
@@ -463,6 +420,104 @@ const recursivelyBuildBlockTask = ({wayIdToNodes, wayEndPointToDirectionalWays, 
     () => []
   )(firstFoundNodeOfFinalWay);
 
+  // Replaced the last way of ways with the trimmedWay if it was found
+  const trimmedWays = R.concat(R.init(ways), [trimmedWay || R.last(ways)]);
+  // Create a task to add the found node to the first node to complete the block and set the trimmed ways,
+  // Alternatively if we got to a new way then we have to recurse and traverse that way until we find a node
+  // or another way
+  // Or if we have a dead end we need to query Overpass to get the dead end node. That's why this is a task
+  // TODO instead of querying for the dead end node here, we could query for all dead end nodes right after we query Overpass,
+  return _addIntersectionNodeOrDeadEndNodeTask(
+    {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
+    nodes, trimmedWays, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay
+  );
+};
+
+/**
+ * Searches the given currentFinalWay and it's remainingWayPoints to find the first intersection node along it.
+ * Returns {firstFoundNodeOfFinalWay, trimmedWay}, the node and the way trimmed to that node
+ * If it doesn't find a node because we are at dead end then both values are returned as null.
+ * @param {Object} context
+ * @param {Object} context.wayIdToNodes Lookup of way id to its nodes
+ * @param {Object} context.nodeIdToNodePoint Lookup of node it to its point
+ * @param {Object} currentFinalWay The way being searched
+ * @param {[Object]} remainingWayPoints The remaining points of the currentFinalWay or all the points if the
+ * way hasn't been reduced by previous traversal
+ * @private
+ */
+const _findFirstNodeOfWayAndTrimWay = ({wayIdToNodes, nodeIdToNodePoint}, currentFinalWay, remainingWayPoints) => R.compose(
+  // Chop the way at the node intersection
+  nodeObj => R.ifElse(R.identity, nodeObj => ({
+      firstFoundNodeOfFinalWay: R.prop('node', nodeObj),
+      // Shorten the way points to the index of the node
+      trimmedWay: R.over(
+        R.lensPath(['geometry', 'coordinates']),
+        // Slice the coordinates to the found node index
+        // (+2 because the index is based on remainingWayPoints and we want to be inclusive)
+        coordinates => R.slice(0, R.prop('index', nodeObj) + 2, coordinates),
+        currentFinalWay
+      )
+    }),
+    // Null case
+    () => ({})
+  )(nodeObj),
+  // Take the closest node
+  nodeObjs => R.head(nodeObjs),
+  nodeObjs => R.sortBy(R.prop('index'), nodeObjs),
+  nodeObjs => {
+    // Debug view of the block's geojson
+    //_blockToGeojson({nodes: R.map(R.prop('node'), nodeObjs), ways});
+    return nodeObjs;
+  },
+  // Filter out non-matching (i.e. the node we started with)
+  nodeObjs => R.reject(R.compose(R.equals(-1), R.prop('index')))(nodeObjs),
+  // Sort the nodes find the closest one, meaning the one that intersects first with the
+  // remaining way points. Again, if the way points form an uninterrupted loop, then our same
+  // node will match with the last point of remainingWayPoints
+  nodes => R.map(
+    node => ({
+      node, index: R.compose(
+        nodePoint => R.indexOf(nodePoint, remainingWayPoints),
+        nodeId => R.prop(nodeId, nodeIdToNodePoint),
+        node => R.prop('id', node)
+      )(node)
+    }),
+    nodes
+  ),
+  // Get the nodes of the way
+  currentFinalWayId => reqStrPathThrowing(
+    currentFinalWayId,
+    wayIdToNodes
+  ),
+  currentFinalWay => R.prop('id', currentFinalWay)
+)(currentFinalWay);
+
+/**
+ *
+ * Create a task to add the found node to the first node to complete the block and set the trimmed ways,
+ * Alternatively if we got to a new way then we have to recurse and traverse that way until we find a node
+ * or another way
+ * Or if we have a dead end we need to query Overpass to get the dead end node. That's why this is a task
+ * TODO instead of querying for the dead end node here, we could query for all dead end nodes right after we query Overpass,
+ * @param context
+ * @param context.wayIdToNodes
+ * @param context.wayEndPointToDirectionalWays
+ * @param context.nodeIdToNodePoint
+ * @param {[Object]} trimmedWays, trimmed ways forming the block thus far
+ * @param {[Object]} nodes, always one--the first node of the block
+ * @param {Object} firstFoundNodeOfFinalWay If non-null, the intersection node that has been found to complete the block
+ * @param {Object} waysAtEndOfFinalWay If the way ends without an intersection and another way begins, this is the way
+ * and we must recurse. Otherwise this is null
+ * @returns {Object} nodes with two nodes: nodes + firstFoundNodeOfFinalWay or a dead-end node
+ * from Overpass or the result of recursing on waysAtEndOfFinalWay. ways are allways built up to form the complete block, trimmed
+ * to fit the two nodes
+ * @private
+ */
+const _addIntersectionNodeOrDeadEndNodeTask = (
+  {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
+  nodes, trimmedWays, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay
+) => {
+
   return R.composeK(
     node => {
       const block = ({
@@ -474,7 +529,7 @@ const recursivelyBuildBlockTask = ({wayIdToNodes, wayEndPointToDirectionalWays, 
         // with waysAtEndOfFinalWay if firstFoundNodeOfFinalWay was null and a connect way was found
         ways: R.concat(trimmedWays, waysAtEndOfFinalWay)
       });
-      //_blockToGeojson(block);
+      _blockToGeojson(block);
       // If the block is complete because there are two blocks now, or failing that we didn't find a joining way,
       // just return the block, otherwise recurse to travel more to
       // reach a node along the new way, reach another way, or reach a dead end
@@ -503,12 +558,13 @@ const recursivelyBuildBlockTask = ({wayIdToNodes, wayEndPointToDirectionalWays, 
         R.isEmpty(waysAtEndOfFinalWay)
       ),
       // Find the dead-end node
-      () => _deadEndNodeOfWayTask({}, R.last(trimmedWays)),
+      () => _deadEndNodeOfWayTask({}, R.last(trimmedWays)).map(x => x),
       // We have a firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, pass the node (which might be null)
-      () => of(firstFoundNodeOfFinalWay)
+      () => of(firstFoundNodeOfFinalWay).map(x => x)
     )({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay})
   )({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay});
 };
+
 /**
  *
  * Queries for the nodes of the given way and returns the node that matches the last point of the way (for dead ends)
@@ -522,7 +578,6 @@ const _deadEndNodeOfWayTask = (location, way) => {
   const lastPointOfWay = R.last(reqStrPathThrowing('geometry.coordinates', way));
   return R.map(
     ({nodesByWayId}) => R.compose(
-      node => _blockToGeojson({nodes: [node]}),
       ({response}) => R.find(
         // Find the node matching the last way point
         node => R.equals(lastPointOfWay, reqStrPathThrowing('geometry.coordinates', node)),

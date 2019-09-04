@@ -12,7 +12,7 @@
 import xhr from 'xhr';
 import {task, waitAll, of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
-import {compactEmpty, promiseToTask, compact, traverseReduceDeepResults} from 'rescape-ramda';
+import {compactEmpty, promiseToTask, traverseReduceDeepResults} from 'rescape-ramda';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';

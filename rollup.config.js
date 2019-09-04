@@ -67,6 +67,7 @@ const configs = R.map(c => {
     ])
   },
 
+  /*
   // ES for Browsers
   {
     output: {
@@ -97,5 +98,6 @@ const configs = R.map(c => {
       })
     ])
   }
+   */
 ]);
 export default configs

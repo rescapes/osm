@@ -75,5 +75,25 @@ describe('overpassBlocksRegion', () => {
     );
 
   }, 100000);
+
+  test('smallLocationToOsmAllBlocksQueryResultsTask', done => {
+    expect.assertions(1);
+    const errors = [];
+    const location = {
+      country: 'USA',
+      state: 'IA',
+      city: 'Riverdale'
+    };
+    locationToOsmAllBlocksQueryResultsTask(location).run().listen(defaultRunConfig(
+      {
+        onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
+          // Paste the results of this into a geojson viewer for debugging
+          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          expect(R.length(locationsAndOsmResults)).toEqual(2029);
+        }
+      }, errors, done)
+    );
+
+  }, 1000000)
 });
 

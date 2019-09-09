@@ -1,7 +1,14 @@
 import * as R from 'ramda';
 import {
-  resolveGeoLocationTask, resolveGeojsonTask, addressPair, intersectionsFromLocation,
-  locationWithIntersections, addressStrings, sortedIntersections, intersectionsByNodeIdToSortedIntersections
+  resolveGeoLocationTask,
+  resolveGeojsonTask,
+  addressPair,
+  intersectionsFromLocation,
+  locationWithIntersections,
+  addressStrings,
+  sortedIntersections,
+  intersectionsByNodeIdToSortedIntersections,
+  fixWordsThatTripUpGoogle
 } from './locationHelpers';
 
 describe('LocationSelector', () => {
@@ -26,8 +33,8 @@ describe('LocationSelector', () => {
         ]
       })
     )).toEqual([
-      "Main St and First St, Anytown, Anystate, USA",
-      "Main St and Second St, Anytown, Anystate, USA"
+      "Main St & First St, Anytown, Anystate, USA",
+      "Main St & Second St, Anytown, Anystate, USA"
     ]);
   });
 
@@ -44,7 +51,7 @@ describe('LocationSelector', () => {
       })
     )).toEqual([
       "54,-120",
-      "Main St and Second St, Anytown, Anystate, USA"
+      "Main St & Second St, Anytown, Anystate, USA"
     ]);
   });
 
@@ -55,8 +62,8 @@ describe('LocationSelector', () => {
       city: 'Washington',
       intersections: [['Monroe St', '13th NE'], ['Political St', 'Correctness St']]
     })).toEqual(
-      ['Monroe St and 13th NE, Washington, DC, USA',
-        'Political St and Correctness St, Washington, DC, USA']
+      ['Monroe St & 13th NE, Washington, DC, USA',
+        'Political St & Correctness St, Washington, DC, USA']
     )
   );
 
@@ -190,4 +197,8 @@ describe('LocationSelector', () => {
       ["Cokato Road", "node/4505199830"],
     ])
   });
+
+  test('fixWordsThatTripUpGoogle', () =>
+    expect(fixWordsThatTripUpGoogle('Pokstein Street')).toEqual('Pokstein St')
+  )
 });

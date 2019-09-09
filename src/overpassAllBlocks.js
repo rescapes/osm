@@ -45,13 +45,15 @@ import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 
 /**
  * Queries locationToOsmAllBlocksQueryResultsTask or queryLocationForOsmSingleBlockResultTask
+ * @param {Object} osmConfig
+ * @param {Object} osmConfig.forceOsmQuery
  * @param {Object} location A location that must be resolvable to a block or city/neighborhood area
  * @returns {Task<{Ok: Result.Ok, Error: Result.Error}>} Successful values in the Ok: [] array and errors in the Error: [] array.
  * Single block query will only have one result. The result value is {location, results} where location
  * is the location block object (either from the single block query or each block of multiple results) and
  * results are the OSM results {way: way features, node: node features, intersections: {keyed by node id valued by street names of the intersection}}
  */
-export const queryLocationForOsmBlockOrAllResultsTask = location => {
+export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) => {
   return R.cond([
     [
       location => isResolvableSingleBlockLocation(location),
@@ -64,7 +66,7 @@ export const queryLocationForOsmBlockOrAllResultsTask = location => {
               Error: ({value}) => ({Error: [value]})
             });
           },
-          queryLocationForOsmSingleBlockResultTask(location)
+          queryLocationForOsmSingleBlockResultTask(osmConfig, location)
         );
       }
     ],
@@ -223,7 +225,25 @@ const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: n
           mapToNamedResponseAndInputs('hashToBestBlock',
             ({blocks}) => of(R.reduceBy(
               // TODO I never get matching blocks? Is _hashBlock direction sensitive or do I not have duplicates
-              (otherBlock, block) => R.unless(() => R.isNil(otherBlock), block => _chooseBlockWithMostAlphabeticalOrdering([otherBlock, block]))(block),
+              (otherBlock, block) => {
+                if (otherBlock && R.complement(R.equals)(
+                  ...R.map(
+                    b => R.compose(R.sort(R.identity), R.map(R.prop('id')), R.prop('ways'))(b),
+                    [otherBlock, block]
+                  )
+                )) {
+                  // If way ids aren't the same but the nodes hash the same,
+                  // we have a case where the end of a way overlapped the other,
+                  // creating a short segment with matching node points, just take the first one. This is an OSM
+                  // data upload error and probably a useless pseudo-block that we'll throw away
+                  return otherBlock;
+                } else {
+                  return R.unless(
+                    () => R.isNil(otherBlock),
+                    block => _chooseBlockWithMostAlphabeticalOrdering([otherBlock, block])
+                  )(block);
+                }
+              },
               null,
               block => _hashBlock(block),
               blocks

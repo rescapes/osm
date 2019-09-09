@@ -248,9 +248,9 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
         error => R.join('\n', [
           error,
           `For location ${JSON.stringify(R.pick(['country', 'state', 'city', 'neighborhood'], locationWithOneIntersectionPair))} Failed to resolve the intersection after trying both orderings ${
-            R.join(' and ', reqStrPathThrowing('intersections.0', locationWithOneIntersectionPair))
+            R.join(' & ', reqStrPathThrowing('intersections.0', locationWithOneIntersectionPair))
             } and ${
-            R.join(' and ', R.reverse(reqStrPathThrowing('intersections.0', locationWithOneIntersectionPair)))
+            R.join(' &', R.reverse(reqStrPathThrowing('intersections.0', locationWithOneIntersectionPair)))
             }`,
           `To resolve, set the intersection lat/lons manually for location ${locationWithOneIntersectionPair.id}`
         ]),

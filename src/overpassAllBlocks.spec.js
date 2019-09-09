@@ -52,8 +52,9 @@ describe('overpassBlocksRegion', () => {
       state: 'BC',
       city: 'Fernie'
     };
+    const osmConfig = {};
     // Detects an area
-    queryLocationForOsmBlockOrAllResultsTask(location).run().listen(defaultRunConfig(
+    queryLocationForOsmBlockOrAllResultsTask(osmConfig, location).run().listen(defaultRunConfig(
       {
         onResolved: ({Ok: blocks, Errors: errors}) => {
           expect(R.length(blocks)).toEqual(2029);
@@ -62,12 +63,13 @@ describe('overpassBlocksRegion', () => {
     );
     // Detects a block
     queryLocationForOsmBlockOrAllResultsTask(
+      osmConfig,
       {intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']}
     ).run().listen(defaultRunConfig(
       {
         onResolved: ({Ok: blocks, Errors: errors}) => {
           // Expect it to be two ways
-          expect(R.length(blocks)).toEqual(1)
+          expect(R.length(blocks)).toEqual(1);
           expect(R.map(R.prop('id'), reqStrPathThrowing('0.results.ways', blocks))).toEqual(['way/5707230']);
           expect(R.map(R.prop('id'), reqStrPathThrowing('0.results.nodes', blocks))).toEqual(['node/42875319', 'node/42901997']);
         }
@@ -89,11 +91,11 @@ describe('overpassBlocksRegion', () => {
         onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
           _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(2029);
+          expect(R.length(locationsAndOsmResults)).toEqual(364);
         }
       }, errors, done)
     );
 
-  }, 1000000)
+  }, 1000000);
 });
 

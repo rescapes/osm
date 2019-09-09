@@ -480,8 +480,11 @@ export const _hashBlock = ({nodes, ways}) => {
   return `{nodes:[${R.join(',', nodeIds)}], wayPoints:[${R.join(',', wayPoints)}]}`;
 };
 
+export const scoreStreetNames = () => {
+  R.sortBy(R.compose(R.toLower, R.prop('name')));
+}
 export const _chooseBlockWithMostAlphabeticalOrdering = blocks => {
-  R.sortBy(({nodes}) => scoreStreetNames, blocks);
+  return R.sortBy(({nodes}) => scoreStreetNames(nodes), blocks);
 };
 
 /**

@@ -17,7 +17,8 @@ import {
   resultToTaskNeedingResult,
   resultToTaskWithResult,
   pickDeepPaths,
-  mapToNamedResponseAndInputs
+  mapToNamedResponseAndInputs,
+  strPathOr
 } from 'rescape-ramda';
 import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
@@ -61,7 +62,16 @@ const log = loggers.get('rescapeDefault');
  * location are varieties of the original with an osm area id added. Result.Error is only returned
  * if no variation of the location succeeds in returning a result
  */
-export const queryLocationForOsmSingleBlockResultTask = location => {
+export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) => {
+  // If the location already has geojson.features there's nothing to do.
+  // If we forceOsmQuery then we query osm and get new geojson
+  if (R.and(
+    strPathOr(false, 'geojson.features', location),
+    R.not(strPathOr(false, 'forceOsmQuery', osmConfig)))
+  ) {
+    return of(Result.Ok(location));
+  }
+
   return R.composeK(
     // Task (Result.Ok Object | Result.Error) -> Task Result.Ok Object | Task Result.Error
     locationResult => {

@@ -24,10 +24,10 @@ const GOOGLE_STREET_REPLACEMENTS = [
   R.replace(/East/g, 'E'),
   R.replace(/West/g, 'W'),
   // OpenStreetMap uses full names, Google likes abbreviations
-  R.replace(/ Road/g, 'Rd'),
-  R.replace(/ Street/g, 'St'),
-  R.replace(/ Avenue/g, 'Ave'),
-  R.replace(/ Lane/g, 'Ln')
+  R.replace(/\sRoad/g, ' Rd'),
+  R.replace(/\sStreet/g, ' St'),
+  R.replace(/\sAvenue/g, ' Ave'),
+  R.replace(/\sLane/g, ' Ln')
 ];
 
 const latLngRegExp = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
@@ -71,7 +71,7 @@ export const removeStateFromSomeCountriesForSearch = location => {
  * @param streetName
  * @return {*}
  */
-const fixWordsThatTripUpGoogle = streetName => {
+export const fixWordsThatTripUpGoogle = streetName => {
   return R.reduce((name, r) => r(name), streetName, GOOGLE_STREET_REPLACEMENTS);
 };
 
@@ -127,8 +127,8 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
     R.ifElse(
       // Check if the intersection pair exists
       R.complement(R.isNil),
-      // If so we can put it between and, like 'Maple St and Chestnut St'
-      R.join(' and '),
+      // If so we can put it between &, like 'Maple St & Chestnut St'
+      R.join(' & '),
       // Otherwise put the blockname and/or neighborhood. If this is null it's filtered out
       R.always(blockname ? `${blockname}, ${neighborhood}` : neighborhood)
     )(resolvedIntersectionPair),

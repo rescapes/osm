@@ -62,9 +62,7 @@ const configs = R.map(c => {
       ...Object.keys(pkg.dependencies || {}),
       ...Object.keys(pkg.peerDependencies || {})
     ],
-    plugins: R.concat(config.plugins, [
-      nodeResolve({}), babel()
-    ])
+    plugins: R.concat(config.plugins, [ ])
   },
 
   /*

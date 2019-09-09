@@ -9,7 +9,9 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-const _unmocked = require('query-overpass')
+const _unmocked = require('../node_modules/query-overpass')
+import {loggers} from 'rescape-log';
+const log = loggers.get('rescapeDefault');
 const {
   LILLESTROM_PEDESTRIAN_AREA_NODES,
   LILLESTROM_PEDESTRIAN_AREA_WAYS,
@@ -153,7 +155,8 @@ const getResponse = (mockRequestContext) => {
   if (found) {
     return R.last(found);
   } else {
-    throw Error(`Problem with the unit test. query-overpass request flattend to ${JSON.stringify(flatMockRequestContext)} didn't match any responses`);
+    log.warn(`Problem with the unit test. query-overpass request flattend to ${JSON.stringify(flatMockRequestContext)} didn't match any responses. Will query server. Record the output and add it to responses in the query-overpass.js mock`)
+    return null;
   }
 };
 
@@ -172,6 +175,10 @@ module.exports = (query, cb, options) => {
     return _unmocked(query, cb, options);
   }
   const response = getResponse(options.testMockJsonToKey);
+  // If our mock doesn't have the right data it gives a warning and we query for real
+  if (!response) {
+    return _unmocked(query, cb, options)
+  }
   process.nextTick(
     () => response ?
       cb(undefined, response) :

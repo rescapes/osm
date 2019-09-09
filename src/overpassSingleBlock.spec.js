@@ -19,7 +19,8 @@ describe('overpassBlocks', () => {
   test('fetchLatLonOnyLocation', done => {
     const errors = [];
     expect.assertions(3);
-    queryLocationForOsmSingleBlockResultTask({
+    const osmConfig = {};
+    queryLocationForOsmSingleBlockResultTask(osmConfig, {
       intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']
     }).run().listen(defaultRunToResultConfig(
       {
@@ -46,7 +47,8 @@ describe('overpassBlocks', () => {
     // This is where the block is a pedestrian area, not a simple line.
     const errors = [];
     expect.assertions(3);
-    queryLocationForOsmSingleBlockResultTask({
+    const osmConfig = {};
+    queryLocationForOsmSingleBlockResultTask(osmConfig, {
       intersections: ['59.952305, 11.047053', '59.952248, 11.045588']
     }).run().listen(defaultRunToResultConfig(
       {
@@ -58,7 +60,7 @@ describe('overpassBlocks', () => {
           expect(reqStrPathThrowing('intersections', results)).toEqual({
             "node/706705268": [
               "way/570781859",
-              "Tærudgata",
+              "Tærudgata"
             ],
             "node/1287797787": [
               "way/570781859",

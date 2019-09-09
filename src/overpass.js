@@ -274,7 +274,6 @@ export const taskQuery = (options, query) => {
         log.debug(`Requesting OSM query:\n${query}`);
         queryOverpass(query, (error, data) => {
           if (!error) {
-            log.debug(options)
             resolver.resolve(data);
           } else {
             resolver.reject(error);

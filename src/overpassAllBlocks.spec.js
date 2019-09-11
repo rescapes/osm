@@ -1,6 +1,6 @@
 import * as R from 'ramda';
-import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
-import {locationToOsmAllBlocksQueryResultsTask, queryLocationForOsmBlockOrAllResultsTask} from './overpassAllBlocks';
+import {defaultRunConfig} from 'rescape-ramda';
+import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 import {_blocksToGeojson} from './overpassBlockHelpers';
 
 /**
@@ -16,86 +16,22 @@ import {_blocksToGeojson} from './overpassBlockHelpers';
 
 
 describe('overpassBlocksRegion', () => {
-  // This mocks the overall response but has to go to the server to get node dead end queries.
-  // There are too many of the latter to bother mocking and they run fast on the server
-  test('locationToOsmAllBlocksQueryResultsTask', done => {
-    expect.assertions(1);
+  test('_queryForAllBlocksOfLocationsTask', done => {
     const errors = [];
     const location = {
       country: 'Canada',
       state: 'BC',
       city: 'Fernie'
     };
+    expect.assertions(1);
     locationToOsmAllBlocksQueryResultsTask(location).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
-          // Paste the results of this into a geojson viewer for debugging
-          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(1068);
+        onResolved: ({Ok: blocks, Errors: errors}) => {
+          _blocksToGeojson(blocks)
+          expect(R.length(blocks)).toEqual(2029)
         }
       }, errors, done)
     );
-
-  }, 1000000);
-
-  test('queryLocationForOsmBlockOrAllResultsTask', done => {
-    expect.assertions(4);
-    let dones = 0;
-    const incDones = () => {
-      if (++dones == 2) {
-        done();
-      }
-    };
-    const errors = [];
-    const location = {
-      country: 'Canada',
-      state: 'BC',
-      city: 'Fernie'
-    };
-    const osmConfig = {};
-    // Detects an area
-    queryLocationForOsmBlockOrAllResultsTask(osmConfig, location).run().listen(defaultRunConfig(
-      {
-        onResolved: ({Ok: blocks, Errors: errors}) => {
-          expect(R.length(blocks)).toEqual(1068);
-        }
-      }, errors, incDones)
-    );
-    // Detects a block
-    queryLocationForOsmBlockOrAllResultsTask(
-      osmConfig,
-      {intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']}
-    ).run().listen(defaultRunConfig(
-      {
-        onResolved: ({Ok: blocks, Errors: errors}) => {
-          // Expect it to be two ways
-          expect(R.length(blocks)).toEqual(1);
-          expect(R.map(R.prop('id'), reqStrPathThrowing('0.results.ways', blocks))).toEqual(['way/5707230']);
-          expect(R.map(R.prop('id'), reqStrPathThrowing('0.results.nodes', blocks))).toEqual(['node/42875319', 'node/42901997']);
-        }
-      }, errors, incDones)
-    );
-
   }, 100000);
-
-  test('smallLocationToOsmAllBlocksQueryResultsTask', done => {
-    expect.assertions(1);
-    const errors = [];
-    const location = {
-      country: 'USA',
-      state: 'IA',
-      city: 'Riverdale'
-    };
-    locationToOsmAllBlocksQueryResultsTask(location).run().listen(defaultRunConfig(
-      {
-        onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
-          // Paste the results of this into a geojson viewer for debugging
-          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(210);
-        }
-      }, errors, done)
-    );
-
-  }, 1000000);
 });
 

@@ -235,8 +235,6 @@ describe('overpassIntegration', () => {
       "city": "Stavanger",
       "neighborhood": "Stavanger Sentrum",
       "blockname": "Hetlandsgata",
-      "intersc1": "Bergelandsgata ",
-      "intersc2": "Vaisenhusgata",
       "intersections": [
         [
           "Hetlandsgata",

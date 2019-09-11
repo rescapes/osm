@@ -145,17 +145,15 @@ describe('googleLocation', () => {
           [
             "134th Street",
             "149th Avenue"
+          ],
+          [
+            "134th Street",
+            "South Conduit Avenue"
           ]
         ],
-        "blockname": "134th Street",
-        "intersc1": "149th Avenue",
-        "intersc2": "South Conduit Avenue",
         "dataComplete": false,
         "data": {},
         "version": 2,
-        "observer": "Created by sop-vml library",
-        "intersection_1_location": "40.6660816,-73.8057879",
-        "intersection_2_location": "40.66528,-73.80604",
         "geojson": {
           "type": "FeatureCollection",
           "generator": "overpass-turbo",

@@ -13,7 +13,7 @@ import * as R from 'ramda';
 import {
   _cleanGeojson,
   _intersectionStreetNamesFromWaysAndNodes, _linkedFeatures,
-  _reduceFeaturesByHeadAndLast, hashPointsToWayCoordinates, hashWayFeature
+  _reduceFeaturesByHeadAndLast, hashNodeFeature, hashPoint, hashPointsToWayCoordinates, hashWayFeature
 } from './overpassFeatureHelpers';
 import {of} from 'folktale/concurrency/task';
 import {
@@ -473,18 +473,30 @@ export const _hashBlock = ({nodes, ways}) => {
     R.sortBy(R.prop('id'))
   )(nodes);
   const wayPoints = R.compose(
-    wayPoints => R.sort(R.identity, wayPoints),
-    wayPoints => R.uniq(wayPoints),
+    // Ignore duplicate wayPoints for loops and points where the ways meet
+    wayPointHash => R.sortBy(R.identity, wayPointHash),
+    wayPointHashes => R.uniq(wayPointHashes),
     ways => R.chain(way => hashWayFeature(way), ways)
   )(ways);
   return `{nodes:[${R.join(',', nodeIds)}], wayPoints:[${R.join(',', wayPoints)}]}`;
 };
 
-export const scoreStreetNames = () => {
-  R.sortBy(R.compose(R.toLower, R.prop('name')));
-}
-export const _chooseBlockWithMostAlphabeticalOrdering = blocks => {
-  return R.sortBy(({nodes}) => scoreStreetNames(nodes), blocks);
+/**
+ * Sorts two opposing block pairs based on first node's id of nodes. The blocks will have the nodes reversed
+ * since they flow in different directions
+ * @param {[Object]} oppositeBlockPair Blocks containing a nodes properties
+ * @returns {[Object]} The blocks sorted by the first node's id of nodes
+ * @private
+ */
+export const _sortOppositeBlocksByNodeOrdering = oppositeBlockPair => {
+  return R.sortWith([
+      block => R.ascend(reqStrPathThrowing('nodes.0.id'), block),
+      // For loops fall back to sorting by the hash of the second way point (the point after the node)
+      // Loops have to have at least 3 points to make a triangle or more sided polygon
+      block => R.ascend(R.compose(hashPoint, reqStrPathThrowing('ways.0.geometry.coordinates.1')), block),
+  ])(
+    oppositeBlockPair
+  );
 };
 
 /**
@@ -597,4 +609,4 @@ export const _buildPartialBlocks = ({wayIdToWayPoints, nodeIdToWays, nodeIdToNod
     );
   },
   nodeIdToWays
-))
+));

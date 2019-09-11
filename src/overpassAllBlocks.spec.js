@@ -31,7 +31,7 @@ describe('overpassBlocksRegion', () => {
         onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
           _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(2029);
+          expect(R.length(locationsAndOsmResults)).toEqual(1068);
         }
       }, errors, done)
     );
@@ -57,7 +57,7 @@ describe('overpassBlocksRegion', () => {
     queryLocationForOsmBlockOrAllResultsTask(osmConfig, location).run().listen(defaultRunConfig(
       {
         onResolved: ({Ok: blocks, Errors: errors}) => {
-          expect(R.length(blocks)).toEqual(2029);
+          expect(R.length(blocks)).toEqual(1068);
         }
       }, errors, incDones)
     );
@@ -91,7 +91,7 @@ describe('overpassBlocksRegion', () => {
         onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
           _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(364);
+          expect(R.length(locationsAndOsmResults)).toEqual(210);
         }
       }, errors, done)
     );

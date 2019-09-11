@@ -17,7 +17,7 @@ import {
 } from './overpass';
 import * as Result from 'folktale/result';
 import {
-  _blockToGeojson, _buildPartialBlocks, _chooseBlockWithMostAlphabeticalOrdering,
+  _blockToGeojson, _buildPartialBlocks, _sortOppositeBlocksByNodeOrdering,
   _hashBlock,
   _queryLocationVariationsUntilFoundResultTask, _wayEndPointToDirectionalWays, nodesByWayIdTask
 } from './overpassBlockHelpers';
@@ -224,27 +224,35 @@ const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: n
           ),
           mapToNamedResponseAndInputs('hashToBestBlock',
             ({blocks}) => of(R.reduceBy(
-              // TODO I never get matching blocks? Is _hashBlock direction sensitive or do I not have duplicates
               (otherBlock, block) => {
-                if (otherBlock && R.complement(R.equals)(
-                  ...R.map(
-                    b => R.compose(R.sort(R.identity), R.map(R.prop('id')), R.prop('ways'))(b),
-                    [otherBlock, block]
-                  )
-                )) {
-                  // If way ids aren't the same but the nodes hash the same,
-                  // we have a case where the end of a way overlapped the other,
-                  // creating a short segment with matching node points, just take the first one. This is an OSM
-                  // data upload error and probably a useless pseudo-block that we'll throw away
-                  return otherBlock;
-                } else {
-                  return R.unless(
-                    () => R.isNil(otherBlock),
-                    block => _chooseBlockWithMostAlphabeticalOrdering([otherBlock, block])
-                  )(block);
-                }
+                return R.when(
+                  () => otherBlock,
+                  // When we have 2 blocks it means we have the block in each direction, which we expect.
+                  // It's also possible to get some weird cases where ways were entered wrong in OSM and overlap,
+                  // creating the same block in terms of the node has but with different way ids
+                  block => {
+                    if (R.complement(R.equals)(
+                      ...R.map(
+                        b => R.compose(R.sort(R.identity), R.map(R.prop('id')), R.prop('ways'))(b),
+                        [otherBlock, block]
+                      )
+                    )) {
+                      // If way ids aren't the same but the nodes hash the same,
+                      // we have a case where the end of a way overlapped the other,
+                      // creating a short segment with matching node points, just take the first one. This is an OSM
+                      // data upload error and probably a useless pseudo-block that we'll throw away
+                      return otherBlock;
+                    } else {
+                      // Choose the block direction to use based on which starts with the lowest node id or failing
+                      // that for loops which has the lowest first way's second point
+                      // This is determinative so we can detect geojson changes when updating the location
+                      // but otherwise arbitrary.
+                      return R.head(_sortOppositeBlocksByNodeOrdering([otherBlock, block]));
+                    }
+                  })(block);
               },
               null,
+              // We'll group the blocks by their hash code
               block => _hashBlock(block),
               blocks
             ))

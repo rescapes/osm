@@ -407,14 +407,14 @@ export const _cleanGeojson = feature => {
  * Given the way features of a single block and a lookup that maps intersection node ids to the way features
  * that intersect the node (including but not limited to the wayFeatures ways), resolves the names of the
  * intersections of the wayFeatures (normally 2 intersections but possibly 1 for dead ends).
- * @param {[Object]} nodeFeatures The node features of the single block. Usually 2 but possibly 1 for a dead end
- * or >2 for a divided street
+ * @param {[Object]} nodeFeatures The 2 node features of the single block. This might include a dead end node
  * @param {[Object]} wayFeatures The way features of a single block. This could be one or more ways:
  * If the way splits half way through the block or if it's a boulevard, highway, etc with a divided roads
  * @param {Object} nodeIdToWayFeatures Keyed by node id and value by a list of way features that
  * intersect the node. Each node represents an intersection of the block. Note that this lookup can be larger
  * than just the needed nodes if you are calling this function multiple times on many blocks and have a comprehensive
- * list of lookups
+ * list of lookups. This lookup lacks matches for dead-end nodes since they are not intersections. We handle
+ * this case
  * @returns {Object} An object keyed by the same node ids but valued by a list of street names of the
  * ways that intersect the node. The street names list first the street matching one of the wayFeatures
  * (i.e. the block name) and the remaining are alphabetical. If a way has no name the way's id string is used
@@ -425,7 +425,21 @@ export const _cleanGeojson = feature => {
  */
 export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeFeatures, nodeIdToWayFeatures) => {
   // Get the node id to way features matching our node features
-  const limitedNodeIdToWayFeatures = R.pick(R.map(R.prop('id'), nodeFeatures), nodeIdToWayFeatures)
+  const limitedNodeIdToWayFeatures = R.fromPairs(R.map(nodeFeature => {
+    const nodeId = R.prop('id', nodeFeature);
+    return [
+      nodeId,
+      R.when(R.isNil, () => {
+        // If we can't find the wayFeatures it's because we have a non-intersection dead-end node
+        // That means the only way of the node is the last of wayFeatures, because our ways always flow from
+        // an intersection the dead end can only be at the end of an intersection (unless we have have an
+        // isolated way, which isn't handled anywhere in the code yet)
+        // We put the nodeFeature as the second feature to represent the cross-street, since there is no cross street
+        // This can be removed in the future when we don't need a cross street
+        return [R.last(wayFeatures), nodeFeature];
+      })(R.propOr(null, nodeId, nodeIdToWayFeatures))
+    ];
+  }, nodeFeatures));
   const nameOrIdOfFeature = feature => strPathOr(reqStrPathThrowing('id', feature), 'properties.tags.name', feature);
   const wayNames = R.map(nameOrIdOfFeature, wayFeatures);
   const wayIds = R.map(R.prop('id'), wayFeatures);

@@ -143,7 +143,7 @@ export const locationToOsmAllBlocksQueryResultsTask = location => {
       ])(locationVariationsWithOsm)
     ),
     // Nominatim query on the place search string.
-    location => nominatimLocationResultTask({allowFallbackToCity: false}, location)
+    location => nominatimLocationResultTask({listSuccessfulResult: true, allowFallbackToCity: false}, location)
   )(location);
 };
 
@@ -758,8 +758,7 @@ export const osmLocationToRelationshipGeojsonResultTask = location => {
       ))
     ),
     resultToTaskWithResult(
-      // We always expect a single response in a list
-      ([{osmId}]) => osmResultTask(
+      ({osmId}) => osmResultTask(
         {name: 'fetchOsmRawTask', testMockJsonToKey: {osmId}},
         options => fetchOsmRawTask(options, `
 rel(id:${osmId}) -> .rel;

@@ -55,6 +55,9 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
  * @param {Object} [config.allowFallbackToCity] Default true. Allows Nomanatim to return city-wide results if
  * the neighborhood relation isn't found. This is useful when trying to find a block, but not to find the osmId
  * of a neighborhood. Set false to avoid fallback
+ * @param {Object} [config.listSuccessfulResult] When true, returns the first successful result as a Result.Ok
+ * with a single item list. Otherwise the Result.Ok is an empty array. If false, the default, returns the
+ * first success Result.Ok or the errors array as a Result.Error
  * @param {Object} location Must contain country, city, and optionally state and neighborhood
  * @param {Object} location.country Required the country to search in
  * @param {Object} [location.state] Optional state of state, provinces, etc.
@@ -64,9 +67,19 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
  * and placeId (unused). If it doesn't a Result.Ok([]) is returned for further processing. If there's a problem
  * connecting to the server a Result.Error returns
  */
-export const nominatimLocationResultTask = ({allowFallbackToCity}, location) => R.composeK(
-  // Convert the list of good results to a Result.Ok and disgard the Errors
-  results => of(Result.Ok(results.Ok)),
+export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallbackToCity}, location) => R.composeK(
+  // Convert the list of good results to a Result.Ok and discard the Errors
+  results => of(R.ifElse(
+    () => listSuccessfulResult,
+    results => Result.Ok(results.Ok),
+    // By default, the first Ok result or last Error
+    R.ifElse(
+      r => R.length(R.prop('Ok', r)),
+      r => Result.Ok(R.head(R.prop('Ok', r))),
+      r => Result.Error(R.prop('Error', r))
+    )
+  )(results)),
+
   results => of(traverseReduceDeepResults(1,
     // The accumulator
     (res, okObj) => R.concat(
@@ -98,7 +111,7 @@ export const nominatimLocationResultTask = ({allowFallbackToCity}, location) => 
           }).mapError(value => {
             // If no results are found, just return null. Hopefully the other nominatin query will return something
             log.debug(`For location query ${JSON.stringify(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
-            return null;
+            return value;
           })
         ).mapRejected(
           // If the query fails to excute
@@ -126,7 +139,7 @@ export const nominatimLocationResultTask = ({allowFallbackToCity}, location) => 
           R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city'])
         ],
         // Otherwise no query
-        () => [],
+        () => []
       )(location)
     ))
   ))

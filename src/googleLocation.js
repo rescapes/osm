@@ -41,6 +41,7 @@ import {
 import * as Result from 'folktale/result';
 import {lineString} from '@turf/helpers';
 import {loggers} from 'rescape-log';
+import {fetchOsmRawTask, osmResultTask} from './overpass';
 
 const log = loggers.get('rescapeDefault');
 
@@ -75,7 +76,7 @@ const addGeojsonToGoogleResult = result => {
 export const geocodeAddressTask = R.curry((location, address) => {
   // Since we are starting to remove address in favor of location, allow it to be null
   // address is useful if we need to choose which intersection of the location we need when their are two
-  address = address || R.head(addressStringInBothDirectionsOfLocation(location));
+  address = address || addressString(location);
   // If the address is a lat/lon  don't bother to call Google's geocoder
   return task(resolver => {
     let promise = null;

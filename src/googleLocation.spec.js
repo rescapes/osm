@@ -509,6 +509,26 @@ describe('googleLocation', () => {
     );
   });
 
+  test('resolveGeoLocationTask country', done => {
+    const location = {
+      country: 'USA',
+      state: 'NM',
+      city: 'Albuquerque'
+    };
+    resolveGeoLocationTask(location).run().listen({
+      onRejected: reject => {
+        throw new Error(reject);
+      },
+      onResolved: responseResult => responseResult.map(response => {
+
+        expect(R.map(f => f.toFixed(3), response)).toEqual(["35.084", "-106.650"]);
+        done();
+      }).mapError(reject => {
+        throw new Error(reject);
+      })
+    });
+  })
+
   test('resolveGeoLocationTask with lat/lon', done => {
     const location = {
       id: 1,

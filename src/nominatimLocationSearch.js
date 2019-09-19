@@ -51,16 +51,20 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
  * query fails, the city without the neighborhood is queried. So this query is as precise as possible but
  * will not give up until it fails at the city-wide level. TODO in the future we can support other jurisdictions
  * like counties
+ * @param {Object} config
+ * @param {Object} [config.allowFallbackToCity] Default true. Allows Nomanatim to return city-wide results if
+ * the neighborhood relation isn't found. This is useful when trying to find a block, but not to find the osmId
+ * of a neighborhood. Set false to avoid fallback
  * @param {Object} location Must contain country, city, and optionally state and neighborhood
  * @param {Object} location.country Required the country to search in
  * @param {Object} [location.state] Optional state of state, provinces, etc.
  * @param {Object} [location.neighborhood] Optional neighborhood to search for the neighborhood relation
- * @returns {Task<Result<Object>} A task containing a Result.Ok or a Result.Error. If the query finds a relation
- * The Result.Ok returns that an object with bbox (the bounding box), osmId (the OSM relation id), osmType (always 'relation')
+ * @returns {Task<Result<[Object]>} A task containing a Result.Ok or a Result.Error. If the query finds a relation
+ * The Result.Ok returns that an and array with a single object with bbox (the bounding box), osmId (the OSM relation id), osmType (always 'relation')
  * and placeId (unused). If it doesn't a Result.Ok([]) is returned for further processing. If there's a problem
  * connecting to the server a Result.Error returns
  */
-export const nominatimLocationResultTask = location => R.composeK(
+export const nominatimLocationResultTask = ({allowFallbackToCity}, location) => R.composeK(
   // Convert the list of good results to a Result.Ok and disgard the Errors
   results => of(Result.Ok(results.Ok)),
   results => of(traverseReduceDeepResults(1,
@@ -114,7 +118,16 @@ export const nominatimLocationResultTask = location => R.composeK(
       )(location),
       // This will either have country, state, city or country, city or nothing if it's a location
       // with just a lot/long
-      [R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city'])]
+      // If we have don't have a neighbhorhood or have one and allow fallback to city, this
+      // gives us a query for the country, state, and, city
+      R.ifElse(
+        location => R.either(R.complement(R.prop)('neighborhood'), () => allowFallbackToCity)(location),
+        location => [
+          R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city'])
+        ],
+        // Otherwise no query
+        () => [],
+      )(location)
     ))
   ))
 )(location);

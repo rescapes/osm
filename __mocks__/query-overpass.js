@@ -10,7 +10,7 @@
  */
 
 const _unmocked = require('../node_modules/query-overpass')
-import {loggers} from 'rescape-log';
+const {loggers} = require('rescape-log');
 const log = loggers.get('rescapeDefault');
 const {
   LILLESTROM_PEDESTRIAN_AREA_NODES,

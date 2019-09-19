@@ -13,7 +13,7 @@ import {
   fetchOsmRawTask,
   highwayNodeFilters,
   highwayWayFilters,
-  osmIdToAreaId
+  osmIdToAreaId, osmResultTask
 } from './overpass';
 import * as Result from 'folktale/result';
 import {
@@ -142,7 +142,7 @@ export const locationToOsmAllBlocksQueryResultsTask = location => {
       ])(locationVariationsWithOsm)
     ),
     // Nominatim query on the place search string.
-    location => nominatimLocationResultTask(location)
+    location => nominatimLocationResultTask({allowFallbackToCity: false}, location)
   )(location);
 };
 
@@ -724,6 +724,38 @@ const _createQueryOutput = type => {
   ])(type);
 };
 
-const _pooky = (f, l) => {
-  return R.map(f, l);
+/**
+ * Returns the geojson of a relationship
+ * @param {Number} osmId The osm id of the relationship
+ * @returns {Task<Result<Object>>}
+ */
+export const osmRelationshipGeojsonResultTask = osmId => {
+  return osmResultTask(
+    {name: 'fetchOsmRawTask', testMockJsonToKey: {osmId}},
+    options => fetchOsmRawTask(options, `
+rel(id:${osmId}) -> .rel;
+.rel out geom; 
+    `)
+  );
+};
+
+/**
+ * Returns the geojson of a relationship
+ * @param {Number} osmId The osm id of the relationship
+ * @returns {Task<Result<Object>>}
+ */
+export const osmLocationToRelationshipGeojsonResultTask = location => {
+  return R.composeK(
+    resultToTaskWithResult(
+      // We always expect a single response in a list
+      ([{osmId}]) => osmResultTask(
+        {name: 'fetchOsmRawTask', testMockJsonToKey: {osmId}},
+        options => fetchOsmRawTask(options, `
+rel(id:${osmId}) -> .rel;
+.rel out geom; 
+    `)
+      )
+    ),
+    location => nominatimLocationResultTask({allowFallbackToCity: false}, location)
+  )(location);
 };

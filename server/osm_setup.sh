@@ -17,8 +17,8 @@
 # local~$ ssh-keygen
 # (accept the defaults)
 # copy the text from the console
-# local~$ cat ~/.ssh/public/id_rsa.pub
-# log into the serve
+# local~$ cat ~/.ssh/id_rsa.pub
+# log into the server
 # local~$ ssh -i ~/.ssh/SoP_osm.pem $server
 # remote~$ vi ~/.ssh/authorized_keys (paste the public key in here)
 

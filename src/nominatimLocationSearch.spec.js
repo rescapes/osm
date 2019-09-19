@@ -14,6 +14,7 @@ import * as R from 'ramda';
 import {rejected} from 'folktale/concurrency/task';
 
 describe('search', () => {
+  expect.assertions(1);
   test('nominatimResultTask', done => {
     const errors = [];
     nominatimResultTask({country: 'USA', state: 'New York', city: 'New York City'}).orElse(reason => {
@@ -36,6 +37,7 @@ describe('search', () => {
   }, 100000);
 
   test('nominatimTaskNoState', done => {
+    expect.assertions(1);
     const errors = [];
     nominatimResultTask({country: 'Norway', city: 'Stavanger'}).orElse(reason => {
       // Our task reject handler takes the reason and pushes it too, then rejects again
@@ -57,6 +59,7 @@ describe('search', () => {
   }, 100000);
 
   test('mapboxGeocodeTask', done => {
+    expect.assertions(1);
     const mapboxApiKey = 'pk.eyJ1IjoiY2Fsb2NhbiIsImEiOiJjaXl1aXkxZjkwMG15MndxbmkxMHczNG50In0.07Zu3XXYijL6GJMuxFtvQg';
 
     mapboxGeocodeTask(

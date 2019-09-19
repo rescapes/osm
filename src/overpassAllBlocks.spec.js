@@ -117,7 +117,7 @@ describe('overpassAllBlocks', () => {
   });
 
   test('osmLocationToRelationshipGeojsonResultTask', done => {
-    expect.assertions(1);
+    expect.assertions(4);
     const errors = [];
     osmLocationToRelationshipGeojsonResultTask({country: 'USA', state: 'New York', city: 'New York', neighborhood: "Hell's Kitchen"}).run().listen(defaultRunToResultConfig({
       onResolved: geojson => expect(reqStrPathThrowing('features.0.geometry', geojson)).toEqual(
@@ -126,7 +126,19 @@ describe('overpassAllBlocks', () => {
           "type": "Polygon"
         }
       )
-    }, errors, done));
-  });
+    }, errors, () => {}));
+
+    osmLocationToRelationshipGeojsonResultTask({country: 'Canada', state: 'Northwest Territories', city: 'Yellowknife'}).run().listen(defaultRunToResultConfig({
+      onResolved: geojson => expect(R.length(reqStrPathThrowing('features.0.geometry.coordinates.0', geojson))).toEqual(30)
+    }, errors, () => {}));
+
+    osmLocationToRelationshipGeojsonResultTask({country: 'USA', state: 'Colorado'}).run().listen(defaultRunToResultConfig({
+      onResolved: geojson => expect(R.length(reqStrPathThrowing('features.0.geometry.coordinates.0', geojson))).toEqual(795)
+    }, errors, () => {}));
+
+    osmLocationToRelationshipGeojsonResultTask({country: 'Nepal'}).run().listen(defaultRunToResultConfig({
+      onResolved: geojson => expect(R.length(reqStrPathThrowing('features.0.geometry.coordinates.0', geojson))).toEqual(18843)
+}, errors, done));
+  }, 20000);
 });
 

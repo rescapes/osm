@@ -2,6 +2,7 @@ import {
   reqStrPathThrowing,
   pickDeepPaths,
   resultToTaskWithResult,
+  resultToTaskNeedingResult,
   toNamedResponseAndInputs,
   mapToNamedResponseAndInputs,
   compact,
@@ -746,6 +747,16 @@ rel(id:${osmId}) -> .rel;
  */
 export const osmLocationToRelationshipGeojsonResultTask = location => {
   return R.composeK(
+    // Filters out any geojson that isn't a relation. Sometimes overpass returns center point nodes
+    resultToTaskNeedingResult(
+      geojson => of(R.over(
+        R.lensProp('features'),
+        features => R.filter(
+          feature => R.compose(R.contains('relation'), R.prop('id'))(feature),
+          features),
+        geojson
+      ))
+    ),
     resultToTaskWithResult(
       // We always expect a single response in a list
       ([{osmId}]) => osmResultTask(

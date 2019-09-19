@@ -125,8 +125,8 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
     compactEmpty
   )([
     R.ifElse(
-      // Check if the intersection pair exists
-      R.complement(R.isNil),
+      // Check if the intersection pair exists and has length
+      intersectionPair => R.length(intersectionPair || []),
       // If so we can put it between &, like 'Maple St & Chestnut St'
       R.join(' & '),
       // Otherwise put the blockname and/or neighborhood. If this is null it's filtered out

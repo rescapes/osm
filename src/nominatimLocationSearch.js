@@ -121,12 +121,12 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
           })
         );
     },
-    // Query with neighborhood (if given) and without.
-    // We'll only actually use the first one that resolves
     compactEmpty(R.concat(
+      // Query with neighborhood (if given)
+      // We'll only actually use the first one that resolves
       R.ifElse(
         R.prop('neighborhood'),
-        R.always([['country', 'state', 'city', 'neighborhood']]),
+        R.always([['country', 'state', 'city', 'neighborhood', 'blockname']]),
         R.always([])
       )(location),
       // This will either have country, state, city or country, city or nothing if it's a location
@@ -136,7 +136,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
       R.ifElse(
         location => R.either(R.complement(R.prop)('neighborhood'), () => allowFallbackToCity)(location),
         location => [
-          R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city'])
+          R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city', 'blockname'])
         ],
         // Otherwise no query
         () => []
@@ -152,6 +152,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
  * @param {String} location.state Optional. The state, province, canton, etc
  * @param {String} location.city Required city
  * @param {String} location.neighborhood Optional. It's quicker to resolve a relation for a neighborhood and
+ * @param {String} location.blockname. Optional. Will return a line if this is defined and found
  * then query within a neighborhood. However if there is no neighborhood or nothing is found it can be omitted
  * @return {Task<Result<Object>>} A Task that resolves the relation id in a Result.Ok or returns a Result.Error if no
  * qualifying results are found. Task rejects with a Result.Error() if the query fails. The returned value
@@ -168,7 +169,7 @@ export const nominatimResultTask = location => {
   const query = R.compose(
     R.join(','),
     compactEmpty,
-    R.props(['neighborhood', 'city', 'state', 'country'])
+    R.props(['blockname', 'neighborhood', 'city', 'state', 'country'])
   )(location);
   const host = 'nominatim.openstreetmap.org';
   const geocoder = new Nominatim({
@@ -178,9 +179,15 @@ export const nominatimResultTask = location => {
   log.debug(`Nominatim query: http://${host}?q=${query}&addressDetails=1&format=json&limit=3`);
   return promiseToTask(geocoder.search({q: query, addressDetails: 1}).then(
     results => {
+      const filter = R.ifElse(
+        R.prop('blockname'),
+        // If we have a blockname lookup for ways,
+        () => R.propEq('osm_type', 'way'),
+        // If we have a country, state, city, neighborhood, we must find a relation, not a node
+        () => R.propEq('osm_type', 'relation')
+      )(location);
       const matches = R.filter(
-        // We must find a relation, not a node
-        R.propEq('osm_type', 'relation'),
+        filter,
         results
       );
       if (R.length(matches)) {

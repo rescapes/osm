@@ -746,13 +746,18 @@ rel(id:${osmId}) -> .rel;
  * @returns {Task<Result<Object>>}
  */
 export const osmLocationToRelationshipGeojsonResultTask = location => {
+  // Look for a way if the location has a blockname specified. We don't currently support anything
+  // more specific. In the future we can support nodes for intersections
+  const relOrWay = R.ifElse(R.prop('blockname'), () => 'way', () => 'rel')(location);
+  const resultOsmType = R.ifElse(R.prop('blockname'), () => 'way', () => 'relation')(location);
   return R.composeK(
-    // Filters out any geojson that isn't a relation. Sometimes overpass returns center point nodes
+    // Filters out any geojson that isn't a way or relation depending on what we're looking for.
+    // Sometimes overpass returns center point nodes
     resultToTaskNeedingResult(
       geojson => of(R.over(
         R.lensProp('features'),
         features => R.filter(
-          feature => R.compose(R.contains('relation'), R.prop('id'))(feature),
+          feature => R.compose(R.contains(resultOsmType), R.prop('id'))(feature),
           features),
         geojson
       ))
@@ -761,11 +766,13 @@ export const osmLocationToRelationshipGeojsonResultTask = location => {
       ({osmId}) => osmResultTask(
         {name: 'fetchOsmRawTask', testMockJsonToKey: {osmId}},
         options => fetchOsmRawTask(options, `
-rel(id:${osmId}) -> .rel;
-.rel out geom; 
+${relOrWay}(id:${osmId}) -> .${relOrWay};
+.${relOrWay} out geom; 
     `)
       )
     ),
-    location => nominatimLocationResultTask({allowFallbackToCity: false}, location)
+    // This logic says, if we have a blockname or more specific, allow us to fallback to the city without the
+    // neighborhood is querying with the neighborhood fails. Sometimes the neighborhood isn't known and hides results
+    location => nominatimLocationResultTask({allowFallbackToCity: R.not(R.isNil(R.prop('blockname', location)))}, location)
   )(location);
 };

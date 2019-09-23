@@ -248,7 +248,7 @@ describe('overpassIntegration', () => {
     };
     const errors = [];
     expect.assertions(1);
-    queryLocationForOsmSingleBlockResultTask(location).run().listen(defaultRunConfig(
+    queryLocationForOsmSingleBlockResultTask({}, location).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
           ({results, location}) => {

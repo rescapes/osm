@@ -13,7 +13,7 @@
 
 import {
   osmAlways, osmNotEqual
-} from './overpass';
+} from './overpassHelpers';
 import {defaultRunConfig} from 'rescape-ramda';
 import {rejected} from 'folktale/concurrency/task'
 import {fetchTransitOsm} from './overpassTransit';

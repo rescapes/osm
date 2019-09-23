@@ -126,7 +126,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
       // We'll only actually use the first one that resolves
       R.ifElse(
         R.prop('neighborhood'),
-        R.always([['country', 'state', 'city', 'neighborhood', 'blockname']]),
+        R.always([['country', 'state', 'city', 'neighborhood']]),
         R.always([])
       )(location),
       // This will either have country, state, city or country, city or nothing if it's a location

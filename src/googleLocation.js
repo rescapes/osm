@@ -41,7 +41,7 @@ import {
 import * as Result from 'folktale/result';
 import {lineString} from '@turf/helpers';
 import {loggers} from 'rescape-log';
-import {fetchOsmRawTask, osmResultTask} from './overpass';
+import {fetchOsmRawTask, osmResultTask} from './overpassHelpers';
 
 const log = loggers.get('rescapeDefault');
 

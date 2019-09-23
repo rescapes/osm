@@ -27,7 +27,7 @@ import {
   AROUND_LAT_LON_TOLERANCE, highwayNodeFilters,
   highwayWayFilters,
   osmEquals, osmIdEquals, osmIdToAreaId, osmNotEqual
-} from './overpass';
+} from './overpassHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {hasLatLngIntersections, isLatLng} from './locationHelpers';
 import {_googleResolveJurisdictionResultTask, googleIntersectionTask} from './googleLocation';
@@ -45,7 +45,10 @@ const log = loggers.get('rescapeDefault');
 
 
 /**
- * Query the given locations
+ * Query the given block location
+ * @params {Object} osmConfig
+ * @params {Object} [osmConfig.forceOsmQuery] Default false, forces osm queries even if the location.geeojson
+ * was already set
  * @param {Object} location A Location object
  * @param {[String]} location.intersections Two pairs of strings representing the intersections cross-streets
  * @returns {Task<Result>} Result.Ok with the geojson results and the location in the form {results, location}
@@ -434,7 +437,7 @@ const _constructInstersectionsQuery = ({type}, {intersections, osmId, data}, geo
     // If we have no intersections, we have no ordered blocks (we must have geojsonPoints)
     [R.isNil, R.always(null)],
     // Convert intersections to ordered blocks
-    [R.T, _extractOrderedBlocks]
+    [R.T, _extractOrderedStreetsFromIntersections]
   ])(intersections);
 
   // We generate different queries based on the parameters.
@@ -463,12 +466,12 @@ const _constructInstersectionsQuery = ({type}, {intersections, osmId, data}, geo
 
 
 /**
- * Given a pair of adjacent street intersections, return the 3 blocks of the two intersections. First the main
+ * Given a pair of adjacent street intersections, return the 3 street names of the two intersections. First the main
  * intersection they both have in common, then the other two blocks
- * @returns {[String]} The three blocks
+ * @returns {[String]} The three street names
  * @private
  */
-export const _extractOrderedBlocks = intersections => {
+export const _extractOrderedStreetsFromIntersections = intersections => {
 
   // Find the common street
   const streetCount = R.reduce(

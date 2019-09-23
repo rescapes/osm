@@ -41,4 +41,7 @@ export {
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';
 export {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
-export {locationToOsmAllBlocksQueryResultsTask, queryLocationForOsmBlockOrAllResultsTask, osmLocationToRelationshipGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassAllBlocks';
+export {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
+export {locationAndOsmResultsToLocationWithGeojson} from './overpassHelpers'
+export {queryLocationForOsmBlockOrAllResultsTask, osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks'
+export {queryOverpassWithLocationForStreetResultTask} from './overpassStreet'

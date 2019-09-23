@@ -9,7 +9,13 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {highwayNodeFilters, highwayWayFilters, osmEquals, osmIdToAreaId} from './overpassHelpers';
+import {
+  highwayNodeFilters,
+  highwayWayFilters,
+  locationAndOsmResultsToLocationWithGeojson,
+  osmEquals,
+  osmIdToAreaId
+} from './overpassHelpers';
 import * as R from 'ramda';
 import {
   pickDeepPaths,
@@ -24,16 +30,21 @@ import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocks';
 const log = loggers.get('rescapeDefault');
 
 /**
- * Given a location with an osmId included, query the Overpass API and cleanup the results to get a single street
- * of geojson representing the location's one or two intersections common street (or only street)
+ * Given a location with an osmId included, query the Overpass API and cleanup the results to get all the blocks
+ * for the given street for the part of the street in the given neighborhood, city, state, country, etc.
  * @param {Object} locationWithOsm A Location object that also has an osmId to limit the area of the queries.
- * @returns {Task<Result<Object>>} Result.Ok or a Result.Error in the form {error}
+ * @returns {Task<Result<[Object]>>} Result.Ok with the successful location blocks containing geojson
  * The results contain nodes and ways of the streets, where nodes are where intersections occur
  * There must be at least on way and possibly more
  * Some blocks have more than two nodes if they have multiple divided ways.
  */
-export const queryOverpassWithLocationForSingleSteetResultTask = locationWithOsm => {
+export const queryOverpassWithLocationForStreetResultTask = locationWithOsm => {
   return R.composeK(
+    // Take the positive results and combine them with the location, which has corresponding intersectiongs
+    ({Ok: locationsAndResults}) => of(Result.Ok(R.map(
+      ({location, results}) => locationAndOsmResultsToLocationWithGeojson(location, results),
+      locationsAndResults
+    ))),
     // Query for all blocks matching the street
     ({locationWithOsm, queries: {way, node}}) => _queryOverpassForAllBlocksResultsTask(
       {location: locationWithOsm, way, node}
@@ -46,7 +57,7 @@ export const queryOverpassWithLocationForSingleSteetResultTask = locationWithOsm
         R.fromPairs(R.map(
           type => [
             type,
-            _constructSingleStreetQuery(
+            _constructStreetQuery(
               {type},
               // These are the only properties we might need from the location
               pickDeepPaths(['street', 'intersections', 'osmId'], locationWithOsm)
@@ -73,7 +84,7 @@ export const queryOverpassWithLocationForSingleSteetResultTask = locationWithOsm
  * to a neighborhood or city.
  * @returns {string} The complete Overpass query string
  */
-const _constructSingleStreetQuery = ({type}, {street, intersections, osmId}) => {
+const _constructStreetQuery = ({type}, {street, intersections, osmId}) => {
 
   // If a street is specified, use it. Otherwise extract the common street from the intersections
   const blockname = street || commonStreetOfLocation(intersections);

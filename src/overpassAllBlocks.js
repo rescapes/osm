@@ -2,7 +2,6 @@ import {
   reqStrPathThrowing,
   pickDeepPaths,
   resultToTaskWithResult,
-  resultToTaskNeedingResult,
   toNamedResponseAndInputs,
   mapToNamedResponseAndInputs,
   compact,
@@ -11,11 +10,10 @@ import {
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import {
-  fetchOsmRawTask,
   highwayNodeFilters,
   highwayWayFilters,
-  osmIdToAreaId, osmResultTask
-} from './overpass';
+  osmIdToAreaId
+} from './overpassHelpers';
 import * as Result from 'folktale/result';
 import {
   _blockToGeojson, _buildPartialBlocks, _sortOppositeBlocksByNodeOrdering,
@@ -31,7 +29,6 @@ import {
   hashWayFeature
 } from './overpassFeatureHelpers';
 import {isResolvableAllBlocksLocation, isResolvableSingleBlockLocation} from './locationHelpers';
-import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 
 /**
  * Created by Andy Likuski on 2019.07.26
@@ -43,46 +40,6 @@ import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-
-/**
- * Queries locationToOsmAllBlocksQueryResultsTask or queryLocationForOsmSingleBlockResultTask
- * @param {Object} osmConfig
- * @param {Object} osmConfig.forceOsmQuery
- * @param {Object} location A location that must be resolvable to a block or city/neighborhood area
- * @returns {Task<{Ok: Result.Ok, Error: Result.Error}>} Successful values in the Ok: [] array and errors in the Error: [] array.
- * Single block query will only have one result. The result value is {location, results} where location
- * is the location block object (either from the single block query or each block of multiple results) and
- * results are the OSM results {way: way features, node: node features, intersections: {keyed by node id valued by street names of the intersection}}
- */
-export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) => {
-  return R.cond([
-    [
-      location => isResolvableSingleBlockLocation(location),
-      location => {
-        return R.map(
-          result => {
-            // Match the format of locationToOsmAllBlocksQueryResultsTask
-            return result.matchWith({
-              Ok: ({value}) => ({Ok: [value]}),
-              Error: ({value}) => ({Error: [value]})
-            });
-          },
-          queryLocationForOsmSingleBlockResultTask(osmConfig, location)
-        );
-      }
-    ],
-    [
-      location => isResolvableAllBlocksLocation(location),
-      location => locationToOsmAllBlocksQueryResultsTask(location)
-    ],
-    [
-      R.T,
-      () => {
-        throw new Error(`Location ${JSON.stringify(location)} is neither resolvable as a block nor city/neighborhood area`);
-      }
-    ]
-  ])(location);
-};
 
 /**
  * Resolve the location and then query for the all of its blocks in overpass.
@@ -183,11 +140,14 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (locationWithOsm) => {
  * @param {String} wayQuery The Overpass way query
  * @param {String} nodeQuery The overpass node query
  * @returns {Task<Object>} { Ok: location blocks, Errors: []
- * Each location block, node features, way features, and intersections in the Ok array
+ * Each location block, and results containing: {node, way, nodesToIntersectingStreets} in the Ok array
+ * node contains node features, way contains way features, and nodesToIntersectingStreets are keyed by node id
+ * and contain one or more street names representing the intersection. It will be just the block name for
+ * a dead end street, and contain the intersecting streets for non-deadends
  * Errors in the errors array
  * Result.Error is returned. Object has a ways, nodes
  */
-const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: nodeQuery}) => {
+export const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: nodeQuery}) => {
   return R.composeK(
     // Finally get the features from the response
     res => resultToTaskWithResult(
@@ -207,8 +167,8 @@ const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: n
               );
               return {
                 // Put the OSM results together
-                results: R.merge(block, {intersections: nodesToIntersectingStreets}),
-                // Add the interesections to the location and return it
+                results: R.merge(block, {nodesToIntersectingStreets}),
+                // Add the intereections to the location and return it
                 location: R.merge(
                   location,
                   {
@@ -263,7 +223,7 @@ const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: n
               return of(R.map(
                 // Add intersections to the blocks based on the ways and nodes' properties
                 block => R.merge(block, {
-                    intersections: _intersectionStreetNamesFromWaysAndNodes(
+                  nodesToIntersectingStreets: _intersectionStreetNamesFromWaysAndNodes(
                       R.prop('ways', block),
                       R.prop('nodes', block),
                       nodeIdToWays
@@ -723,56 +683,4 @@ const _createQueryOutput = type => {
       throw Error('type argument must specified and be "way" or "node"');
     }]
   ])(type);
-};
-
-/**
- * Returns the geojson of a relationship
- * @param {Number} osmId The osm id of the relationship
- * @returns {Task<Result<Object>>}
- */
-export const osmRelationshipGeojsonResultTask = osmId => {
-  return osmResultTask(
-    {name: 'fetchOsmRawTask', testMockJsonToKey: {osmId}},
-    options => fetchOsmRawTask(options, `
-rel(id:${osmId}) -> .rel;
-.rel out geom; 
-    `)
-  );
-};
-
-/**
- * Returns the geojson of a relationship
- * @param {Number} osmId The osm id of the relationship
- * @returns {Task<Result<Object>>}
- */
-export const osmLocationToRelationshipGeojsonResultTask = location => {
-  // Look for a way if the location has a blockname specified. We don't currently support anything
-  // more specific. In the future we can support nodes for intersections
-  const relOrWay = R.ifElse(R.prop('blockname'), () => 'way', () => 'rel')(location);
-  const resultOsmType = R.ifElse(R.prop('blockname'), () => 'way', () => 'relation')(location);
-  return R.composeK(
-    // Filters out any geojson that isn't a way or relation depending on what we're looking for.
-    // Sometimes overpass returns center point nodes
-    resultToTaskNeedingResult(
-      geojson => of(R.over(
-        R.lensProp('features'),
-        features => R.filter(
-          feature => R.compose(R.contains(resultOsmType), R.prop('id'))(feature),
-          features),
-        geojson
-      ))
-    ),
-    resultToTaskWithResult(
-      ({osmId}) => osmResultTask(
-        {name: 'fetchOsmRawTask', testMockJsonToKey: {osmId}},
-        options => fetchOsmRawTask(options, `
-${relOrWay}(id:${osmId}) -> .${relOrWay};
-.${relOrWay} out geom; 
-    `)
-      )
-    ),
-    // This logic says, if we have a blockname or more specific, allow us to fallback to the city without the
-    // neighborhood is querying with the neighborhood fails. Sometimes the neighborhood isn't known and hides results
-    location => nominatimLocationResultTask({allowFallbackToCity: R.not(R.isNil(R.prop('blockname', location)))}, location)
-  )(location);
 };

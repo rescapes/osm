@@ -19,7 +19,7 @@ import {of} from 'folktale/concurrency/task';
 import {
   fetchOsmRawTask, highwayNodeFilters, highwayWayFilters,
   osmResultTask
-} from './overpass';
+} from './overpassHelpers';
 import {
   mapObjToValues,
   reqStrPathThrowing,

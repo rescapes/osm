@@ -12,11 +12,12 @@ const config = {
     'src/googleLocation.js',
     'src/locationHelpers.js',
     'src/nominatimLocationSearch.js',
-    'src/overpass.js',
+    'src/overpassHelpers.js',
     'src/overpassAllBlocks.js',
     'src/overpassBlockHelpers.js',
     'src/overpassFeatureHelpers.js',
     'src/overpassSingleBlock.js',
+    'src/overpassStreet.js',
     'src/overpassTransit.js',
   ],
   plugins: []

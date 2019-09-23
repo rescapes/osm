@@ -10,6 +10,7 @@
  */
 import {compactEmpty, reqStrPathThrowing, strPathOr} from 'rescape-ramda';
 import * as R from 'ramda';
+import {locationAndOsmResultsToLocationWithGeojson} from './overpassHelpers';
 
 // The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
 // Switzerland for example doesn't resolve correctly if the canton abbreviation is included
@@ -153,10 +154,12 @@ export const addressStrings = location => {
  * @param location
  * @return {*}
  */
-export const oneLocationIntersectionsFromLocation = location => R.map(
-  intersection => ({intersections: [intersection], ...R.omit(['intersections'], location)}),
-  location.intersections
-);
+export const oneLocationIntersectionsFromLocation = location => {
+  return R.map(
+    intersection => ({intersections: [intersection], ...R.omit(['intersections'], location)}),
+    location.intersections
+  );
+};
 
 /**
  * Just returns the street "address" e.g. Perkins Ave, Oakland, CA, USA
@@ -200,6 +203,36 @@ export const addressPair = location => {
   );
 };
 
+/**
+ * Extracts the common street of all given intersection sets
+ * @param streetIntersectionSets
+ * @returns {f1}
+ */
+export const commonStreetOfLocation = streetIntersectionSets => {
+  // Extract the common street from the set. There might be weird cases with a street intersecting
+  // the same street twice meaning we have two common streets
+  const common = R.reduce(
+    (intersecting, b) => R.intersection(intersecting, b),
+    // Start with all eligible
+    R.compose(R.uniq, R.flatten)(streetIntersectionSets),
+    streetIntersectionSets
+  );
+
+  return R.ifElse(
+    R.compose(R.not, R.equals(1), R.length),
+    () => {
+      // If there's a question about who's the main block, consult location
+      const wayFeature = R.find(
+        feature => R.contains('way', R.prop('id', feature)),
+        reqStrPathThrowing('geojson.features', location)
+      );
+      // Use the name of the way or failing that the id
+      // This will probably always match one the names in each intersection, unless the way is super weird
+      return strPathOr(wayFeature.id, 'properties.tags.name', wayFeature);
+    },
+    common => R.head(common)
+  )(common);
+};
 
 /**
  * Finds the common street of the intersections then sorts the intersections alphabetically based on the second street.
@@ -214,26 +247,8 @@ export const addressPair = location => {
  */
 export const intersectionsByNodeIdToSortedIntersections = (location, nodesToIntersectingStreets) => {
   let streetIntersectionSets = R.values(nodesToIntersectingStreets);
-  // Extract the common street from the set. There must be exactly one or we rr
-  const common = R.reduce(
-    (intersecting, b) => R.intersection(intersecting, b),
-    // Start with all eligible
-    R.compose(R.uniq, R.flatten)(streetIntersectionSets),
-    streetIntersectionSets
-  );
-  let blockname = null;
-  if (R.compose(R.not, R.equals(1), R.length)(common)) {
-    // If there's a question about who's the main block, consult location
-    const wayFeature = R.find(
-      feature => R.contains('way', R.prop('id', feature)),
-      reqStrPathThrowing('geojson.features', location)
-    );
-    // Use the name of the way or failing that the id
-    // This will probably always match one the names in each intersection, unless the way is super weird
-    blockname = strPathOr(wayFeature.id, 'properties.tags.name', wayFeature);
-  } else {
-    blockname = R.head(common);
-  }
+
+  const blockname = commonStreetOfLocation(streetIntersectionSets);
 
   // If we only have one node in streetIntersectionSets then we need to add the dead-end
   streetIntersectionSets = R.when(
@@ -315,4 +330,37 @@ export const isResolvableSingleBlockLocation = location => R.either(
 export const isResolvableAllBlocksLocation = location => {
   const requiredProps = ['country', 'city'];
   return R.all(prop => R.prop(prop, location), requiredProps);
+};
+
+/**
+ * Given a location and componentLocations that are locations geospatially within location, create a single
+ * location with the unique geojson of the componentLocations. The geojson of the given location can be optionally
+ * preserved and combined with the components. For instance if location is a neighborhood represented by
+ * OSM relation geojson, it can be optionally combined with the ways and nodes of all componentLocations or omitted
+ * @param {Object} config
+ * @param {Object} config.preserveLocationGeojson Keeps the geojson of the location and adds the componentLocations
+ * unique geojson
+ * @param {Object} location Location emcompassing the componentLocations
+ * @param {[Object]} componentLocations any number of locations that are geospatailly within location
+ */
+export const aggregateLocation = ({preserveLocationGeojson}, location, componentLocations) => {
+  return R.compose(
+    features => {
+      return locationAndOsmResultsToLocationWithGeojson(location,
+        // Bucket the features by type, 'ways', or 'nodes'
+        R.reduceBy(
+          R.flip(R.append),
+          [],
+          feature => R.compose(R.flip(R.concat)('s'), R.head, R.split('/'), R.prop('id'))(feature),
+          features
+        )
+      );
+    },
+    // Get rid of duplicate nodes
+    features => R.uniqBy(R.prop('id'), features),
+    // Get features of each location and chain them together
+    R.chain(
+      blockLocation => strPathOr([], 'geojson.features', blockLocation)
+    )
+  )(componentLocations);
 };

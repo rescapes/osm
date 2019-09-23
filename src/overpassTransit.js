@@ -12,7 +12,7 @@
 import * as R from 'ramda';
 import {mergeAllWithKey, removeDuplicateObjectsByProp, reqStrPathThrowing} from 'rescape-ramda';
 import {loggers} from 'rescape-log';
-import {buildFilterQuery, taskQuery} from './overpass';
+import {buildFilterQuery, taskQuery} from './overpassHelpers';
 import squareGrid from '@turf/square-grid';
 import {concatFeatures} from 'rescape-helpers';
 import {feature as bbox} from '@turf/helpers';

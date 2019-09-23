@@ -14,7 +14,7 @@ import * as R from 'ramda';
 import {
   reqStrPathThrowing,
   taskToResultTask,
-  traverseReduceWhile
+  traverseReduceWhile,
 } from 'rescape-ramda';
 import os from 'os';
 import 'regenerator-runtime';
@@ -263,7 +263,7 @@ export const osmResultTask = ({tries, name, testMockJsonToKey}, taskFunc) => {
  * @param {Number} options.sleepBetweenCalls: Optional value to slow down calls. This only matters when
  * multiple queries are running
  * @param {String} query The complete OSM query string
- * @return {Task} A task that calls query-overpass with the query
+ * @return {Task} A task that calls query-overpass with the query and resolves to a query result
  */
 export const taskQuery = (options, query) => {
   // Wrap overpass helper's execution and callback in a Task
@@ -334,4 +334,3 @@ foreach.${possibleNodes} ->.${oneOfPossibleNodes}
   .${oneOfPossibleNodes} -> .${outputNodeName};
   ${leaveForAndIfBlocksOpen ? '' : '} };'}`;
 };
-

@@ -42,8 +42,7 @@ describe('overpassBlocks', () => {
       onResolved: location => {
         expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(5);
       }
-    }, errors, () => {
-    }));
+    }, errors, done));
   }, 20000);
 
   test('osmLocationToRelationshipGeojsonResultTaskNeighborhood', done => {
@@ -61,8 +60,7 @@ describe('overpassBlocks', () => {
           "type": "Polygon"
         }
       )
-    }, errors, () => {
-    }));
+    }, errors, done));
 
   }, 20000);
   test('osmLocationToRelationshipGeojsonResultTasCity', done => {
@@ -74,8 +72,7 @@ describe('overpassBlocks', () => {
       city: 'Yellowknife'
     }).run().listen(defaultRunToResultConfig({
       onResolved: location => expect(R.length(reqStrPathThrowing('geojson.features.0.geometry.coordinates.0', location))).toEqual(30)
-    }, errors, () => {
-    }));
+    }, errors, done));
   }, 20000);
 
   test('osmLocationToRelationshipGeojsonResultState', done => {
@@ -85,9 +82,10 @@ describe('overpassBlocks', () => {
       country: 'USA',
       state: 'Colorado'
     }).run().listen(defaultRunToResultConfig({
-      onResolved: locatin => expect(R.length(reqStrPathThrowing('geojson.features.0.geometry.coordinates.0', locatin))).toEqual(795)
-    }, errors, () => {
-    }));
+      onResolved: location => expect(
+        R.length(reqStrPathThrowing('geojson.features.0.geometry.coordinates.0', location))
+      ).toEqual(795)
+    }, errors, done))
   }, 20000);
 
   test('osmLocationToRelationshipGeojsonResultCountry', done => {

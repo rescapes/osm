@@ -18,7 +18,7 @@ import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
 import {aggregateLocation, isResolvableAllBlocksLocation, isResolvableSingleBlockLocation} from './locationHelpers';
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
-import {fetchOsmRawTask, locationAndOsmResultsToLocationWithGeojson, osmResultTask} from './overpassHelpers';
+import {fetchOsmRawTask, osmResultTask} from './overpassHelpers';
 import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 import {resultToTaskNeedingResult, resultToTaskWithResult, strPathOr, mapToNamedResponseAndInputs} from 'rescape-ramda';
 

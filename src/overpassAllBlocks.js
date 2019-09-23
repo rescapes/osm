@@ -28,7 +28,6 @@ import {
   hashNodeFeature,
   hashWayFeature
 } from './overpassFeatureHelpers';
-import {isResolvableAllBlocksLocation, isResolvableSingleBlockLocation} from './locationHelpers';
 
 /**
  * Created by Andy Likuski on 2019.07.26

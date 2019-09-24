@@ -11,6 +11,8 @@
 import {compactEmpty, reqStrPathThrowing, strPathOr} from 'rescape-ramda';
 import * as R from 'ramda';
 import {locationAndOsmResultsToLocationWithGeojson} from './overpassHelpers';
+import PropTypes from 'prop-types';
+import {v} from 'rescape-validate';
 
 // The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
 // Switzerland for example doesn't resolve correctly if the canton abbreviation is included
@@ -346,15 +348,7 @@ export const isResolvableAllBlocksLocation = location => {
 export const aggregateLocation = ({preserveLocationGeojson}, location, componentLocations) => {
   return R.compose(
     features => {
-      return locationAndOsmResultsToLocationWithGeojson(location,
-        // Bucket the features by type, 'ways', or 'nodes'
-        R.reduceBy(
-          R.flip(R.append),
-          [],
-          feature => R.compose(R.flip(R.concat)('s'), R.head, R.split('/'), R.prop('id'))(feature),
-          features
-        )
-      );
+      return locationAndOsmResultsToLocationWithGeojson(location, featuresByOsmType(features));
     },
     // Get rid of duplicate nodes
     features => R.uniqBy(R.prop('id'), features),
@@ -364,3 +358,20 @@ export const aggregateLocation = ({preserveLocationGeojson}, location, component
     )
   )(componentLocations);
 };
+
+/**
+ * Organizes features by their types into 'ways', 'nodes', and 'relationships'
+ * @param features
+ * @returns {Object}
+ */
+export const featuresByOsmType = v(features => {
+  // Bucket the features by type, 'ways', or 'nodes'
+  return R.reduceBy(
+    R.flip(R.append),
+    [],
+    feature => R.compose(R.flip(R.concat)('s'), R.head, R.split('/'), R.prop('id'))(feature),
+    features
+  );
+}, [['features', PropTypes.arrayOf(PropTypes.shape({
+  id: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+})).isRequired]], 'featuresByOsmType');

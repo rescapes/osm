@@ -16,11 +16,22 @@ import 'regenerator-runtime';
 import * as Result from 'folktale/result';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
-import {aggregateLocation, isResolvableAllBlocksLocation, isResolvableSingleBlockLocation} from './locationHelpers';
+import {
+  aggregateLocation,
+  featuresByOsmType,
+  isResolvableAllBlocksLocation,
+  isResolvableSingleBlockLocation
+} from './locationHelpers';
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 import {fetchOsmRawTask, osmResultTask} from './overpassHelpers';
 import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
-import {resultToTaskNeedingResult, resultToTaskWithResult, strPathOr, mapToNamedResponseAndInputs} from 'rescape-ramda';
+import {
+  resultToTaskNeedingResult,
+  resultToTaskWithResult,
+  strPathOr,
+  mapToNamedResponseAndInputs,
+  chainObjToValues
+} from 'rescape-ramda';
 
 /**
  * Returns the geojson of a relationship
@@ -55,19 +66,26 @@ export const osmLocationToLocationWithGeojsonResultTask = location => {
       throw Error(`Location has no jurisdiction data needed to resolve it geospatially: ${JSON.stringify(location)}`);
     }]
   ])(location);
-  const resultType = {
-    way: 'way',
-    rel: 'relation'
-  };
+  const resultTypes = {
+    way: ['ways', 'nodes'],
+    rel: ['relations']
+  }[locationType];
   return R.composeK(
     // Filters out any geojson that isn't a way or relation depending on what we're looking for.
-    // Sometimes overpass returns center point nodes
+    // Sometimes overpass returns center point nodes for relations that we don't want
     resultToTaskNeedingResult(
       location => of(R.over(
         R.lensPath(['geojson', 'features']),
-        features => R.filter(
-          feature => R.compose(R.contains(resultType[locationType]), R.prop('id'))(feature),
-          features),
+        features => {
+          return R.compose(
+            // Flatten the values
+            chainObjToValues(R.identity),
+            // Pick the keys we want
+            R.pick(resultTypes),
+            // Bucket by type
+            features => featuresByOsmType(features)
+          )(features);
+        },
         location
       ))
     ),

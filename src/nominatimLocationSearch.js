@@ -155,8 +155,8 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
  * @param {String} location.blockname. Optional. Will return a line if this is defined and found
  * then query within a neighborhood. However if there is no neighborhood or nothing is found it can be omitted
  * @return {Task<Result<Object>>} A Task that resolves the relation id in a Result.Ok or returns a Result.Error if no
- * qualifying results are found. Task rejects with a Result.Error() if the query fails. The returned value
- * has the following props:
+ * qualifying results are found. Task rejects with a Result.Error() if the query fails. The returned value has the
+ * following props:
  *  osm_id: The OSM id of the relation.
  *  osm_type: This should always be 'relation'
  *  bbox: The bounding box of the relation

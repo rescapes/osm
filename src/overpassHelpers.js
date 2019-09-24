@@ -14,7 +14,7 @@ import * as R from 'ramda';
 import {
   reqStrPathThrowing,
   taskToResultTask,
-  traverseReduceWhile,
+  traverseReduceWhile
 } from 'rescape-ramda';
 import os from 'os';
 import 'regenerator-runtime';
@@ -343,17 +343,14 @@ foreach.${possibleNodes} ->.${oneOfPossibleNodes}
  * @param {[Object]} nodes List of node features
  * @returns {f2|f1}
  */
-export const locationAndOsmResultsToLocationWithGeojson = (location, {ways, nodes}) => R.set(
+export const locationAndOsmResultsToLocationWithGeojson = (location, {ways, nodes, relations}) => R.set(
   R.lensProp('geojson'),
   {
     // Default geojson properties since we are combining multiple geojson results
     type: 'FeatureCollection',
     generator: 'overpass-turbo',
     copyright: 'The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.',
-    features: [
-      ...nodes,
-      ...ways
-    ]
+    features: R.chain(R.defaultTo([]), [ways, nodes, relations])
   },
   location
 );

@@ -59,8 +59,7 @@ export const queryOverpassWithLocationForStreetResultTask = locationWithOsm => {
             type,
             _constructStreetQuery(
               {type},
-              // These are the only properties we might need from the location
-              pickDeepPaths(['street', 'intersections', 'osmId'], locationWithOsm)
+              locationWithOsm
             )
           ],
           ['way', 'node']
@@ -75,19 +74,21 @@ export const queryOverpassWithLocationForStreetResultTask = locationWithOsm => {
  * in intersections
  * Explicit OSM ids are required to limit the query to a city or neighbhorhood
  * @param {String} type 'way' or 'node'
- * @param {String} [street] The street to query for. If not specified then intersections must be sepecified
- * @param {[[String]]} [intersections] The one or two intersections are an
+ * @param {Object} locationWithOsm
+ * @param {String} [locationWithOsm.street] The street to query for. If not specified then intersections must be sepecified
+ * @param {[[String]]} [locationWithOsm.intersections] The one or two intersections are an
  * array of at least on complete street names. Example [['Main Street', 'Chestnut Street'],
  * ['Main Street', 'Orchard Way']]  or [['Main Street']], [['Main Street']]
  * Street abbreviations are not allowed. They will not be matched by OpenStreetMap.
- * @param {String} osmId OSM id to be used to constrain the area of the query. This id corresponds
+ * @param {String} locationWithOsm.osmId OSM id to be used to constrain the area of the query. This id corresponds
  * to a neighborhood or city.
  * @returns {string} The complete Overpass query string
  */
-const _constructStreetQuery = ({type}, {street, intersections, osmId}) => {
+const _constructStreetQuery = ({type}, locationWithOsm) => {
 
+  const {street, intersections, osmId} = locationWithOsm;
   // If a street is specified, use it. Otherwise extract the common street from the intersections
-  const blockname = street || commonStreetOfLocation(intersections);
+  const blockname = street || commonStreetOfLocation(locationWithOsm, intersections);
 
   if (R.isNil(blockname)) {
     throw Error("Improper configuration. Street or intersections must be non-null");

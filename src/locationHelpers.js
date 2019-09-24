@@ -210,7 +210,7 @@ export const addressPair = location => {
  * @param streetIntersectionSets
  * @returns {f1}
  */
-export const commonStreetOfLocation = streetIntersectionSets => {
+export const commonStreetOfLocation = (location, streetIntersectionSets) => {
   // Extract the common street from the set. There might be weird cases with a street intersecting
   // the same street twice meaning we have two common streets
   const common = R.reduce(
@@ -250,7 +250,7 @@ export const commonStreetOfLocation = streetIntersectionSets => {
 export const intersectionsByNodeIdToSortedIntersections = (location, nodesToIntersectingStreets) => {
   let streetIntersectionSets = R.values(nodesToIntersectingStreets);
 
-  const blockname = commonStreetOfLocation(streetIntersectionSets);
+  const blockname = commonStreetOfLocation(location, streetIntersectionSets);
 
   // If we only have one node in streetIntersectionSets then we need to add the dead-end
   streetIntersectionSets = R.when(
@@ -347,11 +347,11 @@ export const isResolvableAllBlocksLocation = location => {
  */
 export const aggregateLocation = ({preserveLocationGeojson}, location, componentLocations) => {
   return R.compose(
-    features => {
-      return locationAndOsmResultsToLocationWithGeojson(location, featuresByOsmType(features));
-    },
-    // Get rid of duplicate nodes
-    features => R.uniqBy(R.prop('id'), features),
+    featuresByType => locationAndOsmResultsToLocationWithGeojson(location, featuresByType),
+    // Get rid of duplicate nodes. We don't want to remove duplicate way ids because
+    // we chop ways into individual blocks, so they have the same id but different points
+    featuresByType => R.over(R.lensProp('nodes'), R.uniqBy(R.prop('id')), featuresByType),
+    features => featuresByOsmType(features),
     // Get features of each location and chain them together
     R.chain(
       blockLocation => strPathOr([], 'geojson.features', blockLocation)

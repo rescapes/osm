@@ -68,7 +68,8 @@ describe('LocationSelector', () => {
   );
 
   test('  intersectionsByNodeIdToSortedIntersections', () => {
-    expect(intersectionsByNodeIdToSortedIntersections({
+    expect(intersectionsByNodeIdToSortedIntersections(
+      {
         geojson: {
           features: [
             {

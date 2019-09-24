@@ -45,6 +45,23 @@ describe('overpassBlocks', () => {
     }, errors, done));
   }, 20000);
 
+  test('osmLocationToRelationshipGeojsonResultTaskStreetBatteryPlace', done => {
+    expect.assertions(1);
+    const errors = [];
+
+    osmLocationToLocationWithGeojsonResultTask({
+      country: 'USA',
+      state: 'New York',
+      city: 'New York',
+      neighborhood: 'Battery Park City',
+      street: 'Battery Place'
+    }).run().listen(defaultRunToResultConfig({
+      onResolved: location => {
+        expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(11);
+      }
+    }, errors, done));
+  }, 20000);
+
   test('osmLocationToRelationshipGeojsonResultTaskNeighborhood', done => {
     expect.assertions(1);
     const errors = [];

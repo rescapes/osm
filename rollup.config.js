@@ -18,6 +18,7 @@ const config = {
     'src/overpassFeatureHelpers.js',
     'src/overpassSingleBlock.js',
     'src/overpassStreet.js',
+    'src/overpassBlocks.js',
     'src/overpassTransit.js',
   ],
   plugins: []

@@ -207,6 +207,7 @@ export const addressPair = location => {
 
 /**
  * Extracts the common street of all given intersection sets
+ * @param {Object} location
  * @param streetIntersectionSets
  * @returns {f1}
  */
@@ -221,7 +222,7 @@ export const commonStreetOfLocation = (location, streetIntersectionSets) => {
   );
 
   return R.ifElse(
-    R.compose(R.not, R.equals(1), R.length),
+    common => R.compose(R.not, R.equals(1), R.length)(common),
     () => {
       // If there's a question about who's the main block, consult location
       const wayFeature = R.find(

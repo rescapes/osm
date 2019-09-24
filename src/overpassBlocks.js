@@ -28,9 +28,9 @@ import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 import {
   resultToTaskNeedingResult,
   resultToTaskWithResult,
-  strPathOr,
   mapToNamedResponseAndInputs,
-  chainObjToValues
+  chainObjToValues,
+  eqStrPathsAll
 } from 'rescape-ramda';
 
 /**
@@ -47,29 +47,51 @@ rel(id:${osmId}) -> .rel;
     `)
   );
 };
-
 /**
  * Returns the geojson of the location. For country, state, city, neighborhood this is the OSM relation's geojson
  * when available. For streets it's the geojson of all the location blocks of the street within the neighborhood
  * or city
- * @param {Object} location The location
+ * @param {[Object]} componentLocations Locations that might be components of location. If filterLocation
+ * is a filtered to a street and some componentLocations match that street, uses the geojson of the
+ * componentLocations instead of querying osm. If filterLocation is down to a block (has intersections) find
+ * the componentLocation that matches and use it's geojson. For block level filterLocation, we must have a
+ * matching componentLocation. We currently refuse to query OSM for a single block, preferring to supply all
+ * blocks in componentLocations
+ * @param {Object} filterLocation The location that is scoped to match 0 or more componentLocations.
  * @returns {Task<Result<Object>>} The geojson
  */
-export const osmLocationToLocationWithGeojsonResultTask = location => {
-  // Look for a way if the location has a blockname specified. We don't currently support anything
-  // more specific. In the future we can support nodes for intersections
+export const osmLocationToLocationWithGeojsonResultTask = (componentLocations, filterLocation) => {
+
+  const matchingComponentLocations = componentLocations => R.filter(
+    componentLocation => eqStrPathsAll(
+      // If filterLocation has intersections we need an id match with componentLocations, since filterLocation
+      // then had to have been picked from a list of saved block location
+      R.ifElse(
+        R.prop('intersections'),
+        () => ['id'],
+        () => ['country', 'state', 'city', 'neighborhood', 'street']
+      )(filterLocation),
+      filterLocation,
+      componentLocation
+    ),
+    R.defaultTo([], componentLocations)
+  );
+
+  // Look for a way if the location has at least a street specified.
+  // For greater scales look for a relation
   const locationType = R.cond([
     [R.compose(R.length, R.prop('intersections')), () => 'way'],
     [R.prop('street'), () => 'way'],
     [R.prop('country'), () => 'rel'],
     [R.T, () => {
-      throw Error(`Location has no jurisdiction data needed to resolve it geospatially: ${JSON.stringify(location)}`);
+      throw Error(`Location has no jurisdiction data needed to resolve it geospatially: ${JSON.stringify(filterLocation)}`);
     }]
-  ])(location);
+  ])(filterLocation);
   const resultTypes = {
     way: ['ways', 'nodes'],
     rel: ['relations']
   }[locationType];
+
   return R.composeK(
     // Filters out any geojson that isn't a way or relation depending on what we're looking for.
     // Sometimes overpass returns center point nodes for relations that we don't want
@@ -89,7 +111,13 @@ export const osmLocationToLocationWithGeojsonResultTask = location => {
         location
       ))
     ),
+
+    // We need to handle different scopes. >= neighborhood scope is looking for a relation that outlines the area,
+    // Street scope is looking for all the blocks of that street, where each block is ways and nodes
+    // Intersections defined means that we're looking for a single block
+    // In the future we need to handle way areas like plazas and parks
     resultToTaskWithResult(
+      // Relationships
       ({osmId}) => R.cond([
         [
           // Just get the relation for neighborhoods and above
@@ -98,7 +126,7 @@ export const osmLocationToLocationWithGeojsonResultTask = location => {
             resultToTaskNeedingResult(
               // Here we always discard location's geojson, since the geojson result represents the entire
               // location, not components of it
-              geojson => of(R.merge(location, {geojson}))
+              geojson => of(R.merge(filterLocation, {geojson}))
             ),
             osmId => osmResultTask(
               {name: 'fetchOsmRawTask', testMockJsonToKey: {osmId}},
@@ -107,27 +135,69 @@ export const osmLocationToLocationWithGeojsonResultTask = location => {
             )
           )(osmId)
         ],
-        // TODO add single logic for a single block query
+        // Single Block
+        [
+          () => R.compose(R.length, R.prop('intersections'))(filterLocation),
+          osmId => of(R.ifElse(
+            // Do we have a component location that matches the block?
+            ({blockLocations}) => R.length(blockLocations),
+            // If so just use that location's geojson
+            ({blockLocations}) => Result.Ok(
+              R.head(blockLocations)
+            ),
+            // Otherwise error, we don't want to query single blocks here. Matching blocks should by supplied
+            // in componentLocations
+            ({locationWithOsm}) => Result.Error({location: locationWithOsm, message: 'No matching componentLocations found for this block location'})
+          )({
+            locationWithOsm: R.merge(filterLocation, {osmId}),
+            blockLocations: matchingComponentLocations(componentLocations)
+          }))
+        ],
+        // Streets
         [
           // Query for all blocks of the street.
           R.T,
           osmId => R.composeK(
+            // Aggregate the geojson of all block features into a street-scope location
             ({locationWithOsm, blockLocationsResult}) => resultToTaskNeedingResult(
-              // Aggregate the geojson into a street-scope location
               blockLocations => of(aggregateLocation({}, locationWithOsm, blockLocations))
             )(blockLocationsResult),
+
+            // Collect blocks from the matching componentLocations or by querying OSM
             mapToNamedResponseAndInputs('blockLocationsResult',
-              locationWithOsm => queryOverpassWithLocationForStreetResultTask(locationWithOsm)
+              ({locationWithOsm, blockLocations}) => R.ifElse(
+                // Do we have component locations that match the street?
+                R.length,
+                // If so just use those locations geojson, hoping we have all we need
+                matchingComponentLocations => of(Result.Ok(
+                  matchingComponentLocations
+                )),
+                // Otherwise query OSM
+                () => queryOverpassWithLocationForStreetResultTask(locationWithOsm)
+              )(blockLocations)
             )
-          )(R.merge(location, {osmId}))
+          )({
+            locationWithOsm: R.merge(filterLocation, {osmId}),
+            blockLocations: matchingComponentLocations(componentLocations)
+          })
         ]
       ])(osmId)
     ),
+
     // This logic says, if we have a blockname or more specific, allow us to fallback to the city without the
     // neighborhood is querying with the neighborhood fails. Sometimes the neighborhood isn't known and hides results
     // We can only query nomanatim up the neighborhood level. It gives garbage results for blocks
-    location => nominatimLocationResultTask({allowFallbackToCity: R.not(R.isNil(R.prop('blockname', location)))}, location)
-  )(location);
+    R.unless(
+      // Don't repeat search if the location already knows its osmId
+      R.prop('osmId'),
+      location => nominatimLocationResultTask(
+        {
+          allowFallbackToCity: R.not(R.isNil(R.prop('blockname', location)))
+        },
+        location
+      )
+    )
+  )(filterLocation);
 };
 
 

@@ -1,6 +1,16 @@
-import {defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {
+  defaultRunToResultConfig,
+  reqStrPathThrowing,
+  mapToNamedResponseAndInputs,
+  resultToTaskWithResult,
+  mapResultTaskWithOtherInputs
+} from 'rescape-ramda';
 import {osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks';
 import * as R from 'ramda';
+import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
+import {nominatimLocationResultTask} from './nominatimLocationSearch';
+import {of} from 'folktale/concurrency/task'
+import Result from 'folktale/result'
 
 
 /**
@@ -28,11 +38,92 @@ describe('overpassBlocks', () => {
     }, errors, done));
   });
 
+  test('osmLocationToRelationshipGeojsonBlockTaskStreet', done => {
+    expect.assertions(1);
+    const errors = [];
+
+    const componentLocations = [
+
+      {
+        "id": 2231909,
+        "intersections": [['Chambers Street', 'Hudson River Greenway'], ['Chambers Street', 'North End Avenue']],
+        "neighborhood": "Battery Park City",
+        "city": "New York",
+        "state": "NY",
+        "country": "USA",
+        "data": {},
+        "dataComplete": false,
+        "geojson": {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "id": "node/42431629",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  -74.0138209,
+                  40.7176174
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "node/246866828",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [
+                  -74.0131526,
+                  40.7173145
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "id": "way/226040985",
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    -74.0138209,
+                    40.7176174
+                  ],
+                  [
+                    -74.0132398,
+                    40.717354
+                  ],
+                  [
+                    -74.0131526,
+                    40.7173145
+                  ]
+                ]
+              }
+            }
+          ],
+          "generator": "overpass-turbo",
+          "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+        }
+      }
+    ];
+    osmLocationToLocationWithGeojsonResultTask(componentLocations, {
+      id: 2231909,
+      country: 'USA',
+      state: 'New York',
+      city: 'New York',
+      neighborhood: 'Battery Park City',
+      intersections: [['Chambers Street', 'Hudson River Greenway'], ['Chambers Street', 'North End Avenue']]
+    }).run().listen(defaultRunToResultConfig({
+      onResolved: location => {
+        expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(3);
+      }
+    }, errors, done));
+  }, 200000);
+
   test('osmLocationToRelationshipGeojsonResultTaskStreet', done => {
     expect.assertions(1);
     const errors = [];
 
-    osmLocationToLocationWithGeojsonResultTask({
+    osmLocationToLocationWithGeojsonResultTask([], {
       country: 'USA',
       state: 'New York',
       city: 'New York',
@@ -45,11 +136,55 @@ describe('overpassBlocks', () => {
     }, errors, done));
   }, 20000);
 
+  // osmLocationToRelationshipGeojsonResultTaskStreet with component locations selected to be used for geojson
+  // We do this test by fetching the component location from OSM first
+  test('osmLocationToRelationshipGeojsonResultTaskStreetWithComponentLocations', done => {
+    expect.assertions(1);
+    const errors = [];
+
+    R.composeK(
+      ({locationWithGeojsonResult}) => of(locationWithGeojsonResult),
+      // Call with blocks.
+      mapResultTaskWithOtherInputs(
+        {resultInputKey: 'componentLocationsResult', resultOutputKey: 'locationWithGeojsonResult'},
+        ({filterLocation, componentLocations}) => osmLocationToLocationWithGeojsonResultTask(
+          componentLocations,
+          filterLocation
+        )
+      ),
+      // Get the blocks
+      mapResultTaskWithOtherInputs(
+        {resultInputKey: 'locationWithOsmResult', resultOutputKey: 'componentLocationsResult'},
+        ({locationWithOsm}) => queryOverpassWithLocationForStreetResultTask(locationWithOsm)
+      ),
+      // Get the osmId
+      mapToNamedResponseAndInputs('locationWithOsmResult',
+        ({filterLocation}) => nominatimLocationResultTask(
+          {},
+          filterLocation
+        )
+      )
+    )({
+      filterLocation: {
+        country: 'USA',
+        state: 'New York',
+        city: 'New York',
+        neighborhood: 'Battery Park City',
+        street: 'Chambers Street'
+      }
+    }).run().listen(defaultRunToResultConfig({
+      onResolved: location => {
+        expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(11);
+      }
+    }, errors, done));
+  }, 200000);
+
+
   test('osmLocationToRelationshipGeojsonResultTaskStreetBatteryPlace', done => {
     expect.assertions(1);
     const errors = [];
 
-    osmLocationToLocationWithGeojsonResultTask({
+    osmLocationToLocationWithGeojsonResultTask([], {
       country: 'USA',
       state: 'New York',
       city: 'New York',
@@ -57,7 +192,7 @@ describe('overpassBlocks', () => {
       street: 'Battery Place'
     }).run().listen(defaultRunToResultConfig({
       onResolved: location => {
-        expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(11);
+        expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(17);
       }
     }, errors, done));
   }, 20000);
@@ -65,7 +200,7 @@ describe('overpassBlocks', () => {
   test('osmLocationToRelationshipGeojsonResultTaskNeighborhood', done => {
     expect.assertions(1);
     const errors = [];
-    osmLocationToLocationWithGeojsonResultTask({
+    osmLocationToLocationWithGeojsonResultTask([], {
       country: 'USA',
       state: 'New York',
       city: 'New York',
@@ -83,7 +218,7 @@ describe('overpassBlocks', () => {
   test('osmLocationToRelationshipGeojsonResultTasCity', done => {
     expect.assertions(1);
     const errors = [];
-    osmLocationToLocationWithGeojsonResultTask({
+    osmLocationToLocationWithGeojsonResultTask([], {
       country: 'Canada',
       state: 'Northwest Territories',
       city: 'Yellowknife'
@@ -95,21 +230,22 @@ describe('overpassBlocks', () => {
   test('osmLocationToRelationshipGeojsonResultState', done => {
     expect.assertions(1);
     const errors = [];
-    osmLocationToLocationWithGeojsonResultTask({
+    osmLocationToLocationWithGeojsonResultTask([], {
       country: 'USA',
       state: 'Colorado'
     }).run().listen(defaultRunToResultConfig({
       onResolved: location => expect(
         R.length(reqStrPathThrowing('geojson.features.0.geometry.coordinates.0', location))
       ).toEqual(795)
-    }, errors, done))
+    }, errors, done));
   }, 20000);
 
   test('osmLocationToRelationshipGeojsonResultCountry', done => {
     expect.assertions(1);
     const errors = [];
-    osmLocationToLocationWithGeojsonResultTask({country: 'Nepal'}).run().listen(defaultRunToResultConfig({
+    osmLocationToLocationWithGeojsonResultTask([], {country: 'Nepal'}).run().listen(defaultRunToResultConfig({
       onResolved: location => expect(R.length(reqStrPathThrowing('geojson.features.0.geometry.coordinates.0', location))).toEqual(18843)
     }, errors, done));
   }, 200000);
-});
+})
+;

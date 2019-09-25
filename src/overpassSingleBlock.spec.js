@@ -14,7 +14,7 @@ import * as R from 'ramda';
  */
 
 
-describe('overpassBlocks', () => {
+describe('overpassSingleBlock', () => {
 
   test('fetchLatLonOnyLocation', done => {
     const errors = [];

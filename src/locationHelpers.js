@@ -387,38 +387,41 @@ export const locationHasLocationPoints = blockLocation => R.compose(
  * @param blockLocation
  */
 export const locationWithLocationPoints = blockLocation => {
-  return R.over(R.lensProp('locationPoints'),
-    locationPoints => R.compose(
-      // Failing that try to get them from google results
-      ({blockLocation, locationPoints}) => R.defaultTo(
-        R.map(
-          reqStrPathThrowing('geojson'),
-          R.propOr([], 'googleIntersectionObjs', blockLocation)
+  return R.over(
+    R.lensProp('locationPoints'),
+    locationPoints => {
+      return R.compose(
+        // Failing that try to get them from google results
+        ({blockLocation, locationPoints}) => R.unless(
+          R.length,
+          () => R.map(
+            reqStrPathThrowing('geojson'),
+            R.propOr([], 'googleIntersectionObjs', blockLocation)
+          )
+        )(locationPoints),
+
+        // Then see if the intersections are lat/lons. If so convert it to geojson points
+        toNamedResponseAndInputs('locationPoints',
+          ({blockLocation}) => R.unless(
+            R.length,
+            () => R.ifElse(
+              intersections => R.all(isLatLng)(intersections),
+              strs => R.map(
+                R.compose(
+                  floats => locationToTurfPoint(floats),
+                  R.map(s => parseFloat(s)),
+                  R.split(','))
+              )(strs),
+              () => null
+            )(strPathOr(null, 'intersections', blockLocation)),
+          )(locationPoints)
         ),
-        locationPoints
-      ),
 
-      // Then see if the intersections are lat/lons. If so convert it to geojson points
-      toNamedResponseAndInputs('locationPoints',
-        ({blockLocation}) => R.defaultTo(
-          R.ifElse(
-            intersections => R.all(isLatLng)(intersections),
-            strs => R.map(
-              R.compose(
-                floats => locationToTurfPoint(floats),
-                R.map(s => parseFloat(s)),
-                R.split(','))
-            )(strs),
-            () => null
-          )(strPathOr(null, 'intersections', blockLocation)),
-          locationPoints
+        // First see if it's already set
+        toNamedResponseAndInputs('locationPoints',
+          ({locationPoints}) => locationPoints || []
         )
-      ),
-
-      // First see if it's already set
-      toNamedResponseAndInputs('locationPoints',
-        ({locationPoints}) => locationPoints
-      )
-    )({blockLocation, locationPoints}),
+      )({blockLocation, locationPoints});
+    },
     blockLocation);
 };

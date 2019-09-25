@@ -134,7 +134,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
       // If we have don't have a neighbhorhood or have one and allow fallback to city, this
       // gives us a query for the country, state, and, city
       R.ifElse(
-        location => R.either(R.complement(R.prop)('neighborhood'), () => allowFallbackToCity)(location),
+        location => R.either(R.complement(R.prop)('neighborhood'), () => R.defaultTo(true, allowFallbackToCity))(location),
         location => [
           R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city', 'blockname'])
         ],

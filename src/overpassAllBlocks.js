@@ -82,10 +82,6 @@ export const locationToOsmAllBlocksQueryResultsTask = location => {
             locationVariationsWithOsm
           )
         ],
-        // No OSM ids resolved, try to query by geojson bounds
-        /*[() => hasLatLngIntersections(location),
-          () => _queryOverpassForAllBlocksUntilFoundResultTask({locations: [locations]})
-        ], */
         // If no query produced results return a Result.Error so we can give up gracefully
         [R.T,
           () => of(Result.Error({

@@ -41,7 +41,10 @@ const latLngRegExp = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1
  * @returns {f1}
  */
 export const isLatLng = address => {
-  return R.lt(0, R.length(R.match(latLngRegExp, address)));
+  return R.both(
+    address => R.is(String, address),
+    address => R.lt(0, R.length(R.match(latLngRegExp, address)))
+  )(address);
 };
 
 /***
@@ -399,7 +402,7 @@ export const locationWithLocationPoints = blockLocation => {
       toNamedResponseAndInputs('locationPoints',
         ({blockLocation}) => R.defaultTo(
           R.ifElse(
-            R.all(isLatLng),
+            intersections => R.all(isLatLng)(intersections),
             strs => R.map(
               R.compose(
                 floats => locationToTurfPoint(floats),

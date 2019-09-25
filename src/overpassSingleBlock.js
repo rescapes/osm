@@ -29,7 +29,7 @@ import {
   osmEquals, osmIdEquals, osmIdToAreaId, osmNotEqual
 } from './overpassHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
-import {locationHasLocationPoints, locationPoints} from './locationHelpers';
+import {locationHasLocationPoints, locationPoints, locationWithLocationPoints} from './locationHelpers';
 import {_googleResolveJurisdictionResultTask, googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
 import {
@@ -46,8 +46,8 @@ const log = loggers.get('rescapeDefault');
 
 /**
  * Query the given block location
- * @params {Object} osmConfig
- * @params {Object} [osmConfig.forceOsmQuery] Default false, forces osm queries even if the location.geeojson
+ * @param {Object} osmConfig
+ * @param {Object} [osmConfig.forceOsmQuery] Default false, forces osm queries even if the location.geeojson
  * was already set
  * @param {Object} location A Location object
  * @param {[String]} location.intersections Two pairs of strings representing the intersections cross-streets
@@ -96,6 +96,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
             location)
         ))
       ],
+      [location => locationHasLocationPoints(location), R.compose(of, Result.Ok)],
       // Otherwise OSM needs full street names (Avenue not Ave), so use Google to resolve them
       // Use Google to resolve full names. If Google can't resolve either intersection a Result.Error
       // is returned. Otherwise a Result.Ok containing the location with the updated location.intersections
@@ -103,7 +104,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
       // resolve OSM data.
       [R.T, location => _googleResolveJurisdictionResultTask(location)]
     ])(location)
-  )(location);
+  )(locationWithLocationPoints(location));
 };
 
 
@@ -164,7 +165,7 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geo
  */
 const _queryOverpassBasedLocationPropsForSingleBlockResultTask = blockLocation => {
   // Get geojson points representing the  block location
-  const geojsonPoints = locationPoints(blockLocation);
+  const geojsonPoints = R.prop('locationPoints', blockLocation);
 
   return R.ifElse(
     blockLocation => locationHasLocationPoints(blockLocation),

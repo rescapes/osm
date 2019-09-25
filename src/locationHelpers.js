@@ -9,6 +9,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import {compactEmpty, reqStrPathThrowing, strPathOr, toNamedResponseAndInputs} from 'rescape-ramda';
+import {locationToTurfPoint} from 'rescape-helpers';
 import * as R from 'ramda';
 import {locationAndOsmResultsToLocationWithGeojson} from './overpassHelpers';
 import PropTypes from 'prop-types';
@@ -376,26 +377,45 @@ export const locationHasLocationPoints = blockLocation => R.compose(
   R.lt(0),
   R.length,
   location => strPathOr([], 'locationPoints', location)
-)(blockLocation)
+)(blockLocation);
 
 /**
  * Gets loctionPoints from the blockLocation from blockLocation.locationPoints or from googleIntersectionObjects
  * @param blockLocation
  */
-export const locationPoints = blockLocation => {
-  return R.compose(
-    // Failing that try to get them from google results
-    ({blockLocation, locationPoints}) => R.defaultTo(
-      R.map(
-        reqStrPathThrowing('geojson'),
-        R.propOr([], 'googleIntersectionObjs', blockLocation)
+export const locationWithLocationPoints = blockLocation => {
+  return R.over(R.lensProp('locationPoints'),
+    locationPoints => R.compose(
+      // Failing that try to get them from google results
+      ({blockLocation, locationPoints}) => R.defaultTo(
+        R.map(
+          reqStrPathThrowing('geojson'),
+          R.propOr([], 'googleIntersectionObjs', blockLocation)
+        ),
+        locationPoints
       ),
-      locationPoints
-    ),
 
-    // Try to get location points from locationWithOsm.locationPoints
-    toNamedResponseAndInputs('locationPoints',
-      ({blockLocation}) => strPathOr(null, 'locationPoints', blockLocation)
-    )
-  )({blockLocation});
-}
+      // Then see if the intersections are lat/lons. If so convert it to geojson points
+      toNamedResponseAndInputs('locationPoints',
+        ({blockLocation}) => R.defaultTo(
+          R.ifElse(
+            R.all(isLatLng),
+            strs => R.map(
+              R.compose(
+                floats => locationToTurfPoint(floats),
+                R.map(s => parseFloat(s)),
+                R.split(','))
+            )(strs),
+            () => null
+          )(strPathOr(null, 'intersections', blockLocation)),
+          locationPoints
+        )
+      ),
+
+      // First see if it's already set
+      toNamedResponseAndInputs('locationPoints',
+        ({locationPoints}) => locationPoints
+      )
+    )({blockLocation, locationPoints}),
+    blockLocation);
+};

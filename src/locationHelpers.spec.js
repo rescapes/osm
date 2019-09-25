@@ -8,7 +8,7 @@ import {
   addressStrings,
   sortedIntersections,
   intersectionsByNodeIdToSortedIntersections,
-  fixWordsThatTripUpGoogle
+  fixWordsThatTripUpGoogle, aggregateLocation
 } from './locationHelpers';
 
 describe('LocationSelector', () => {
@@ -195,11 +195,90 @@ describe('LocationSelector', () => {
     };
     expect(intersectionsByNodeIdToSortedIntersections(location, nodesToIntersectingStreets)).toEqual([
       ["Cokato Road", "Earle Road"],
-      ["Cokato Road", "node/4505199830"],
-    ])
+      ["Cokato Road", "node/4505199830"]
+    ]);
   });
 
-  test('fixWordsThatTripUpGoogle', () =>
-    expect(fixWordsThatTripUpGoogle('Pokstein Street')).toEqual('Pokstein St')
-  )
+  test('fixWordsThatTripUpGoogle', () => {
+    expect(fixWordsThatTripUpGoogle('Pokstein Street')).toEqual('Pokstein St');
+  });
+
+  test('aggregateLocationsWithNoGeojson', () => {
+    const location = {
+      "country": "New Zealand",
+      "state": "",
+      "city": "Auckland",
+      "neighborhood": "Viaduct Basin",
+      "blockname": "High St",
+      "intersections": [],
+      "street": "High St",
+      "osmId": 665064256
+    };
+    const componentLocationWithoutGeojson = [{
+      "id": 2229946,
+      "state": "",
+      "city": "Auckland",
+      "country": "New Zealand",
+      "neighborhood": "Viaduct Basin",
+      "blockname": "High St",
+      "intersc1": "Durham St E",
+      "intersc2": "Victoria St E",
+      "geojson": null,
+      "intersections": ["-36.848499, 174.766344", "-36.849247, 147.766100"],
+      "street": "High St"
+    }, {
+      "id": 2229955,
+      "state": "",
+      "city": "Auckland",
+      "country": "New Zealand",
+      "neighborhood": "Viaduct Basin",
+      "blockname": "High St",
+      "intersc1": "Durham St E",
+      "intersc2": "Victoria St E",
+      "geojson": null,
+      "intersections": ["-36.848499, 174.766344", "-36.849247, 174.766100'"],
+      "street": "High St"
+    }, {
+      "id": 2229945,
+      "state": "",
+      "city": "Auckland",
+      "country": "New Zealand",
+      "neighborhood": "Viaduct Basin",
+      "blockname": "High St",
+      "intersc1": "Shortland St",
+      "intersc2": "Vulcan Ln",
+      "point_of_interest": "",
+      "point_of_interest_location": "",
+      "geojson": null,
+      "intersections": ["-36.846571, 174.766872", "-36.847199, 174.766720"],
+      "street": "High St"
+    }, {
+      "id": 2229947,
+      "state": "",
+      "city": "Auckland",
+      "country": "New Zealand",
+      "neighborhood": "Viaduct Basin",
+      "blockname": "High St",
+      "intersc1": "Vulcan Ln",
+      "intersc2": "Durham St E",
+      "geojson": null,
+      "intersections": ["-36.847199, 174.766720", "-36.848499, 174.766344"],
+      "street": "High St"
+    }];
+
+    expect(aggregateLocation({}, location, componentLocationWithoutGeojson)).toEqual(
+      R.merge(
+        location,
+        {
+          "geojson": {
+
+            "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
+            "features": [],
+            "generator": "overpass-turbo",
+            "type": "FeatureCollection"
+          }
+        }
+      )
+    )
+  });
 });

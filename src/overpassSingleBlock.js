@@ -29,7 +29,7 @@ import {
   osmEquals, osmIdEquals, osmIdToAreaId, osmNotEqual
 } from './overpassHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
-import {hasLatLngIntersections, isLatLng} from './locationHelpers';
+import {locationHasLocationPoints, locationPoints} from './locationHelpers';
 import {_googleResolveJurisdictionResultTask, googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
 import {
@@ -158,44 +158,42 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geo
 
 /**
  * Tries querying for the location based on the osm area id, osm city id, or intersections of the location
- * @param locationWithOsm
+ * @param blockLocation
  * @returns {f1}
  * @private
  */
-const _queryOverpassBasedLocationPropsForSingleBlockResultTask = locationWithOsm => {
-  // geojson points from google or data entry can help us resolve OSM data when street names aren't enough
-  const geojsonPoints = R.map(
-    reqStrPathThrowing('geojson'),
-    R.propOr([], 'googleIntersectionObjs', locationWithOsm)
-  );
+const _queryOverpassBasedLocationPropsForSingleBlockResultTask = blockLocation => {
+  // Get geojson points representing the  block location
+  const geojsonPoints = locationPoints(blockLocation);
+
   return R.ifElse(
-    locationWithOsm => hasLatLngIntersections(locationWithOsm),
+    blockLocation => locationHasLocationPoints(blockLocation),
     // If the query has lat/lng points use them
-    locationWithOsm => [
+    blockLocation => [
       _queryOverpassWithLocationForSingleBlockResultTask(
         // Remove the lat/lng intersections so we can replace them with street names or failing that way ids from OSM
-        R.omit(['intersections'], locationWithOsm),
+        R.omit(['intersections'], blockLocation),
         geojsonPoints)
     ],
     // Else use intersections and possible google points
-    locationWithOsm => R.concat(
+    blockLocation => R.concat(
       [
         // First try to find the location using intersections
-        _queryOverpassWithLocationForSingleBlockResultTask(locationWithOsm)
+        _queryOverpassWithLocationForSingleBlockResultTask(blockLocation)
       ],
       R.unless(
         R.isEmpty,
         geojsonPoints => [
           // Next try using both intersections and Google intersection points
-          _queryOverpassWithLocationForSingleBlockResultTask(locationWithOsm, geojsonPoints),
+          _queryOverpassWithLocationForSingleBlockResultTask(blockLocation, geojsonPoints),
           // Finally try using only Google intersection points
           _queryOverpassWithLocationForSingleBlockResultTask(
-            R.omit(['intersections'], locationWithOsm),
+            R.omit(['intersections'], blockLocation),
             geojsonPoints)
         ]
       )(geojsonPoints)
     )
-  )(locationWithOsm);
+  )(blockLocation);
 };
 
 /**
@@ -229,12 +227,14 @@ const _locationToOsmSingleBlockQueryResultTask = location => {
     resultToTaskWithResult(
       // Chain our queries until we get a result or fail
       locationVariationsWithOsm => R.cond([
+        // If the location has location points we don't need an osm area id because we already know were the block is
+        [() => locationHasLocationPoints(location),
+          () => queryOverpassForSingleBlockUntilFoundResultTask([location])
+        ],
+        // Otherwise rely on the osm area id
         [R.length,
           locationVariationsWithOsm => queryOverpassForSingleBlockUntilFoundResultTask(locationVariationsWithOsm)
         ],
-        // No OSM ids resolved, try to query with the location if it has lat/lons in the intersection
-        [() => hasLatLngIntersections(location),
-          () => queryOverpassForSingleBlockUntilFoundResultTask([location])],
         // If no query produced results return a Result.Error so we can give up gracefully
         [R.T,
           () => of(Result.Error({
@@ -247,12 +247,29 @@ const _locationToOsmSingleBlockQueryResultTask = location => {
         ]
       ])(locationVariationsWithOsm)
     ),
-    // Use OSM Nominatim to get relation of the neighborhood (if it exists) and the city
-    // We'll use one of these to query an area in Overpass.
-    // If we have a new location that only has lat/lon this will fail and we'll process the lat/lons above
-    location => nominatimLocationResultTask({listSuccessfulResult: true}, location).map(n => n)
+    // Use OSM Nominatim to get relation of the neighborhood (if it exists) or failig that the city
+    // Only neeeded if location.locationPoints is empty, meaning we don't know where the block is geospatially
+    location => locationBlocksLatLonsOrNominatimLocationResultTask(location)
   )(location);
 };
+
+/**
+ * Calls nominatimLocationResultTask if a block location doesn't have lat/lon info in
+ * locationPoints. If it does then nominatimLocationResultTask if not needed because we can query
+ * OSM with a small buffer around the pointIntersections instead of using the osmId from nominatim
+ * @param {Object} location
+ * @returns {Task<Result.Ok<Object>>} location variations with osmId and osmType added if nominatimLocationResultTask is called
+ * Otherwise location in an array
+ */
+const locationBlocksLatLonsOrNominatimLocationResultTask = location => R.ifElse(
+  locationHasLocationPoints,
+  location => of(Result.Ok([location])),
+  // Use OSM Nominatim to get relation of the neighborhood (if it exists) and the city
+  // We'll use one of these to query an area in Overpass.
+  // If we have a new location that only has lat/lon this will fail and we'll process the lat/lons above
+  location => nominatimLocationResultTask({listSuccessfulResult: true}, location)
+)(location);
+
 
 /**
  * Given a location with an osmId included, query the Overpass API and cleanup the results to get a single block

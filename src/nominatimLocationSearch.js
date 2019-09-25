@@ -191,9 +191,11 @@ export const nominatimResultTask = location => {
         results
       );
       if (R.length(matches)) {
+        log.debug(`Nomanatim query response ${JSON.stringify(matches)}`);
         // Assume the first match is the best since results are ordered by importance
         return (Result.Ok(R.head(matches)));
       } else {
+        log.debug(`Nomanatim no matches`);
         return (Result.Error({error: "No qualifying results", results, query}));
       }
     }

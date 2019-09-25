@@ -36,7 +36,8 @@ export {
   removeStateFromSomeCountriesForSearch,
   intersectionsByNodeIdToSortedIntersections,
   isResolvableSingleBlockLocation,
-  isResolvableAllBlocksLocation
+  isResolvableAllBlocksLocation,
+  locationHasLocationPoints
 } from './locationHelpers';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';

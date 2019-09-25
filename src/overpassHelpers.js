@@ -156,6 +156,10 @@ export const highwayWayFilters = R.join('', [
   osmAlways('highway'),
   // We're not currently interested in driveways, but might be in the future
   osmNotEqual('highway', 'driveway'),
+  // We don't want to treat cycleways separate from the roads they are on
+  osmNotEqual('highway', 'cycleway'),
+  // Can't deal with things that don't exist yet
+  osmNotEqual('highway', 'proposed'),
   // Crosswalks
   osmNotEqual('footway', 'crossing'),
   // Sidewalks along a highway, these might be useful for some contexts

@@ -8,7 +8,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import {compactEmpty, reqStrPathThrowing, strPathOr} from 'rescape-ramda';
+import {compactEmpty, reqStrPathThrowing, strPathOr, toNamedResponseAndInputs} from 'rescape-ramda';
 import * as R from 'ramda';
 import {locationAndOsmResultsToLocationWithGeojson} from './overpassHelpers';
 import PropTypes from 'prop-types';
@@ -42,16 +42,6 @@ const latLngRegExp = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1
 export const isLatLng = address => {
   return R.lt(0, R.length(R.match(latLngRegExp, address)));
 };
-
-/**
- * True if either location intersection is a lat,lng, not a pair of streets
- * @param {Object} location
- * @returns {Boolean}
- */
-export const hasLatLngIntersections = location => R.any(
-  R.is(String),
-  R.prop('intersections', location)
-);
 
 /***
  * Some countries don't resolve locations well in Google with their states, provinces, cantons, etc
@@ -351,7 +341,7 @@ export const aggregateLocation = ({preserveLocationGeojson}, location, component
     featuresByType => locationAndOsmResultsToLocationWithGeojson(location, featuresByType),
     // Get rid of duplicate nodes. We don't want to remove duplicate way ids because
     // we chop ways into individual blocks, so they have the same id but different points
-    featuresByType => R.over(R.lensProp('nodes'), R.uniqBy(R.prop('id')), featuresByType),
+    featuresByType => R.over(R.lensProp('nodes'), nodes => R.uniqBy(R.prop('id'), nodes || []), featuresByType),
     features => featuresByOsmType(features),
     // Get features of each location and chain them together
     R.chain(
@@ -376,3 +366,36 @@ export const featuresByOsmType = v(features => {
 }, [['features', PropTypes.arrayOf(PropTypes.shape({
   id: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
 })).isRequired]], 'featuresByOsmType');
+
+/**
+ * Indicates if loction has an array intersectionLocations with values, meaning it has lat/lon points which
+ * tell us where the block location is
+ * @param blockLocation
+ */
+export const locationHasLocationPoints = blockLocation => R.compose(
+  R.lt(0),
+  R.length,
+  location => strPathOr([], 'locationPoints', location)
+)(blockLocation)
+
+/**
+ * Gets loctionPoints from the blockLocation from blockLocation.locationPoints or from googleIntersectionObjects
+ * @param blockLocation
+ */
+export const locationPoints = blockLocation => {
+  return R.compose(
+    // Failing that try to get them from google results
+    ({blockLocation, locationPoints}) => R.defaultTo(
+      R.map(
+        reqStrPathThrowing('geojson'),
+        R.propOr([], 'googleIntersectionObjs', blockLocation)
+      ),
+      locationPoints
+    ),
+
+    // Try to get location points from locationWithOsm.locationPoints
+    toNamedResponseAndInputs('locationPoints',
+      ({blockLocation}) => strPathOr(null, 'locationPoints', blockLocation)
+    )
+  )({blockLocation});
+}

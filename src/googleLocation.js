@@ -703,6 +703,30 @@ export const _googleResolveJurisdictionResultTask = location => mapMDeep(2,
       // Any retrieved jurisdiction info gets lower priority than what is already in the location
       // That way if jurisdiction data with a lat/lon the Google jurisdiction won't trump
       jurisdiction,
+      {
+        // Conditionally store locationPoints, which are 2 geojson feature points representing the two blocks
+        locationPoints: R.cond([
+          [
+            // If our intersections are lat/lons, use them
+            location => R.compose(R.all(R.is(String)), R.prop('intersections'))(location),
+            location => R.compose(
+              R.map(
+                R.compose(
+                  locationToTurfPoint,
+                  R.map(s => parseFloat(s)),
+                  R.split(',')
+                )
+              ),
+              R.prop('intersections')
+            )(location)
+          ],
+          [
+            // Otherwise use Google's results
+            R.T,
+            () => R.map(R.prop('geojson'), googleIntersectionObjs)
+          ]
+        ])(location)
+      },
       location,
       {
         intersections: R.zipWith(

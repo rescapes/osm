@@ -30,7 +30,8 @@ import {
   resultToTaskWithResult,
   mapToNamedResponseAndInputs,
   chainObjToValues,
-  eqStrPathsAll
+  eqStrPathsAll,
+  strPathOr
 } from 'rescape-ramda';
 
 /**
@@ -47,6 +48,24 @@ rel(id:${osmId}) -> .rel;
     `)
   );
 };
+
+
+// This is only for matching filterLocation streets to filterLocation blocks to blocks
+const _matchingComponentLocations = (componentLocations, filterLocation) => R.filter(
+  componentLocation => eqStrPathsAll(
+    // If filterLocation has intersections we match on that property. Otherwise we just match on street
+    R.ifElse(
+      l => {
+        return R.compose(R.length, strPathOr([], 'intersections'))(l);
+      },
+      () => ['country', 'state', 'city', 'neighborhood', 'intersections'],
+      () => ['country', 'state', 'city', 'neighborhood', 'street']
+    )(filterLocation),
+    filterLocation,
+    componentLocation
+  ),
+  R.defaultTo([], componentLocations)
+);
 /**
  * Returns the geojson of the location. For country, state, city, neighborhood this is the OSM relation's geojson
  * when available. For streets it's the geojson of all the location blocks of the street within the neighborhood
@@ -62,20 +81,6 @@ rel(id:${osmId}) -> .rel;
  */
 export const osmLocationToLocationWithGeojsonResultTask = (componentLocations, filterLocation) => {
 
-  const matchingComponentLocations = componentLocations => R.filter(
-    componentLocation => eqStrPathsAll(
-      // If filterLocation has intersections we need an id match with componentLocations, since filterLocation
-      // then had to have been picked from a list of saved block location
-      R.ifElse(
-        R.prop('intersections'),
-        () => ['id'],
-        () => ['country', 'state', 'city', 'neighborhood', 'street']
-      )(filterLocation),
-      filterLocation,
-      componentLocation
-    ),
-    R.defaultTo([], componentLocations)
-  );
 
   // Look for a way if the location has at least a street specified.
   // For greater scales look for a relation
@@ -147,10 +152,13 @@ export const osmLocationToLocationWithGeojsonResultTask = (componentLocations, f
             ),
             // Otherwise error, we don't want to query single blocks here. Matching blocks should by supplied
             // in componentLocations
-            ({locationWithOsm}) => Result.Error({location: locationWithOsm, message: 'No matching componentLocations found for this block location'})
+            ({locationWithOsm}) => Result.Error({
+              location: locationWithOsm,
+              message: 'No matching componentLocations found for this block location'
+            })
           )({
             locationWithOsm: R.merge(filterLocation, {osmId}),
-            blockLocations: matchingComponentLocations(componentLocations)
+            blockLocations: _matchingComponentLocations(componentLocations, filterLocation)
           }))
         ],
         // Streets
@@ -178,7 +186,7 @@ export const osmLocationToLocationWithGeojsonResultTask = (componentLocations, f
             )
           )({
             locationWithOsm: R.merge(filterLocation, {osmId}),
-            blockLocations: matchingComponentLocations(componentLocations)
+            blockLocations: _matchingComponentLocations(componentLocations, filterLocation)
           })
         ]
       ])(osmId)

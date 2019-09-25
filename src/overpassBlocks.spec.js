@@ -106,9 +106,8 @@ describe('overpassBlocks', () => {
       }
     ];
     osmLocationToLocationWithGeojsonResultTask(componentLocations, {
-      id: 2231909,
       country: 'USA',
-      state: 'New York',
+      state: 'NY',
       city: 'New York',
       neighborhood: 'Battery Park City',
       intersections: [['Chambers Street', 'Hudson River Greenway'], ['Chambers Street', 'North End Avenue']]
@@ -125,7 +124,7 @@ describe('overpassBlocks', () => {
 
     osmLocationToLocationWithGeojsonResultTask([], {
       country: 'USA',
-      state: 'New York',
+      state: 'NY',
       city: 'New York',
       neighborhood: 'Battery Park City',
       street: 'Chambers Street'
@@ -167,7 +166,7 @@ describe('overpassBlocks', () => {
     )({
       filterLocation: {
         country: 'USA',
-        state: 'New York',
+        state: 'NY',
         city: 'New York',
         neighborhood: 'Battery Park City',
         street: 'Chambers Street'
@@ -186,7 +185,7 @@ describe('overpassBlocks', () => {
 
     osmLocationToLocationWithGeojsonResultTask([], {
       country: 'USA',
-      state: 'New York',
+      state: 'NY',
       city: 'New York',
       neighborhood: 'Battery Park City',
       street: 'Battery Place'
@@ -202,7 +201,7 @@ describe('overpassBlocks', () => {
     const errors = [];
     osmLocationToLocationWithGeojsonResultTask([], {
       country: 'USA',
-      state: 'New York',
+      state: 'NY',
       city: 'New York',
       neighborhood: "Hell's Kitchen"
     }).run().listen(defaultRunToResultConfig({

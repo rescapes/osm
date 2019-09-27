@@ -48,6 +48,9 @@ import {
  * plus a magic number defined by Overpass. If the neighborhood area query fails to give us the results we want,
  * we retry with the city area. TODO If we have a full city query when we want a neighborhood we should reduce
  * the results somewhow
+ * @param {Object} osmConfig
+ * @param {Object} [osmConfig.allowFallbackToCity] Default false. Let's the nomanatim query fallback to the city
+ * if the neighborhood can't be found
  * @param {Object} location A location object
  * @returns {Task<{Ok: blocks, Errors: errors>}>}
  * In Ok a list of results found in the form [{location,  results}]
@@ -57,7 +60,7 @@ import {
  * location are varieties of the original with an osm area id added. Result.Error is only returned
  * if no variation of the location succeeds in returning a result
  */
-export const locationToOsmAllBlocksQueryResultsTask = location => {
+export const locationToOsmAllBlocksQueryResultsTask = ({allowFallbackToCity}, location) => {
 
   // Create a function that expects the location variations and returns the results
   // of _queryForAllBlocksOfLocationsTask for the location variation that overpass can resolve
@@ -73,7 +76,8 @@ export const locationToOsmAllBlocksQueryResultsTask = location => {
   return R.composeK(
     // Unwrap the result we created for _queryLocationVariationsUntilFoundResultTask
     result => of(result.matchWith({
-      Ok: ({value}) => value
+      Ok: ({value}) => value,
+      Error: ({value}) => value
     })),
     resultToTaskWithResult(
       locationVariationsWithOsm => R.cond([
@@ -95,7 +99,7 @@ export const locationToOsmAllBlocksQueryResultsTask = location => {
       ])(locationVariationsWithOsm)
     ),
     // Nominatim query on the place search string.
-    location => nominatimLocationResultTask({listSuccessfulResult: true, allowFallbackToCity: false}, location)
+    location => nominatimLocationResultTask({listSuccessfulResult: true, allowFallbackToCity: allowFallbackToCity || false}, location)
   )(location);
 };
 

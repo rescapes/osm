@@ -30,7 +30,7 @@ describe('overpassAllBlocks', () => {
       state: 'BC',
       city: 'Fernie'
     };
-    locationToOsmAllBlocksQueryResultsTask(location).run().listen(defaultRunConfig(
+    locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
       {
         onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
@@ -91,7 +91,7 @@ describe('overpassAllBlocks', () => {
       city: 'Durham',
       neighborhood: 'Old North Durham'
     };
-    locationToOsmAllBlocksQueryResultsTask(location).run().listen(defaultRunConfig(
+    locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
       {
         onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
           // Paste the results of this into a geojson viewer for debugging

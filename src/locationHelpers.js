@@ -113,6 +113,12 @@ export const addressStringInBothDirectionsOfLocation = locationWithOneIntersecti
  * or Downtown District, Anytown, Anystate, USA, which will resolve to a district/neighborhood center point
  */
 export const addressString = ({country, state, city, neighborhood, blockname, intersections}) => {
+
+  // If it's a lat/lon return it
+  if (isLatLng(reqStrPathThrowing(R.head(intersections)))) {
+    return R.head(intersections)
+  }
+
   // Extract the one intersection pair with corrections for Google if it exists
   const resolvedIntersectionPair = R.unless(
     R.either(

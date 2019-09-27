@@ -8,7 +8,7 @@ import {
   addressStrings,
   sortedIntersections,
   intersectionsByNodeIdToSortedIntersections,
-  fixWordsThatTripUpGoogle, aggregateLocation
+  fixWordsThatTripUpGoogle, aggregateLocation, addressStringInBothDirectionsOfLocation
 } from './locationHelpers';
 
 describe('LocationSelector', () => {
@@ -279,6 +279,58 @@ describe('LocationSelector', () => {
           }
         }
       )
-    )
+    );
+  });
+
+  test('addressStringInBothDirectionsOfLocation', () => {
+    expect(addressStringInBothDirectionsOfLocation({
+      "intersections": [
+        "-36.849247, 174.766100"
+      ],
+      "id": 2229955,
+      "blockname": "High St",
+      "intersc1": "Durham St E",
+      "intersc2": "Victoria St E",
+      "intersection1Location": "-36.848499, 174.766344",
+      "intersection2Location": "-36.849247, 174.766100'",
+      "neighborhood": "Viaduct Basin",
+      "city": "Auckland",
+      "state": "",
+      "country": "New Zealand",
+      "data": {},
+      "dataComplete": true,
+      "geojson": {
+        "type": null,
+        "features": null,
+        "generator": null,
+        "copyright": null
+      }
+    })).toEqual(["-36.849247, 174.766100"]);
+
+    expect(addressStringInBothDirectionsOfLocation({
+      "intersections": [
+        ['High St', 'Durham St E'], ['High St', 'Victoria St E']
+      ],
+      "id": 2229955,
+      "blockname": "High St",
+      "intersc1": "Durham St E",
+      "intersc2": "Victoria St E",
+      "intersection1Location": "-36.848499, 174.766344",
+      "intersection2Location": "-36.849247, 174.766100'",
+      "neighborhood": "Viaduct Basin",
+      "city": "Auckland",
+      "state": "",
+      "country": "New Zealand",
+      "data": {},
+      "dataComplete": true,
+      "geojson": {
+        "type": null,
+        "features": null,
+        "generator": null,
+        "copyright": null
+      }
+    })).toEqual([
+      "High St & Durham St E, Auckland, New Zealand",
+      "Durham St E & High St, Auckland, New Zealand"]);
   });
 });

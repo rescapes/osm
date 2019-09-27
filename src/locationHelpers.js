@@ -14,6 +14,7 @@ import * as R from 'ramda';
 import {locationAndOsmResultsToLocationWithGeojson} from './overpassHelpers';
 import PropTypes from 'prop-types';
 import {v} from 'rescape-validate';
+import {point} from '@turf/helpers';
 
 // The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
 // Switzerland for example doesn't resolve correctly if the canton abbreviation is included
@@ -34,17 +35,22 @@ const GOOGLE_STREET_REPLACEMENTS = [
   R.replace(/\sLane/g, ' Ln')
 ];
 
-const latLngRegExp = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/;
 /***
  * True if the given address is a lat,lng
  * @param address
- * @returns {f1}
+ * @returns {Boolean}
  */
 export const isLatLng = address => {
-  return R.both(
-    address => R.is(String, address),
-    address => R.lt(0, R.length(R.match(latLngRegExp, address)))
-  )(address);
+  try {
+    R.compose(
+      floats => point(R.reverse(floats)),
+      strs => R.map(str => parseFloat(str), strs),
+      address => R.split(',', address)
+    )(address);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 /***
@@ -413,7 +419,7 @@ export const locationWithLocationPoints = blockLocation => {
                   R.split(','))
               )(strs),
               () => null
-            )(strPathOr(null, 'intersections', blockLocation)),
+            )(strPathOr(null, 'intersections', blockLocation))
           )(locationPoints)
         ),
 

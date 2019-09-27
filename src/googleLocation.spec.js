@@ -527,7 +527,7 @@ describe('googleLocation', () => {
         throw new Error(reject);
       })
     });
-  })
+  });
 
   test('resolveGeoLocationTask with lat/lon', done => {
     const location = {
@@ -665,4 +665,57 @@ describe('googleLocation', () => {
     });
   }, 20000);
 
+  test('aucklandFailure', done => {
+
+      const location = {
+        "intersections": [
+          "-36.849247, 174.766100'"
+        ],
+        "id": 2229955,
+        "blockname": "High St",
+        "intersc1": "Durham St E",
+        "intersc2": "Victoria St E",
+        "intersection1Location": "-36.848499, 174.766344",
+        "intersection2Location": "-36.849247, 174.766100'",
+        "neighborhood": "Viaduct Basin",
+        "city": "Auckland",
+        "state": "",
+        "country": "New Zealand",
+        "data": {
+        },
+        "dataComplete": true,
+        "geojson": {
+          "type": null,
+          "features": null,
+          "generator": null,
+          "copyright": null,
+        },
+        "interectionPoints": [
+          {
+            "type": "Feature",
+            "properties": {},
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                174.766344,
+                -36.848499
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {},
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                174.7661,
+                -36.849247
+              ]
+            }
+          }
+        ],
+        "locationPoints": []
+      };
+    }
+  );
 });

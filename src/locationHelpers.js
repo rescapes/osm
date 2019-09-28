@@ -42,12 +42,13 @@ const GOOGLE_STREET_REPLACEMENTS = [
  */
 export const isLatLng = address => {
   try {
-    R.compose(
+    return R.compose(
+      coordinates => R.none(Number.isNaN, coordinates),
+      point => strPathOr([NaN], 'geometry.coordinates', point),
       floats => point(R.reverse(floats)),
       strs => R.map(str => parseFloat(str), strs),
       address => R.split(',', address)
     )(address);
-    return true;
   } catch {
     return false;
   }
@@ -115,8 +116,9 @@ export const addressStringInBothDirectionsOfLocation = locationWithOneIntersecti
 export const addressString = ({country, state, city, neighborhood, blockname, intersections}) => {
 
   // If it's a lat/lon return it
-  if (isLatLng(reqStrPathThrowing(R.head(intersections)))) {
-    return R.head(intersections)
+  if (isLatLng(R.head(intersections)))
+  {
+    return R.head(intersections);
   }
 
   // Extract the one intersection pair with corrections for Google if it exists

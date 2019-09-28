@@ -110,7 +110,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
             });
           }).mapError(value => {
             // If no results are found, just return null. Hopefully the other nominatin query will return something
-            log.debug(`For location query ${JSON.stringify(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
+            log.debug(`For Nominatim query ${JSON.stringify(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
             return value;
           })
         ).mapRejected(
@@ -191,11 +191,11 @@ export const nominatimResultTask = location => {
         results
       );
       if (R.length(matches)) {
-        log.debug(`Nomanatim query response ${JSON.stringify(matches)}`);
+        log.debug(`Nominatim query response ${JSON.stringify(matches)}`);
         // Assume the first match is the best since results are ordered by importance
         return (Result.Ok(R.head(matches)));
       } else {
-        log.debug(`Nomanatim no matches`);
+        log.debug(`Nominatim no matches for query ${query}`);
         return (Result.Error({error: "No qualifying results", results, query}));
       }
     }

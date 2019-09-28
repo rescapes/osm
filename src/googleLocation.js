@@ -162,7 +162,7 @@ export const geocodeAddressTask = R.curry((location, address) => {
         // Handle error
         // Error to give up
         log.warn(`Failed to geocode ${R.propOr('(no id given)', 'id', location)}, ${address}. Error ${strPathOr('Unknown', 'json.error_message', err)}`);
-        resolver.resolve(Result.Error({error: err.json.error_message, response: err}));
+        resolver.resolve(Result.Error({error: JSON.stringify(err), response: err}));
       }
     );
   });
@@ -375,7 +375,7 @@ export const calculateRouteTask = R.curry((directionsService, origin, destinatio
         resolver.resolve(response);
       } else {
         log.warn(`Failed to resolve ${origin.formatted_address} to ${destination.formatted_address}`);
-        resolver.reject(Result.Error({error: error.json.error_message}));
+        resolver.reject(Result.Error({error: error}));
       }
     });
     // Wrap the response in a Result.Ok

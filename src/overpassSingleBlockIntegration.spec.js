@@ -9,7 +9,10 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
+import {
+  queryLocationForOsmSingleBlockResultTask,
+  queryLocationForOsmSingleBlocksResultsTask
+} from './overpassSingleBlock';
 import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import * as R from 'ramda';
 import {loggers} from 'rescape-log';
@@ -39,14 +42,41 @@ describe('overpassIntegration', () => {
       // Intentionally put Grand Ave a different positions
       intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
     }).run().listen(defaultRunToResultConfig({
-        onResolved: ({results, location}) => {
+        onResolved: ({result, location}) => {
+          // Expect it to be two ways
+          expect(R.map(R.prop('id'), R.prop('ways', result))).toEqual(['way/417728789', 'way/417728790']);
+          done();
+        }
+      }, errors, done)
+    );
+  }, 50000);
+
+  // Query multiple locations and combine results
+  test('queryLocationForOsmSingleBlocksResultsTask', done => {
+    expect.assertions(1);
+    const errors = [];
+    const osmConfig = {};
+    queryLocationForOsmSingleBlocksResultsTask(osmConfig, [
+      {
+      country: 'USA',
+      state: 'California',
+      city: 'Oakland',
+      neighborhood: 'Adams Point',
+      // Intentionally put Grand Ave a different positions
+      intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
+    },
+      {
+        intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']
+      }
+    ]).run().listen(defaultRunConfig({
+        onResolved: (results) => {
           // Expect it to be two ways
           expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/417728789', 'way/417728790']);
           done();
         }
       }, errors, done)
     );
-  }, 50000);
+  }, 100000);
 
   test('fetchOsmBlockOslo', done => {
     expect.assertions(1);

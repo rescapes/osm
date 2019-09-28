@@ -18,7 +18,8 @@ import {
   resultToTaskWithResult,
   pickDeepPaths,
   mapToNamedResponseAndInputs,
-  strPathOr
+  strPathOr,
+  traverseReduceDeepResults
 } from 'rescape-ramda';
 import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
@@ -26,7 +27,7 @@ import {
   _filterForIntersectionNodesAroundPoint,
   AROUND_LAT_LON_TOLERANCE, highwayNodeFilters,
   highwayWayFilters,
-  osmEquals, osmIdEquals, osmIdToAreaId, osmNotEqual
+  osmEquals, osmIdEquals, osmIdToAreaId
 } from './overpassHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {locationHasLocationPoints, locationPoints, locationWithLocationPoints} from './locationHelpers';
@@ -45,6 +46,28 @@ const log = loggers.get('rescapeDefault');
 
 
 /**
+ * Calls queryLocationForOsmSingleBlockResultTask on each location
+ * @param {Object} osmConfig Currently unused
+ * @param {[Object]} locations
+ * @returns {Object} Object with Ok and Errors. Ok is a list of successfully processed with
+ * queryLocationForOsmSingleBlockResultTask and Error is a list of those that failed
+ */
+export const queryLocationForOsmSingleBlocksResultsTask = (osmConfig, locations) => {
+  return traverseReduceDeepResults(
+    // 2 means process objects within the resolved task and further within each Result.Ok or Result.Error
+    2,
+    (oks, value) => R.concat(oks, [value]),
+    (errors, value) => R.concat(errors, [value]),
+    of({Ok: [], Error: []}),
+    R.map(
+      location => queryLocationForOsmSingleBlockResultTask(osmConfig, location),
+      locations
+    )
+  )
+};
+
+/**
+ *
  * Query the given block location
  * @param {Object} osmConfig
  * @param {Object} [osmConfig.forceOsmQuery] Default false, forces osm queries even if the location.geeojson
@@ -621,9 +644,24 @@ const _createIntersectionQueryOutput = (type, orderedBlocks) => {
      node.nodes1(w.singleway)->.nodes1OfSingleWay;
      node.nodes2(w.singleway)->.nodes2OfSingleWay;
     }
- (.nodes1OfSingleWay; .nodes2OfSingleWay;)-> .nodesOfSingleWay;
+       // See if there is a node that joins both way sets. This only happens when a way changes between the two interseection nodes
+      node(w.waysOfOneOfnodes1Possible)(w.waysOfOneOfnodes2Possible)->.joiningNode;
+      // Put the intersection nodes together with the possible joining node
+ (.nodes1OfSingleWay; .nodes2OfSingleWay; .joiningNode;)-> .nodesOfSingleWay;          
+      if (joiningNode.count(nodes) > 0) {
+         way.singleway(bn.nodes1OfSingleWay)(bn.joiningNode)(if:nodes1OfSingleWay.count(nodes) == 1)(if:joiningNode.count(nodes) == 1)->.matching1Ways;
+                 way.singleway(bn.nodes2OfSingleWay)(bn.joiningNode)(if:nodes2OfSingleWay.count(nodes) == 1)(if:joiningNode.count(nodes) == 1)->.matching2Ways;
+        (.matching1Ways; .matching2Ways;) -> .matchingWays;
+      // Now overwrite .nodesOfSingleWay to remove the join node
+      // If we have matchingWays, we can assume the nodes1OfSingleWay and nodes2OfSingleWay are the two intersection nodes
+        (.nodes1OfSingleWay; .nodes2OfSingleWay;)->.nodesWithoutJoiningNode;
+        node.nodesWithoutJoiningNode(if:matchingWays.count(ways) > 0) -> .matchingNodes;
+      }
+      else {
  way.singleway(bn.nodesOfSingleWay)(if:nodes1OfSingleWay.count(nodes) == 1)(if:nodes2OfSingleWay.count(nodes) == 1)->.matchingWays;
  node.nodesOfSingleWay(if:nodes1OfSingleWay.count(nodes) == 1)(if:nodes2OfSingleWay.count(nodes) == 1)->.matchingNodes;
+  }
+  
   ${outputVariable} out geom;
 )`,
     // If we had orderedBlocks we're already done

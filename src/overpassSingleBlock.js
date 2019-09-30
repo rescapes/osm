@@ -644,8 +644,12 @@ const _createIntersectionQueryOutput = (type, orderedBlocks) => {
      node.nodes1(w.singleway)->.nodes1OfSingleWay;
      node.nodes2(w.singleway)->.nodes2OfSingleWay;
     }
-       // See if there is a node that joins both way sets. This only happens when a way changes between the two interseection nodes
-      node(w.waysOfOneOfnodes1Possible)(w.waysOfOneOfnodes2Possible)->.joiningNode;
+       // See if there is a node that joins both way sets, but not the same way of both sets nor a node that
+       // is an intersection node
+       // This only happens when a way changes between the two interseection nodes
+     (.waysOfOneOfnodes2Possible; - .waysOfOneOfnodes1Possible;)->.waysOfOneOfnodes2Sans1Possible;
+      node(w.waysOfOneOfnodes1Possible)(w.waysOfOneOfnodes2Sans1Possible)->.maybeJoiningNode;
+      (.maybeJoiningNode; - .nodes;)->.joiningNode;
       // Put the intersection nodes together with the possible joining node
  (.nodes1OfSingleWay; .nodes2OfSingleWay; .joiningNode;)-> .nodesOfSingleWay;          
       if (joiningNode.count(nodes) > 0) {

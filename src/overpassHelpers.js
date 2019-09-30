@@ -184,7 +184,10 @@ export const highwayWayFilters = R.join('', [
  * For instance they can't be tagged as traffic signals!
  */
 export const highwayNodeFilters = R.join('', [
-  osmNotEqual('traffic_signals', 'signal')]
+    osmNotEqual('traffic_signals', 'signal'),
+    // This is allowed. Nodes marked as highway='traffic_signals' can still be the nodes used by the way
+    // osmNotEqual('highway', 'traffic_signals')
+  ]
 );
 
 /**
@@ -328,7 +331,7 @@ export const _filterForIntersectionNodesAroundPoint = (around, outputNodeName, l
   const possibleNodes = `${outputNodeName}Possible`;
   const oneOfPossibleNodes = `oneOf${outputNodeName}Possible`;
   const waysOfOneOfPossibleNodes = `waysOfOneOf${outputNodeName}Possible`;
-  return `node${around} -> .${possibleNodes};
+  return `node${around}${highwayNodeFilters} -> .${possibleNodes};
 foreach.${possibleNodes} ->.${oneOfPossibleNodes}
 {
   way(bn.${oneOfPossibleNodes})${highwayWayFilters}->.${waysOfOneOfPossibleNodes};

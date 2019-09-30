@@ -101,7 +101,7 @@ describe('overpassSingleBlock', () => {
   test('fetchWhereGoogleResolvesLocationPoints', done => {
     // This is where the block is a pedestrian area, not a simple line.
     const errors = [];
-    expect.assertions(1);
+    expect.assertions(3);
     const osmConfig = {};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
       'intersections': [['High St', 'Durham St E'], ['High St', 'Victoria St E']],
@@ -111,6 +111,9 @@ describe('overpassSingleBlock', () => {
     }).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({results, location}) => {
+          expect(R.length(R.prop('nodes', results))).toEqual(2);
+          expect(R.length(R.prop('ways', results))).toEqual(1);
+
           expect(R.prop('locationPoints', location)).toEqual([
             {
               "type": "Feature",

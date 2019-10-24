@@ -10,7 +10,7 @@
  */
 
 import {
-  _cleanGeojson, _intersectionStreetNamesFromWaysAndNodes
+  cleanGeojson, _intersectionStreetNamesFromWaysAndNodes
 } from './overpassFeatureHelpers';
 import * as R from 'ramda';
 
@@ -49,7 +49,7 @@ describe('overpassFeatureHelpers', () => {
           ]
         }
       };
-    expect(_cleanGeojson(feature)).toEqual(
+    expect(cleanGeojson(feature)).toEqual(
       R.over(
         R.lensPath(['properties', 'tags']),
         obj => R.set(R.lensProp('maxspeed__type'), 'sign', R.omit(['maxspeed:type'], obj)),

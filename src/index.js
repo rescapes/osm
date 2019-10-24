@@ -46,3 +46,4 @@ export {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 export {locationAndOsmResultsToLocationWithGeojson} from './overpassHelpers'
 export {queryLocationForOsmBlockOrAllResultsTask, osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks'
 export {queryOverpassWithLocationForStreetResultTask} from './overpassStreet'
+export {cleanGeojson} from './overpassFeatureHelpers'

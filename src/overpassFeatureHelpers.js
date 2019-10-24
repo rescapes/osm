@@ -389,7 +389,7 @@ const shortenToNodeFeaturesIfNeeded = (nodeMatches, nodeFeatures, wayFeature) =>
  * @param feature
  * @private
  */
-export const _cleanGeojson = feature => {
+export const cleanGeojson = feature => {
   const tagsLens = R.lensPath(['properties', 'tags']);
   return R.over(
     tagsLens,

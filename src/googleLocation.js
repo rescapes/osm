@@ -137,7 +137,8 @@ export const geocodeAddressTask = R.curry((location, address) => {
         if (isLatLng(address)) {
           // Always resolve lat lons
           resolver.resolve(Result.of(results));
-        } else if (R.equals(1, R.length(results))) {
+        }
+        else if (R.equals(1, R.length(results))) {
           const result = R.head(results);
           // Result to indicate success
           log.debug(`Successfully geocoded location ${R.propOr('(no id given)', 'id', location)}, ${address}`);
@@ -145,7 +146,8 @@ export const geocodeAddressTask = R.curry((location, address) => {
           resolver.resolve(
             Result.of(addGeojsonToGoogleResult(result))
           );
-        } else {
+        }
+        else {
           // Ambiguous or no results. We can potentially resolve ambiguous ones
           log.warn(`Failed to exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${address}. ${R.length(results)} results`);
           resolver.resolve(Result.Error({

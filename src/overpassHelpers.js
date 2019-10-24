@@ -61,6 +61,14 @@ const roundRobinOsmServers = () => {
 export const osmAlways = prop => `[${prop}]`;
 
 /**
+ * Translates to OSM condition that must be true
+ * @param {string} prop The feature property that must be true
+ * @return {string} '[!"prop"]'
+ */
+export const osmNever = prop => `[!${prop}]`;
+
+
+/**
  * Translates to OSM not equal condition
  * @param {string} prop The feature property that must not be euqal to the value
  * @param {object} value Value that toStrings appropriately
@@ -187,6 +195,8 @@ export const highwayNodeFilters = R.join('', [
     osmNotEqual('traffic_signals', 'signal'),
     // This is allowed. Nodes marked as highway='traffic_signals' can still be the nodes used by the way
     // osmNotEqual('highway', 'traffic_signals')
+    // Also allowed, just describes the type of crossing
+    //osmNever('crossing')
   ]
 );
 

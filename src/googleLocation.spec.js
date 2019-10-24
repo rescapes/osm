@@ -52,6 +52,35 @@ describe('googleLocation', () => {
     },
     5000);
 
+  // This request is returning 2 results in production. Seems fine here
+  test('geocode2Results', done => {
+    const errors = [];
+    geocodeAddressTask({
+      country: 'USA',
+      state: 'GA',
+      city: 'Atlanta',
+      intersections: [
+        ['Monroe Dr NE', '10th St. NE'],
+        ['Monroe Dr NE', 'Kanuga Dr.']
+      ]
+    }, null).run().listen(
+      defaultRunConfig({
+        onResolved:
+          result => result.mapError(
+            errorValue => {
+              // This should not happen
+              expect(R.length(errorValue.results)).toEqual(1);
+              done();
+            }
+          ).map(
+            resultValue => {
+              expect(resultValue.formatted_address).toEqual('10th St NE & Monroe Dr NE, Atlanta, GA 30306, USA');
+            }
+          )
+      }, errors, done)
+    );
+  }, 5000);
+
   test('geocodeAddressApproximate', done => {
       const errors = [];
       // This request for a city returns an approximate location, which is ok. It's not okay for intersections
@@ -60,7 +89,7 @@ describe('googleLocation', () => {
         country: 'USA',
         state: 'CA',
         city: 'Irvine',
-        locations: []
+        intersections: []
       }, 'Irvine, CA, USA').run().listen(
         defaultRunConfig({
           onResolved:
@@ -681,14 +710,13 @@ describe('googleLocation', () => {
         "city": "Auckland",
         "state": "",
         "country": "New Zealand",
-        "data": {
-        },
+        "data": {},
         "dataComplete": true,
         "geojson": {
           "type": null,
           "features": null,
           "generator": null,
-          "copyright": null,
+          "copyright": null
         },
         "interectionPoints": [
           {

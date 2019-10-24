@@ -116,22 +116,22 @@ describe('overpassSingleBlock', () => {
 
           expect(R.prop('locationPoints', location)).toEqual([
             {
-              "type": "Feature",
-              "properties": {},
-              "geometry": {
-                "type": "Point",
-                "coordinates": [
+              'type': 'Feature',
+              'properties': {},
+              'geometry': {
+                'type': 'Point',
+                'coordinates': [
                   174.7663471,
                   -36.8485059
                 ]
               }
             },
             {
-              "type": "Feature",
-              "properties": {},
-              "geometry": {
-                "type": "Point",
-                "coordinates": [
+              'type': 'Feature',
+              'properties': {},
+              'geometry': {
+                'type': 'Point',
+                'coordinates': [
                   174.7661018,
                   -36.8492513
                 ]
@@ -141,5 +141,27 @@ describe('overpassSingleBlock', () => {
         }
       }, errors, done));
   }, 50000);
+
+  test('fetchBlockWithJogAtIntersectionProducing2Nodes', done => {
+    const location = {
+      'intersections': [['High St', 'Shortland St'], ['High St', 'Vulcan Ln']],
+      'neighborhood': 'Viaduct Basin',
+      'city': 'Auckland',
+      'state': '',
+      'country': 'New Zealand'
+    };
+    // This is where the block is a pedestrian area, not a simple line.
+    const errors = [];
+    expect.assertions(2);
+    const osmConfig = {};
+    queryLocationForOsmSingleBlockResultTask(osmConfig, location).run().listen(
+      defaultRunToResultConfig({
+        onResolved: ({results, location}) => {
+          expect(R.length(R.prop('nodes', results))).toEqual(2);
+          expect(R.length(R.prop('ways', results))).toEqual(1);
+        }
+      }, errors, done)
+    );
+  }, 200000);
 });
 

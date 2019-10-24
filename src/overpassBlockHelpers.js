@@ -11,7 +11,7 @@
 
 import * as R from 'ramda';
 import {
-  _cleanGeojson,
+  cleanGeojson,
   _intersectionStreetNamesFromWaysAndNodes, _linkedFeatures,
   _reduceFeaturesByHeadAndLast, hashNodeFeature, hashPoint, hashPointsToWayCoordinates, hashWayFeature
 } from './overpassFeatureHelpers';
@@ -278,7 +278,7 @@ export const nodesByWayIdTask = (location, {way}) => R.map(
  */
 export const mapToCleanedFeatures = queryResults => R.map(
   // Clean the features of each first
-  feature => _cleanGeojson(feature),
+  feature => cleanGeojson(feature),
   // Limit to the features
   reqStrPathThrowing('response.features', queryResults)
 );
@@ -292,7 +292,7 @@ export const mapToCleanedFeatures = queryResults => R.map(
  */
 export const mapWaysByNodeIdToCleanedFeatures = waysByNodeId => mapMDeep(2,
   // Clean the features of each first
-  feature => _cleanGeojson(feature),
+  feature => cleanGeojson(feature),
   // Limit to the features
   R.map(
     reqStrPathThrowing('response.features'),

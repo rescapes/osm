@@ -173,11 +173,14 @@ export const nominatimResultTask = location => {
   )(location);
   const host = 'nominatim.openstreetmap.org';
   const geocoder = new Nominatim({
-    secure: true, // enables ssl
-    host,
-    // No effective limit
-    limit: 1000
-  });
+      secure: true, // enables ssl
+      host
+    },
+    {
+      // No effective limit
+      limit: 1000
+    }
+  );
   log.debug(`Nominatim query: http://${host}?q=${query}&addressDetails=1&format=json`);
   return promiseToTask(geocoder.search({q: query, addressDetails: 1}).then(
     results => {

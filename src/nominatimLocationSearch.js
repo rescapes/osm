@@ -181,7 +181,7 @@ export const nominatimResultTask = location => {
       limit: 1000
     }
   );
-  log.debug(`Nominatim query: http://${host}?q=${query}&addressDetails=1&format=json`);
+  log.debug(`Nominatim query: http://${host}?q=${query}&addressDetails=1&format=json&limit=1000`);
   return promiseToTask(geocoder.search({q: query, addressDetails: 1}).then(
     results => {
       const filter = R.ifElse(

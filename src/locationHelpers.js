@@ -397,7 +397,7 @@ export const locationHasLocationPoints = blockLocation => R.compose(
 )(blockLocation);
 
 /**
- * Gets loctionPoints from the blockLocation from blockLocation.locationPoints or from googleIntersectionObjects
+ * Gets locationPoints from the blockLocation from blockLocation.locationPoints or from googleIntersectionObjects
  * @param blockLocation
  */
 export const locationWithLocationPoints = blockLocation => {

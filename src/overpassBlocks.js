@@ -80,8 +80,6 @@ const _matchingComponentLocations = (componentLocations, filterLocation) => R.fi
  * @returns {Task<Result<Object>>} The geojson
  */
 export const osmLocationToLocationWithGeojsonResultTask = (componentLocations, filterLocation) => {
-
-
   // Look for a way if the location has at least a street specified.
   // For greater scales look for a relation
   const locationType = R.cond([

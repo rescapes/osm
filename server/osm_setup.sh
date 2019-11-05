@@ -208,3 +208,46 @@ $EXEC_DIR/bin/dispatcher --areas --terminate
 
 # If you need to increase the size of the volume on EC2:
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/recognize-expanded-volume-linux.html
+
+
+# Nomanatim installation
+# http://nominatim.org/release-docs/latest/appendix/Install-on-Ubuntu-18/
+sudo apt-get update -qq
+sudo apt-get install -y build-essential cmake g++ libboost-dev libboost-system-dev \
+                        libboost-filesystem-dev libexpat1-dev zlib1g-dev libxml2-dev \
+                        libbz2-dev libpq-dev libproj-dev \
+                        postgresql-server-dev-10 postgresql-10-postgis-2.4 \
+                        postgresql-contrib-10 postgresql-10-postgis-scripts \
+                        apache2 php php-pgsql libapache2-mod-php \
+                        php-intl git
+# Create a dedicated user
+sudo useradd -d /srv/nominatim -s /bin/bash -m nominatim
+printf '\n%s\n%s' 'export NOMINATIM_USERNAME=nominatim' 'export NOMINATIM_USERHOME=/srv/nominatim' >> ~/.bashrc
+sudo chmod a+x $NOMINATIM_USERHOME
+
+# Postgres config for nominatim
+sudo -u postgres createuser -s $NOMINATIM_USERNAME
+sudo -u postgres createuser www-data
+
+# Apache setup for nominatim
+sudo tee /etc/php/7.4/fpm/pool.d/www.conf << EOF_PHP_FPM_CONF
+[www]
+; Comment out the tcp listener and add the unix socket
+;listen = 127.0.0.1:9000
+listen = /var/run/php7.2-fpm.sock
+; Ensure that the daemon runs as the correct user
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0666
+; Unix user of FPM processes
+user = www-data
+group = www-data
+; Choose process manager type (static, dynamic, ondemand)
+pm = ondemand
+pm.max_children = 5
+EOF_PHP_FPM_CONF
+Alias /nominatim $NOMINATIM_USERHOME/Nominatim/build/website
+EOFAPACHECONF
+# Restart apache
+sudo a2enconf nominatim
+sudo systemctl restart apache2

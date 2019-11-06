@@ -121,13 +121,13 @@ sudo mv ~/nginx.conf /etc/nginx/nginx.conf
 
 #### Open port 80 and 443 (HTTPS) on the EC2 instance: https://stackoverflow.com/questions/5004159/opening-port-80-ec2-amazon-web-services
 
-On the EC2 website, go to Network & Security -> Security Groups. Choose the security group of the instance and add port 80 to inbound rules
+# On the EC2 website, go to Network & Security -> Security Groups. Choose the security group of the instance and add port 80 to inbound rules
 
 #### Restart and  Check the status
 
-systemctl rereload
+sudo systemctl reload nginx
 
-systemctl status nginx
+sudo systemctl status nginx
 
 ### Set up OSM areas
 
@@ -160,11 +160,7 @@ ionice -c 2 -n 7 -p PID
 
 #### Setup a certificate
 
-https://certbot.eff.org/lets-encrypt/ubuntuxenial-nginx
-
-# More info
-https://certbot.eff.org/docs/using.html?highlight=nginx#nginx
-
+# Certbot ssl certificate
 sudo apt-get update
 sudo apt-get install software-properties-common
 sudo add-apt-repository universe
@@ -176,21 +172,19 @@ sudo apt-get install certbot python-certbot-nginx
 # Note that a crontab job is automatically created to renew twice daily:
 # /etc/cron.d/certbot
 # To add subdomains to the certificate, do this:
-
+cd ~
 wget https://dl.eff.org/certbot-auto
 
 # E.g. to add sop_os_1.stateofplace.co when sop_os_0.stateofplace.co is already present
 
-chmod a+x ./certbot-auto
+sudo chown root:root ./certbot-auto
+sudo chmod a+x ./certbot-auto
+sudo mv ./certbot-auto /usr/local/bin
 
-./certbot-auto --cert-name sop_os_1.stateofplace.co -d sop_os_0.stateofplace.co -d sop_os_1.stateofplace.co
-
-I can't get the above to work--meaning I don't know how to have a single server work on multiple subdomains
-when another server has one of the subdomains. The best thing seems to be to list all subdomains in the nginx
-config and then run
-sudo certbot --nginx
-
-This asks which subdomain to use and updates /etc/nginx/sites-enabled/sop to point to the security certificate
+# Set it up with the domain you want to use. You must have the IP address of the server registered
+# as an A record in this domain's DNS registry
+sudo /usr/local/bin/certbot-auto --cert-name osm.rescapes.net
+# This asks which subdomain to use and updates /etc/nginx/sites-enabled/sop to point to the security certificate
 
 
 # Extras
@@ -246,8 +240,42 @@ group = www-data
 pm = ondemand
 pm.max_children = 5
 EOF_PHP_FPM_CONF
-Alias /nominatim $NOMINATIM_USERHOME/Nominatim/build/website
-EOFAPACHECONF
-# Restart apache
-sudo a2enconf nominatim
-sudo systemctl restart apache2
+
+# The following needs to be done as the new user.
+sudo su nominatim
+cd $NOMINATIM_USERHOME
+wget https://nominatim.org/release/Nominatim-3.4.0.tar.bz2
+tar xf Nominatim-3.4.0.tar.bz2
+cd Nominatim-3.4.0
+mkdir build
+cd build
+cmake $NOMINATIM_USERHOME/Nominatim-3.4.0
+make
+# You need to create a minimal configuration file that tells nominatim where it is located on the webserver:
+tee settings/local.php << EOF
+<?php
+ @define('CONST_Website_BaseURL', '/nominatim/');
+EOF
+
+# Nginx for nomanatim. Add the following to /etc/nginx/nginx.conf
+        location /nomanatim/ {
+          root /srv/nominatim/build/website;
+          try_files \$uri \$uri/ @php;
+        }
+        location @php {
+            fastcgi_param SCRIPT_FILENAME "\$document_root\$uri.php";
+            fastcgi_param PATH_TRANSLATED "\$document_root\$uri.php";
+            fastcgi_param QUERY_STRING    \$args;
+            fastcgi_pass unix:/var/run/php/php7.2-fpm.sock;
+            fastcgi_index index.php;
+            include fastcgi_params;
+        }
+        location ~ [^/]\.php(/|$) {
+            fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+            if (!-f \$document_root\$fastcgi_script_name) {
+                return 404;
+            }
+            fastcgi_pass unix:/var/run/php/php7.2-fpm.sock;
+            fastcgi_index search.php;
+            include fastcgi.conf;
+        }

@@ -149,7 +149,7 @@ export const geocodeAddressTask = R.curry((location, address) => {
         }
         else {
           // Ambiguous or no results. We can potentially resolve ambiguous ones
-          log.warn(`Failed to exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${address}. ${R.length(results)} results`);
+          log.warn(`Failed to find exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${address}. ${R.length(results)} results`);
           resolver.resolve(Result.Error({
             error: 'Did not receive exactly one location',
             results: R.map(

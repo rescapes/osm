@@ -141,7 +141,7 @@ export const geocodeAddressTask = R.curry((location, address) => {
         else if (R.equals(1, R.length(results))) {
           const result = R.head(results);
           // Result to indicate success
-          log.debug(`Successfully geocoded location ${R.propOr('(no id given)', 'id', location)}, ${address}`);
+          log.debug(`Successfully geocoded location ${R.propOr('(no id given)', 'id', location)}, ${address} to Google address ${result.formatted_address}`);
           // If an error occurs here Google swallows it, so catch it
           resolver.resolve(
             Result.of(addGeojsonToGoogleResult(result))

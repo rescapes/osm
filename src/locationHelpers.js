@@ -24,6 +24,11 @@ const EXCLUDE_STATES_FROM_COUNTRIES = ['Switzerland'];
 // Normally our data already has the correct abbreviation for Google, but exceptions happen for street like
 // N North St which google can't handle. However Google can handle N N St
 const GOOGLE_STREET_REPLACEMENTS = [
+  R.replace(/Northwest/g, 'NW'),
+  R.replace(/Southwest/g, 'SW'),
+  R.replace(/Northeast/g, 'NE'),
+  R.replace(/Northwest/g, 'NW'),
+
   R.replace(/North/g, 'N'),
   R.replace(/South/g, 'S'),
   R.replace(/East/g, 'E'),

@@ -192,7 +192,8 @@ export const highwayWayFilters = R.join('', [
  * For instance they can't be tagged as traffic signals!
  */
 export const highwayNodeFilters = R.join('', [
-    osmNotEqual('traffic_signals', 'signal'),
+    // This is allowed, Traffic signals are sometimes the node of the way
+    // osmNotEqual('traffic_signals', 'signal'),
     // This is allowed. Nodes marked as highway='traffic_signals' can still be the nodes used by the way
     // osmNotEqual('highway', 'traffic_signals')
     // Also allowed, just describes the type of crossing

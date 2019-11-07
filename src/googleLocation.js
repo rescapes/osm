@@ -125,7 +125,7 @@ export const geocodeAddressTask = R.curry((location, address) => {
                 // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE location
                 r => R.contains(r.geometry.location_type, ['GEOMETRIC_CENTER']),
                 // No partial matches allowed. TODO this seems to give ok results
-                // r => R.not(R.prop('partial_match', r)),
+                r => R.not(R.prop('partial_match', r)),
                 // It must be an intersection, thus have & in the address
                 r => R.contains('&', r.formatted_address)
               ])(r)

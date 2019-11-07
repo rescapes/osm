@@ -27,7 +27,7 @@ const GOOGLE_STREET_REPLACEMENTS = [
   R.replace(/Northwest/g, 'NW'),
   R.replace(/Southwest/g, 'SW'),
   R.replace(/Northeast/g, 'NE'),
-  R.replace(/Northwest/g, 'NW'),
+  R.replace(/Southeast/g, 'SE'),
 
   R.replace(/North/g, 'N'),
   R.replace(/South/g, 'S'),

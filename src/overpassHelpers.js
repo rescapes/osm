@@ -83,6 +83,13 @@ export const osmNotEqual = (prop, value) => osmCondition('!=', prop, value);
  * @returns {string}
  */
 export const osmNotEqualWithTag = (prop, value) => osmTCondition('!=', prop, value);
+/**
+ * Equal statement using a tag function for if: statements
+ * @param prop
+ * @param value
+ * @returns {string}
+ */
+export const osmEqualWithTag = (prop, value) => osmTCondition('==', prop, value);
 
 /**
  * Translates to OSM equals condition
@@ -217,7 +224,7 @@ export const buildFilterQuery = R.curry((settings, conditions, types) => {
     R.join(os.EOL),
     R.map(type => filtersForType(filters, type))
   )(types)
-    }
+  }
     );
     // print results
     out meta;/*fixed by auto repair*/
@@ -323,7 +330,7 @@ export const fetchOsmRawTask = R.curry((options, query) => {
       // Otherwise assume we bound by area or something else non-global
       R.always('')
     )(options)
-    };`;
+  };`;
   // Create a Task to run the query. Settings are already added to the query, so omit here
   return taskQuery(options, `${appliedSettings}${query}`);
 });
@@ -331,6 +338,8 @@ export const fetchOsmRawTask = R.curry((options, query) => {
 /**
  * Creates a filter to only accept nodes around a given point that have at 2 least ways attached to them,
  * meaning they are intersections
+ * @param {[String]} intersection Optional pair of street names representing the intersection to limit the ways of the node
+ * to those ways with those names
  * @param {String} around: e.g. '(around: 10, 40.6660816, -73.8057879)'
  * @param {String} outputNodeName e.g. 'nodes1'
  * @param {boolean} leaveForAndIfBlocksOpen Default false. Leave the code blocks open so we can put another loop
@@ -338,14 +347,24 @@ export const fetchOsmRawTask = R.curry((options, query) => {
  * @returns {string} The osm string
  * @private
  */
-export const _filterForIntersectionNodesAroundPoint = (around, outputNodeName, leaveForAndIfBlocksOpen = false) => {
+export const _filterForIntersectionNodesAroundPoint = (intersection, around, outputNodeName, leaveForAndIfBlocksOpen = false) => {
   const possibleNodes = `${outputNodeName}Possible`;
   const oneOfPossibleNodes = `oneOf${outputNodeName}Possible`;
   const waysOfOneOfPossibleNodes = `waysOfOneOf${outputNodeName}Possible`;
+  // If the intersection is given use it to limit the ways to the streets of the intersection
+  const intersectionNamesFilter = R.ifElse(
+    R.identity,
+    intersection => osmIf(
+      osmOr(
+        R.map(street => osmEqualWithTag('name', street), intersection)
+      )
+    ),
+    () => ''
+  )(intersection);
   return `node${around}${highwayNodeFilters} -> .${possibleNodes};
 foreach.${possibleNodes} ->.${oneOfPossibleNodes}
 {
-  way(bn.${oneOfPossibleNodes})${highwayWayFilters}->.${waysOfOneOfPossibleNodes};
+  way(bn.${oneOfPossibleNodes})${intersectionNamesFilter}${highwayWayFilters}->.${waysOfOneOfPossibleNodes};
   // If we have at least 2 ways, we have an intersection
   if (${waysOfOneOfPossibleNodes}.count(ways) >= 2)
   {

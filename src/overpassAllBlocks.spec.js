@@ -1,11 +1,10 @@
 import * as R from 'ramda';
 import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
 import {
-  locationToOsmAllBlocksQueryResultsTask, osmLocationToRelationshipGeojsonResultTask,
-  osmRelationshipGeojsonResultTask,
-  queryLocationForOsmBlockOrAllResultsTask
+  locationToOsmAllBlocksQueryResultsTask
 } from './overpassAllBlocks';
 import {_blocksToGeojson} from './overpassBlockHelpers';
+import {queryLocationForOsmBlockOrAllResultsTask} from './overpassBlocks';
 
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -102,4 +101,28 @@ describe('overpassAllBlocks', () => {
     );
 
   }, 1000000);
+
+  test('Use street names to limite ways', done => {
+    expect.assertions(1);
+    const errors = [];
+    const location = {
+      "intersections": [
+        ["2nd St", "K St"],
+        ["2nd St", "L St"]
+      ],
+      "neighborhood": "Downtown",
+      "city": "Sacramento",
+      "state": "CA",
+      "country": "USA"
+    };
+    queryLocationForOsmBlockOrAllResultsTask({}, location).run().listen(defaultRunConfig(
+      {
+        onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
+          // Paste the results of this into a geojson viewer for debugging
+          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          expect(R.length(locationsAndOsmResults)).toEqual(1);
+        }
+      }, errors, done)
+    );
+  }, 20000);
 });

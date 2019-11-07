@@ -155,7 +155,7 @@ const getResponse = (mockRequestContext) => {
   if (found) {
     return R.last(found);
   } else {
-    log.warn(`Problem with the unit test. query-overpass request flattend to ${JSON.stringify(flatMockRequestContext)} didn't match any responses. Will query server. Record the output and add it to responses in the query-overpass.js mock`)
+    log.warn(`Problem with the unit test. Didn't match mock data`); //query-overpass request flattend to ${JSON.stringify(flatMockRequestContext)} didn't match any responses. Will query server. Record the output and add it to responses in the query-overpass.js mock`)
     return null;
   }
 };

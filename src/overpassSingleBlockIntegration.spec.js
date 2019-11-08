@@ -204,9 +204,10 @@ describe('overpassIntegration', () => {
       }));
   }, 10000);
 
-  // Make sure we only get nodes back that are intersections, not things like traffic light
+  // Make sure we only get nodes back that are intersections, not just traffic lights
   // This road is divided and one side of one intersection intersects Bulfinch Road but the other
   // side intersects a service road, so we add extraWays.intersection2: [16702952] for the service road's way id
+  // TODO we can't rely on osmOverrides anymore. The code must be smart enough to resolve without it
   test('fetchOsmBlockWithSeparatedLanesAndTrafficSignalNodes', done => {
     expect.assertions(1);
     const errors = [];
@@ -292,5 +293,48 @@ describe('overpassIntegration', () => {
         )
       }, errors, done));
   }, 500000);
+
+  test('fetchBlockWithJogAtIntersectionProducing2Nodes', done => {
+    const location = {
+      'intersections': [['High St', 'Shortland St'], ['High St', 'Vulcan Ln']],
+      'neighborhood': 'Viaduct Basin',
+      'city': 'Auckland',
+      'state': '',
+      'country': 'New Zealand'
+    };
+    // This is where the block is a pedestrian area, not a simple line.
+    const errors = [];
+    expect.assertions(2);
+    const osmConfig = {};
+    queryLocationForOsmSingleBlockResultTask(osmConfig, location).run().listen(
+      defaultRunToResultConfig({
+        onResolved: ({results, location}) => {
+          expect(R.length(R.prop('nodes', results))).toEqual(2);
+          expect(R.length(R.prop('ways', results))).toEqual(1);
+        }
+      }, errors, done)
+    );
+  }, 200000);
+
+  test('fetchBlockForDividedRoad', done => {
+    const location = {
+      'intersections': [['Lee Hwy', 'N Buchanan St'], ['Lee Hwy', 'N Glebe Rd']],
+      'city': 'Arlington',
+      'state': 'VA',
+      'country': 'USA'
+    };
+    // This is where the block is a pedestrian area, not a simple line.
+    const errors = [];
+    expect.assertions(2);
+    const osmConfig = {};
+    queryLocationForOsmSingleBlockResultTask(osmConfig, location).run().listen(
+      defaultRunToResultConfig({
+        onResolved: ({results, location}) => {
+          expect(R.length(R.prop('nodes', results))).toEqual(2);
+          expect(R.length(R.prop('ways', results))).toEqual(1);
+        }
+      }, errors, done)
+    );
+  }, 200000);
 });
 

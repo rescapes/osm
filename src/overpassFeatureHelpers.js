@@ -15,7 +15,9 @@ import {
   mapKeys,
   reqStrPathThrowing,
   strPathOr,
-  mapMDeep
+  mapMDeep,
+  chainObjToValues,
+  filterWithKeys
 } from 'rescape-ramda';
 import 'regenerator-runtime';
 
@@ -164,95 +166,171 @@ const _updateNodeMatches = R.curry((nodeFeatures, nodeMatches, feature) => {
  */
 export const _linkedFeatures = (lookup, nodeFeatures) => {
 
+  // Generate the ordered ways.
+  const orderedWaysAndNodeFeatureSets = orderedWayFeatureGenerator(lookup, nodeFeatures);
   // Reduce ways, slicing them to fit between the two node Features.
   // Once we intersect both nodes we quit and ignore any more ways. Usually there will be one extra way at most.
-  const {results} = R.reduce(({results, nodeMatches, nodeFeatures}, {resolvedPointLookups, wayFeature}) => {
+  const ways = R.chain(
+    orderedWaysAndNodeFeatureSet => {
+      const {results} = R.reduce(
+        ({results, nodeMatches, nodeFeatures},
+         wayFeature
+        ) => {
 
-      // Update the node matches with wayFeature. If we find the last node before the had node, reverse
-      // the nodes and the matches, and henceforth the nodes will be reversed
-      const updatedNodeMatches = _updateNodeMatches(nodeFeatures, nodeMatches, wayFeature);
-      const [newNodeMatches, newNodeFeatures] = _reverseNodesAndWayIfNeeded(updatedNodeMatches, nodeFeatures, wayFeature);
+          // Update the node matches with wayFeature. If we find the last node before the had node, reverse
+          // the nodes and the matches, and henceforth the nodes will be reversed
+          const updatedNodeMatches = _updateNodeMatches(nodeFeatures, nodeMatches, wayFeature);
+          const [newNodeMatches, newNodeFeatures] = _reverseNodesAndWayIfNeeded(updatedNodeMatches, nodeFeatures, wayFeature);
 
-      // Yield any part of the feature that is between the intersection nodes
-      const shortenedWayFeature = someAllOrNoneOfWay(newNodeMatches, newNodeFeatures, wayFeature);
-      const newResults = R.concat(results, compact([shortenedWayFeature]));
-      const reduction = {results: newResults, nodeMatches: newNodeMatches, nodeFeatures: newNodeFeatures};
-      if (R.prop('last', newNodeMatches))
-      // Quit after this if we intersected the last intersection node. We ignore any way after
-        return R.reduced(reduction);
-      else
-        return reduction;
+          // return any part of the feature that is between the intersection nodes
+          const shortenedWayFeature = someAllOrNoneOfWay(newNodeMatches, newNodeFeatures, wayFeature);
+          const newResults = R.concat(results, compact([shortenedWayFeature]));
+          const reduction = {results: newResults, nodeMatches: newNodeMatches, nodeFeatures: newNodeFeatures};
+          if (R.prop('last', newNodeMatches))
+          // Quit after this if we intersected the last intersection node. We ignore any way after
+            return R.reduced(reduction);
+          else
+            return reduction;
+        },
+        // nodeMatches tracks when we have matched at the starting point and ending point of a LineString Feature.
+        // We can't allow Features to yield until one first matches at its head (first) point
+        // As soon as one matches at its end point we are done matching features, and any remaining are disgarded
+        {results: [], nodeMatches: {head: false, last: false}, nodeFeatures: R.prop('nodeFeatures', orderedWaysAndNodeFeatureSet)},
+        R.prop('wayFeatures', orderedWaysAndNodeFeatureSet)
+      );
+      return results
     },
-    // nodeMatches tracks when we have matched at the starting point and ending point of a LineString Feature.
-    // We can't allow Features to yield until one first matches at its head (first) point
-    // As soon as one matches at its end point we are done matching features, and any remaining are disgarded
-    {results: [], nodeFeatures, nodeMatches: {head: false, last: false}},
-    [...orderedWayFeatureGenerator(lookup)]
+    orderedWaysAndNodeFeatureSets
   );
   // Return the nodes and ways
-  return {nodes: nodeFeatures, ways: results};
+  return {nodes: nodeFeatures, ways};
 };
 
-function* orderedWayFeatureGenerator(lookup) {
-  // headPointToFeature are keyed by points that only have a feature's first point matching it
-  // lastPointToFeature are keyed by points that only have a feature's last point matching it
-  const [headPointToFeature, lastPointToFeature] = R.map(
-    headLast => R.compose(
+const orderedWayFeatureGenerator = (lookup, nodeFeatures) => {
+  // Return nodes that match the way
+  const nodeFeatureLookup = R.fromPairs(R.map(
+    nodeFeature => ([hashNodeFeature(nodeFeature), nodeFeature]),
+    nodeFeatures)
+  );
+  const nodeHashes = R.keys(nodeFeatureLookup);
+  // headPointToFeature are keyed by points that only have a way feature's first point matching it
+  // lastPointToFeature are keyed by points that only have a way feature's last point matching it
+  const [headPointToWayFeature, lastPointToWayFeature] = R.map(
+    headOrLast => R.compose(
       // Convert 1 item dict to 1 item dict valued by the single feature
-      R.map(value => R.head(R.prop(headLast, value))),
-      // Filter by objects having only a 'head' or 'last' key, not both
-      R.filter(obj => R.both(
-        R.compose(R.equals(1), R.length, R.keys),
-        R.prop(headLast)
+      R.map(value => R.head(R.prop(headOrLast, value))),
+      // Filter by objects having the matching headOrLast value,
+      // and either they don't have the other key (head or last) or they match a nodeFeature
+      // Meaning a lookup with a head and last can be split so some of its features pass both 'head' and 'last'
+      // if it matches a node feature. We do this because we don't want a lookup matching a node feature
+      // to be used as a point of continuation when we're linking ways. A node should be place where we end way
+      // linking
+      filterWithKeys(
+        (obj, pointHash) => R.both(
+          // Matches head or last
+          R.prop(headOrLast),
+          // And either
+          R.either(
+            // Only has one key
+            R.compose(R.equals(1), R.length, R.keys),
+            // Or matchers a node
+            () => R.contains(pointHash, nodeHashes)
+          )
         )(obj)
       )
     )(lookup),
+    // Process the head then the last node
     ['head', 'last']
   );
 
-  // Starting at the head, find the point who's last item contains the previous feature
-  let resolvedPointLookups = headPointToFeature;
-  let wayFeature = R.head(R.values(headPointToFeature));
-  const lastFeature = R.head(R.values(lastPointToFeature));
+  let resolvedPointToWaysLookups = {};
+  // Iterate through each each start point. Each is the place a way starts. We want to travel
+  // along the way and connect to other ways or to a lastPoint node. Whenever we meet a lastPoint node
+  // we yield a completed way. Usually there is just one lastPoint that is met except for cases of
+  // intersecting divided roads where we can meet two lastPoints. In that case we yield the short way between
+  // the two last points.
+  // Whenever we run out of ways to connect to we are done with this startPoint
+  return chainObjToValues(
+    (startWayFeature, startPoint) => {
+      resolvedPointToWaysLookups = R.merge(resolvedPointToWaysLookups, {[startPoint]: startWayFeature});
+      let wayFeature = startWayFeature;
+      const resolvedWayFeatures = [];
+      // Make the single item object keyed by next point and valued by feature whose head is the next pointj
+      while (true) {
 
-  // Make the single item object keyed by next point and valued by feature whose head is the next pointj
-  while (true) {
-    // Yield these two for iteration
-    yield({
-      wayFeature,
-      resolvedPointLookups
-    });
-    if (R.equals(wayFeature, lastFeature))
-      break;
+        // Find the lastPointToWayFeatureEntries whose last property contains our wayFeature
+        // In other words, does the end of this way match a point that isn't the start of another way?
+        const matchingLastPointToWayFeatures = R.filter(
+          lastFeature => R.equals(wayFeature, lastFeature),
+          R.values(lastPointToWayFeature)
+        );
+        resolvedWayFeatures.push(wayFeature);
 
-    // Find the pointLookup whose point is the last point for the currentFeature
-    const remainingLookup = R.omit(R.keys(resolvedPointLookups), lookup);
+        // If we match a last, we're done.
+        if (R.length(matchingLastPointToWayFeatures))
+          break;
 
-    // If for some reason there are no other ways thant the first and last
-    // just yield the last way feature
-    // This happens in weird cases where a ways is a loop
-    if (!R.length(R.keys(remainingLookup))) {
-      if (lastFeature) {
-        yield({wayFeature: lastFeature, resolvedPointLookups});
+        // Get the lookups that are left
+        const remainingLookup = R.compose(
+          R.filter(
+            value => R.both(
+              R.prop('head'),
+              R.prop('last')
+            )(value)
+          ),
+          R.omit(
+            R.keys(resolvedPointToWaysLookups)
+          )
+        )(lookup);
+
+        // If for some reason there are no other ways then continue. This happens in loop conditions
+        if (!R.length(R.keys(remainingLookup))) {
+          break;
+        }
+
+        // We expect exactly one intermediate pointLookup to match the wayFeature
+        // This is a pointLookup that has a last and head. Last matches our wayFeature and head indicates
+        // the next wayFeature we want to follow
+        // -wayFeature--> <tail, head> -next wayFeature-->
+        const nextHeadAndLastPointLookup = findOneThrowing(
+          pointLookupValue => R.pathEq(['last', 0], wayFeature)(pointLookupValue),
+          remainingLookup
+        );
+        // From that pointLookup get the next point by looking at it's head property
+        const nextPointToWayFeature = R.map(value => R.head(R.prop('head', value)), nextHeadAndLastPointLookup);
+
+        // Add it to our resolvedPointToWaysLookups nextPointToWayFeature
+        resolvedPointToWaysLookups = R.merge(resolvedPointToWaysLookups, nextPointToWayFeature);
+
+        // Use the way whose head touches the nextPoint
+        // We always assume there is only 1 way whose head touches, because we should have sorted all ways go
+        // flow in the same direction
+        wayFeature = R.head(R.values(nextPointToWayFeature));
       }
-      break;
-    }
+      // Yield the wayFeature and nodeFeatures that match
+      // This is either an initial wayFeature from startWayFeature or the one we connected to on the last iteration
+      const wayPoints = R.chain(
+        wayFeature => hashWayFeature(wayFeature),
+        resolvedWayFeatures
+      );
 
-    const nextPointLookup = findOneThrowing(
-      pointLookupValue => R.pathEq(['last', 0], wayFeature)(pointLookupValue),
-      remainingLookup
-    );
 
-    // From that pointLookup get the next point by looking at it's head property
-    const nextPointToFeature = R.map(value => R.head(R.prop('head', value)), nextPointLookup);
-    // Keep track of all points we've processed
-    resolvedPointLookups = R.merge(resolvedPointLookups, nextPointToFeature);
-    // Use the way whose head touches the nextPoint
-    // We always assume there is only 1 way whose head touches, because we should have sorted all ways go
-    // flow in the same direction
-    wayFeature = R.head(R.values(nextPointToFeature));
-  }
-}
+      const matchingNodeFeatures = compact(R.map(
+        // Resolve the nodeFeature or Null
+        wayPoint => R.propOr(null, wayPoint, nodeFeatureLookup),
+        wayPoints
+      ));
+      // Return each way individually with the matching nodeFeatures.
+      // Normally there is only one resolvedWayFeatures, but if we had to link ways we'll return
+      // them separately with the same nodes and trim them later
+      return {
+        wayFeatures: resolvedWayFeatures,
+        nodeFeatures: matchingNodeFeatures
+      };
+    },
+    headPointToWayFeature
+  );
+};
 
 /**
  * Sometimes the last node is matched before the first node. We know this if nodeMatches.head is false but

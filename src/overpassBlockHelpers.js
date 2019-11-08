@@ -36,21 +36,6 @@ import {
 import {waitAll} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 
-/**
- * Determines if an OSM query result is a valid block
- * @param wayFeatures
- * @param nodeFeatures
- */
-export const predicate = ({wayFeatures, nodeFeatures}) => R.allPass([
-  // Not null
-  R.complement(R.isNil),
-  // We'd normally limit nodes to 2, but there can be 4 if we have a divided road
-  // There might be cases where a divided road merges into a nondivided road, so we'll allow 2-4
-  ({nodeFeatures}) => R.compose(R.both(R.lte(2), R.gte(4)), R.length)(nodeFeatures),
-  // >0 ways:w
-  ({wayFeatures}) => R.compose(R.lt(0), R.length)(wayFeatures)
-])({wayFeatures, nodeFeatures});
-
 
 /**
  * Simple OSM query to return the ways of an intersection node.
@@ -143,9 +128,9 @@ export const _queryLocationVariationsUntilFoundResultTask = R.curry((queryLocati
     // A chained Task that runs 1 or 2 queries as needed
     locationVariationsOfOsm => traverseReduceWhile(
       {
-        // Fail the predicate to stop searching when we have a Result.Ok
+        // Fail the _predicate to stop searching when we have a Result.Ok
         predicate: (previousResult, result) => R.complement(Result.Ok.hasInstance)(result),
-        // Take the the last accumulation after the predicate fails
+        // Take the the last accumulation after the _predicate fails
         accumulateAfterPredicateFail: true
       },
 
@@ -181,19 +166,34 @@ export const _queryLocationVariationsUntilFoundResultTask = R.curry((queryLocati
 export const parallelWayNodeQueriesResultTask = (location, queries) => R.compose(
   // This converts failed tasks to a Result.Error and success to Result.Ok
   taskToResultTask,
+  // Produce the two Result Tasks.
+  // TODO If either Result is an Error the whole thing should be a Result Error
   queries => R.map(
     // Just combine the results to get {way: {query, response}, node: {query, response}}
     objs => R.mergeAll(objs),
     waitAll(
-      // When we have our own serve we can disable the delay
+      // mapObjToValues removes the way and node keys from query
       mapObjToValues(
         (query, type) => R.map(
           // Then map the task response to include the query for debugging/error resolution
           // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
           // if the OSM can't be resolved
-          response => ({[type]: {query, response: response.value}}),
+          response => ({
+            [type]: {
+              query,
+              // We never need duplicate nodes, ways, so remove them now
+              response: R.over(
+                R.lensProp('features'),
+                features => R.uniqBy(R.prop('id'), features),
+                response.value
+              )
+            }
+          }),
           // Perform the task
-          osmResultTask({name: 'fetchOsmRawTask', testMockJsonToKey: R.merge({type}, location)},
+          osmResultTask({
+              name: `parallelWayNodeQueriesResultTask: ${type}`,
+              testMockJsonToKey: R.merge({type}, location)
+            },
             options => fetchOsmRawTask(options, query)
           )
         ),
@@ -302,9 +302,10 @@ export const mapWaysByNodeIdToCleanedFeatures = waysByNodeId => mapMDeep(2,
 
 
 /**
- * Given wayFeatures that form a street block (and may overlap neigbhoring blocks), given nodeFeatures which
- * represent 1 or more intersections of the block (normally 2 but possibly 1 for a dead end or 3 or more for divided
- * streets), and given a mapping of wayFeatures features by those same nodeFeatures ids (where the wayFeatures features are all ways intersecting
+ * Given wayFeatures that form a street block (and may overlap neighboring blocks), given nodeFeatures which
+ * represent 1 or more intersections of the block (normally 2 but possibly 1 for a dead end or 3 or up to 8 for a
+ * divided road intersecting two other divided roads (e.g. =#===#=),
+ * and given a mapping of wayFeatures features by those same nodeFeatures ids (where the wayFeatures features are all ways intersecting
  * that nodeFeatures--not just those of wayFeatures), construct an object that has the ways features trimmed and ordered to match
  * the intersection nodes, the intersection nodeFeatures features left in the same order they were given, and additionally
  * an intersections property that is an object keyed by nodeFeatures id and valued by the street names of the ways that meet
@@ -351,21 +352,36 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
     R.compose(R.equals(1), R.length),
     R.compose(R.equals('yes'), strPathOr(false, '0.properties.tags.area'))
   )(wayFeatures)) {
+    // Nothing to trim in this cased
     return {
       ways: wayFeatures,
       nodes: nodeFeatures
     };
   }
 
-  // Build a lookup of start and end points
+  // Build a lookup of start and end points. We use these to link separate ways together.
+  // The head label is the first node of a way. The tail is for the last node of a way
   // This results in {
-  //  end_coordinate_hash: {head: [feature]}
-  //  coordinate_hash: {head: [feature], tail: [feature] }
-  //  end_coordinate_hash: {tail: [feature]}
+  //  [end_coordinate_hash]: {head: [feature]} // End of only one way
+  //  [coordinate_hash]: {head: [feature], tail: [feature] } // Coordinate where ways meet
+  //  [end_coordinate_hash]: {tail: [feature]} // End of only one way
   //}
   // TODO this doesn't yet handle ways that are loops
-  // Note that two hashes have only one feature. One with one at the head and one with one at the tail
+  // For normal streets, two hashes have only one feature. One with one at the head and one with one at the tail
   // The other have two features. So this gives us a good idea of how the features are chained together
+  // For cases of divided streets (possibly intersecting other divided streets), we can get more than 1 hash
+  // with meeting ways. Here's an example result of a divided road meeting one divided road and one non-divided road:
+  /*
+    -77.1244713:38.8971897 = Object {head: (2 ways)}
+    -77.123609:38.8975095 = Object {last: (1 way),
+    head: (1 way)}
+    -77.1209758:38.8984144 = Object {last: (1 way)}
+    -77.1256942:38.8986197 = Object {last: (1 way)}
+    -77.1235902:38.8976161 = Object {head: (1 way),
+    last: (1 way)}
+    -77.126258:38.8966612 = Object {last: (1 way) }
+    -77.123075:38.8970315 = Object {head: (1 way) }
+   */
   const lookup = R.reduce(
     (result, feature) => {
       return _reduceFeaturesByHeadAndLast(result, feature);
@@ -374,6 +390,8 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
     wayFeatures
   );
   // Do any features have the same head or last point? If so flip the coordinates of one
+  // We need to get all the ways "flowing" in the same direction. The ones we flip we tag with __reversed__
+  // so we can flip them back after we finish the sorting
   const modified_lookup = R.map(
     headLastObj => {
       return R.map(
@@ -414,7 +432,7 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
     modifiedWayFeatures
   );
 
-  // Use the linker to link the features together, dropping those that aren't between the two nodes
+  // Use the linker to link the features together, dropping those that aren't between two of the nodes
   const linkedFeatures = _linkedFeatures(finalLookup, nodeFeatures);
 
   // Finally remove the __reversed__ tags from the ways (we could leave them on for debugging if needed)
@@ -490,10 +508,10 @@ export const _hashBlock = ({nodes, ways}) => {
  */
 export const _sortOppositeBlocksByNodeOrdering = oppositeBlockPair => {
   return R.sortWith([
-      block => R.ascend(reqStrPathThrowing('nodes.0.id'), block),
-      // For loops fall back to sorting by the hash of the second way point (the point after the node)
-      // Loops have to have at least 3 points to make a triangle or more sided polygon
-      block => R.ascend(R.compose(hashPoint, reqStrPathThrowing('ways.0.geometry.coordinates.1')), block),
+    block => R.ascend(reqStrPathThrowing('nodes.0.id'), block),
+    // For loops fall back to sorting by the hash of the second way point (the point after the node)
+    // Loops have to have at least 3 points to make a triangle or more sided polygon
+    block => R.ascend(R.compose(hashPoint, reqStrPathThrowing('ways.0.geometry.coordinates.1')), block)
   ])(
     oppositeBlockPair
   );

@@ -174,7 +174,7 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geo
               // We pass the intereections if available. We detached them earliser from locationWithOsm
               // So that we can update locationWithOsm with the intersections from Overpass
               R.merge({intersections}, pickDeepPaths(['osmId', 'data.osmOverrides'], locationWithOsm)),
-              geojsonPoints,
+              geojsonPoints
             )
           ],
           ['way', 'node']
@@ -343,27 +343,11 @@ const _queryOverpassForSingleBlockResultTask = (location, {way: wayQuery, node: 
       ))
     ),
 
-    // If our predicate fails, give up with a Response.Error
+    // If our _predicate fails, give up with a Response.Error
     // Task Result [Object] -> Task Result.Ok (Object) | Result.Error (Object)
     resultToTaskWithResult(
       ({way, node, waysByNodeId}) => of(
-        R.ifElse(
-          // If predicate passes
-          ({way: wayFeatures, node: nodeFeatures}) => predicate({wayFeatures, nodeFeatures}),
-          // All good, return the responses
-          () => Result.Ok({
-            node,
-            way,
-            waysByNodeId
-          }),
-          // Predicate fails, return a Result.Error with useful info.
-          ({way: wayFeatures, node: nodeFeatures}) => Result.Error({
-            error: `Found ${R.length(nodeFeatures)} nodes and ${R.length(wayFeatures)} ways`,
-            way,
-            node,
-            waysByNodeId
-          })
-        )(R.map(reqStrPathThrowing('response.features'), {node, way}))
+        _validateOsmResults({way, node, waysByNodeId})
       )
     ),
 
@@ -382,6 +366,52 @@ const _queryOverpassForSingleBlockResultTask = (location, {way: wayQuery, node: 
   )({location, way: wayQuery, node: nodeQuery});
 };
 
+/**
+ * Determines if an OSM query result is a valid block
+ * @param wayFeatures
+ * @param nodeFeatures
+ */
+export const _predicate = ({wayFeatures, nodeFeatures}) => R.allPass([
+  // Not null
+  R.complement(R.isNil),
+  // We'd normally limit nodes to 2, but there can be up to 8 if we have a divided road that meets
+  // two other divided roads, like this: ==#===#==
+  // There might be cases where a divided road merges into a nondivided road, so we'll allow 2-4
+  ({nodeFeatures}) => R.compose(R.both(R.lte(2), R.gte(8)), R.length)(nodeFeatures),
+  // >0 ways:w
+  ({wayFeatures}) => R.compose(R.lt(0), R.length)(wayFeatures)
+])({wayFeatures, nodeFeatures});
+
+/**
+ * Validates the ways and nodes we found to make a valid street block
+ * @param {Object} way
+ * @param {[Object]} way.features
+ * @param {Object} node
+ * @param {[Object]} node node.features
+ * @param {Object} waysByNodeId object keyed by node id and valued by the ways of the node
+ * @return {Result<Object>} Result.Ok if the data is valid, else Result.Error with an error message and
+ * the input features
+ * @private
+ */
+const _validateOsmResults = ({way, node, waysByNodeId}) => {
+  return R.ifElse(
+    // If _predicate passes
+    ({way: wayFeatures, node: nodeFeatures}) => _predicate({wayFeatures, nodeFeatures}),
+    // All good, return the responses
+    () => Result.Ok({
+      node,
+      way,
+      waysByNodeId
+    }),
+    // Predicate fails, return a Result.Error with useful info.
+    ({way: wayFeatures, node: nodeFeatures}) => Result.Error({
+      error: `Found ${R.length(nodeFeatures)} nodes and ${R.length(wayFeatures)} ways`,
+      way,
+      node,
+      waysByNodeId
+    })
+  )(R.map(reqStrPathThrowing('response.features'), {node, way}));
+};
 
 /**
  * Creates OSM Overpass query syntax to declare ways for a give OSM area id.

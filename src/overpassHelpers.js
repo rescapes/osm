@@ -249,9 +249,9 @@ export const osmResultTask = ({tries, name, testMockJsonToKey}, taskFunc) => {
   const attempts = tries || R.length(servers);
   return traverseReduceWhile(
     {
-      // Fail the predicate to stop searching when we have a Result.Ok
+      // Fail the _predicate to stop searching when we have a Result.Ok
       predicate: (previousResult, result) => R.complement(Result.Ok.hasInstance)(result),
-      // Take the the last accumulation after the predicate fails
+      // Take the the last accumulation after the _predicate fails
       accumulateAfterPredicateFail: true
     },
 

@@ -141,7 +141,7 @@
     ]
   },
   "babel": {
-    "sourceMaps": "both",
+    "sourceMaps": true,
     "presets": [
       "@babel/preset-env"
     ],
@@ -152,6 +152,13 @@
             "transform-es2015-modules-commonjs-simple",
             {
               "noMangle": true
+            }
+          ],
+          [
+            "@babel/plugin-transform-runtime",
+            {
+              "helpers": true,
+              "regenerator": true
             }
           ]
         ]

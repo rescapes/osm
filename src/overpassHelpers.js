@@ -25,8 +25,8 @@ const log = loggers.get('rescapeDefault');
 
 // When doing OSM queries with lat/lon points search for nodes withing this many meters of them
 // The idea is that differences between Google, OSM, and manually marking of intersections should
-// be within 10 meters. But this might have to be greater
-export const AROUND_LAT_LON_TOLERANCE = 10;
+// be within 15 meters. But this might have to be greater.
+export const AROUND_LAT_LON_TOLERANCE = 15;
 export const AREA_MAGIC_NUMBER = 3600000000;
 /**
  * Converts the osm id string to an area id string

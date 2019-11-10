@@ -954,7 +954,7 @@ describe('overpassFeatureHelpers', () => {
         }
       }
     ];
-    const results = _linkedFeatures(lookup, nodeFeatures)
-    expect(results).toEqual(results)
+    const results = _linkedFeatures(lookup, nodeFeatures);
+    expect(results).toEqual(results);
   });
 });

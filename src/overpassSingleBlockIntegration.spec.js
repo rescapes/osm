@@ -330,8 +330,10 @@ describe('overpassIntegration', () => {
     queryLocationForOsmSingleBlockResultTask(osmConfig, location).run().listen(
       defaultRunToResultConfig({
         onResolved: ({results, location}) => {
-          expect(R.length(R.prop('nodes', results))).toEqual(2);
-          expect(R.length(R.prop('ways', results))).toEqual(1);
+          // 6 nodes because a divided road crosses a divided road
+          expect(R.length(R.prop('nodes', results))).toEqual(6);
+          // One way side splits at the first divided road node and the other doesn't, so we get 3
+          expect(R.length(R.prop('ways', results))).toEqual(3);
         }
       }, errors, done)
     );

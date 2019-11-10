@@ -157,7 +157,8 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
 const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geojsonPoints, intersections) => {
   return R.composeK(
     ({locationWithOsm, queries: {way: wayQuery, node: nodeQuery}}) => _queryOverpassForSingleBlockResultTask(
-      locationWithOsm,
+      // Pass intersections if available to help resolve the right ways
+      R.merge(locationWithOsm, {intersections}),
       {way: wayQuery, node: nodeQuery}
     ),
     // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
@@ -324,6 +325,7 @@ const _queryOverpassForSingleBlockResultTask = (location, {way: wayQuery, node: 
     // Finally get the features from the response
     resultToTaskNeedingResult(
       ({wayFeatures, nodeFeatures, wayFeaturesByNodeId}) => of(createSingleBlockFeatures(
+        location,
         {wayFeatures, nodeFeatures, wayFeaturesByNodeId}
       ))
     ),

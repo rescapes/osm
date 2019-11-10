@@ -312,12 +312,14 @@ export const mapWaysByNodeIdToCleanedFeatures = waysByNodeId => mapMDeep(2,
  * the intersection. The first wayFeatures street name is that of the block itself, the subsequent are one or more alphabetically
  * listed street names. Example intersections:
  * {nodeFeatures/1234: ['Main St', 'Billy Goat Gate', 'Wonder Woman Way'], nodeFeatures/2345: ['Main St', 'Howdy Doody Drive']}
- * @param wayFeatures
- * @param nodeFeatures
- * @param wayFeaturesByNodeId
+ * @param location {Object} Location object for street context
+ * @param features
+ * @param features.wayFeatures
+ * @param features.nodeFeatures
+ * @param features.wayFeaturesByNodeId
  * @returns {Object} {wayFeatures: wayFeatures features, nodeFeatures: nodeFeatures features, intersections: ... }
  */
-export const createSingleBlockFeatures = ({wayFeatures, nodeFeatures, wayFeaturesByNodeId}) => {
+export const createSingleBlockFeatures = (location, {wayFeatures, nodeFeatures, wayFeaturesByNodeId}) => {
   return R.merge(
     {
       // Calculate the street names and put them in intersections
@@ -330,7 +332,7 @@ export const createSingleBlockFeatures = ({wayFeatures, nodeFeatures, wayFeature
     },
     // Organize the ways and nodes, trimming the ways down to match the nodes
     // Then store the features in {ways: ..., nodes: ...}
-    getFeaturesOfBlock(wayFeatures, nodeFeatures)
+    getFeaturesOfBlock(location, wayFeatures, nodeFeatures)
   );
 };
 
@@ -344,7 +346,7 @@ export const createSingleBlockFeatures = ({wayFeatures, nodeFeatures, wayFeature
  * ways must be at least on way Feature, possibly shortened to match the block and up to n way features with at
  * most the first and last possibly shortened to match the block
  */
-export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
+export const getFeaturesOfBlock = (location, wayFeatures, nodeFeatures) => {
   // First handle some special cases:
   // If we have exactly one way and it has a tag area="yes" then it's a pedestrian zone or similar and the
   // two nodes aren't necessarily nodes of the pedestrian area.
@@ -382,12 +384,26 @@ export const getFeaturesOfBlock = (wayFeatures, nodeFeatures) => {
     -77.126258:38.8966612 = Object {last: (1 way) }
     -77.123075:38.8970315 = Object {head: (1 way) }
    */
+  // Remove any way features whose streets don't match those in the location
+  // If the wayFeatures don't have a name, leave them in in case they are needed
+  const wayFeaturesOfStreet = R.filter(
+    wayFeature => R.either(
+      R.isNil,
+      name => R.contains(
+        name,
+        // Take the first block of each intersection, this is our main block.
+        // I believe they're always the same value, but maybe there's a case where the name changes mid-block
+        R.uniq(R.map(R.head, location.intersections))
+      )
+    )(strPathOr(null, 'properties.tags.name', wayFeature)),
+    wayFeatures
+  );
   const lookup = R.reduce(
     (result, feature) => {
       return _reduceFeaturesByHeadAndLast(result, feature);
     },
     {},
-    wayFeatures
+    wayFeaturesOfStreet
   );
   // Do any features have the same head or last point? If so flip the coordinates of one
   // We need to get all the ways "flowing" in the same direction. The ones we flip we tag with __reversed__

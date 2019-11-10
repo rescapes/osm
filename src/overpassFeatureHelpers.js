@@ -139,21 +139,25 @@ const _lineStringFeatureEndNodeMatches = R.curry((nodePointHashes, lineStringFea
  * Returns an update to the given nodeMatches by checking if the given way LineString feature matches one or both
  * nodes by matching on any node of the LineString. Ways can overlap intersection nodes so we have to check
  * every node of the way
- * @param {[Object]} nodeFeatures The two node geojson objects representing the two street intersections
- * to be merged with the given nodeMatches
+ * @param {[Object]} nodeFeatures The two or more node geojson objects representing the two street intersections
+ * to be merged with the given nodeMatches. There are only more than
+ * two nodes when a way is crossing a divided highway or similar
  * @param {Object<k,Boolean>} lookup nodeMatches {head: true|false, tail: true|false}
  * @param {Object} nodeFeature way LineString feature Object to test
  * @returns {Object} New version of nodeMatches based on testing feature.
  * @private
  */
 const _updateNodeMatches = R.curry((nodeFeatures, nodeMatches, feature) => {
-  const nodePointHashes = hashNodeFeatures(nodeFeatures);
-  const newNodeMaches = _lineStringFeatureEndNodeMatches(nodePointHashes, feature);
+  const nodePointHashes = hashNodeFeatures(nodeFeatures)
+  // We only test the nodes at the extremes, assuming the nodes our ordered. There are only more than
+  // two nodes when a way is crossing a divided highway or similar
+  const testNodePointHashes = R.map(f => f(nodePointHashes), [R.head, R.last]);
+  const newNodeMatches = _lineStringFeatureEndNodeMatches(testNodePointHashes, feature);
   return R.mergeWith(
     // Once one is true leave it true
     (l, r) => R.or(l, r),
     nodeMatches,
-    newNodeMaches
+    newNodeMatches
   );
 });
 
@@ -180,6 +184,12 @@ export const _linkedFeatures = (lookup, nodeFeatures) => {
           // Update the node matches with wayFeature. If we find the last node before the had node, reverse
           // the nodes and the matches, and henceforth the nodes will be reversed
           const updatedNodeMatches = _updateNodeMatches(nodeFeatures, nodeMatches, wayFeature);
+          // If the wayFeature matches both nodes, this will make newNodeMatches {head: true, last: true}
+          // If wayFeature only matches at the start node, it will make newNodeMatches {head: true, last: false}
+          // If wayFeature only matches at the last node and nodeMatches.last if false, this will reverse the nodes
+          // to line up directionally with wayFeature.
+          // If there are more than 2 nodeFeatures, like for crossing divided highways, we ignore the middle nodes
+          // but include them in the reversal of nodes when we reverse
           const [newNodeMatches, newNodeFeatures] = _reverseNodesAndWayIfNeeded(updatedNodeMatches, nodeFeatures, wayFeature);
 
           // return any part of the feature that is between the intersection nodes
@@ -193,7 +203,7 @@ export const _linkedFeatures = (lookup, nodeFeatures) => {
             return reduction;
         },
         // nodeMatches tracks when we have matched at the starting point and ending point of a LineString Feature.
-        // We can't allow Features to yield until one first matches at its head (first) point
+        // We can't allow Features to stop the reduction until one first matches at its head (first) point
         // As soon as one matches at its end point we are done matching features, and any remaining are disgarded
         {results: [], nodeMatches: {head: false, last: false}, nodeFeatures: R.prop('nodeFeatures', orderedWaysAndNodeFeatureSet)},
         R.prop('wayFeatures', orderedWaysAndNodeFeatureSet)
@@ -345,6 +355,7 @@ const orderedWayFeatureGenerator = (lookup, nodeFeatures) => {
  * @private
  */
 const _reverseNodesAndWayIfNeeded = (nodeMatches, nodeFeatures, wayFeature) => {
+
   return R.cond([
     [
       // If the last node matches before the head reverse the true/false of the matches and reverse the nodeFeatures
@@ -389,14 +400,17 @@ const _reverseNodesAndWayIfNeeded = (nodeMatches, nodeFeatures, wayFeature) => {
  * nodeMatches['head'] is or the trimmed way feature coordinates are trimmed down to only 1 point
  */
 const someAllOrNoneOfWay = (nodeMatches, nodeFeatures, wayFeature) => {
+  // We only test with the extreme nodes, assuming they are ordered. We usually have only 2 nodes but
+  // can have more if the way crosses a divided road.
+  const testNodeFeatures = R.map(f => f(nodeFeatures), [R.head, R.last])
   if (R.prop('head', nodeMatches)) {
     // Mark that we've intersected one of the nodes
     // The head point of this feature must match, so shorten its end if it overlaps the last node
-    const shortedFeature = shortenToNodeFeaturesIfNeeded(nodeMatches, nodeFeatures, wayFeature);
+    const shortenedWayFeature = shortenToNodeFeaturesIfNeeded(nodeMatches, testNodeFeatures, wayFeature);
     // If we the shortened way is more than 1 point, yield it. A point point way is only matching the node,
     // so we can assume it's completely outside the block except but intersections the intersection at one end
-    if (R.lt(1, R.length(shortedFeature.geometry.coordinates))) {
-      return shortedFeature;
+    if (R.lt(1, R.length(shortenedWayFeature.geometry.coordinates))) {
+      return shortenedWayFeature;
     }
   }
   return null;

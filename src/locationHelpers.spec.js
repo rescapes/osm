@@ -8,7 +8,7 @@ import {
   addressStrings,
   sortedIntersections,
   intersectionsByNodeIdToSortedIntersections,
-  fixWordsThatTripUpGoogle, aggregateLocation, addressStringInBothDirectionsOfLocation
+  fixWordsThatTripUpGoogle, aggregateLocation, addressStringInBothDirectionsOfLocation, isResolvableAllBlocksLocation
 } from './locationHelpers';
 
 describe('LocationSelector', () => {
@@ -67,7 +67,7 @@ describe('LocationSelector', () => {
     )
   );
 
-  test('  intersectionsByNodeIdToSortedIntersections', () => {
+  test('intersectionsByNodeIdToSortedIntersections', () => {
     expect(intersectionsByNodeIdToSortedIntersections(
       {
         geojson: {
@@ -332,5 +332,79 @@ describe('LocationSelector', () => {
     })).toEqual([
       "High St & Durham St E, Auckland, New Zealand",
       "Durham St E & High St, Auckland, New Zealand"]);
+  });
+
+  test('isResolvableAllBlocksLocation', () => {
+    expect(isResolvableAllBlocksLocation({country: 'Cowboy', city: 'Giddyup'})).toEqual(true);
+    // No city, no service
+    expect(isResolvableAllBlocksLocation({country: 'Cowboy', state: 'Denied'})).toEqual(false);
+    expect(isResolvableAllBlocksLocation({
+      geojson: {
+        features: []
+      }
+    })).toEqual(false);
+    expect(isResolvableAllBlocksLocation({
+      geojson: {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            properties: {
+              radius: 10
+            },
+            geometry: {
+              type: 'Point',
+              coordinates: [
+                -78.89350891113281,
+                35.99884078388202
+              ]
+            }
+          }
+        ]
+      }
+    })).toEqual(true);
+    expect(isResolvableAllBlocksLocation({
+        geojson: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [
+                      -78.87805938720703,
+                      36.0153656546386
+                    ],
+                    [
+                      -78.8902473449707,
+                      36.009672602871746
+                    ],
+                    [
+                      -78.88423919677734,
+                      36.00800626603582
+                    ],
+                    [
+                      -78.87411117553711,
+                      36.00856171556128
+                    ],
+                    [
+                      -78.87805938720703,
+                      36.01133890448606
+                    ],
+                    [
+                      -78.87805938720703,
+                      36.0153656546386
+                    ]
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      }
+    )).toEqual(true);
   });
 });

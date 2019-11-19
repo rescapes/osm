@@ -5,6 +5,7 @@ import {
   toNamedResponseAndInputs,
   mapToNamedResponseAndInputs,
   compact,
+  strPathOr,
   waitAllBucketed
 } from 'rescape-ramda';
 import * as R from 'ramda';
@@ -28,6 +29,7 @@ import {
   hashNodeFeature,
   hashWayFeature
 } from './overpassFeatureHelpers';
+import {isGeojsonShapeOrHasRadius, isNominatimEligible} from './locationHelpers';
 
 /**
  * Created by Andy Likuski on 2019.07.26
@@ -52,7 +54,7 @@ import {
  * @param {Object} [osmConfig.allowFallbackToCity] Default false. Let's the nomanatim query fallback to the city
  * if the neighborhood can't be found
  * @param {Object} location A location object
- * @returns {Task<{Ok: blocks, Errors: errors>}>}
+ * @returns {Task<{Ok: blocks, Error: errors>}>}
  * In Ok a list of results found in the form [{location,  results}]
  * Where each location represents a block and the results are the OSM geojson data
  * The results contain nodes and ways and intersections (the street intersections of each node)
@@ -62,27 +64,38 @@ import {
  */
 export const locationToOsmAllBlocksQueryResultsTask = ({allowFallbackToCity}, location) => {
 
-  // Create a function that expects the location variations and returns the results
-  // of _queryForAllBlocksOfLocationsTask for the location variation that overpass can resolve
-  // (currently either a neighborhood level query or failing that city level query)
-  const _queryOverpassForAllBlocksUntilFoundResultTask = _queryLocationVariationsUntilFoundResultTask(
-    locationWithOsm => R.map(
-      // Wrap the task results in a Result.Ok to match what _queryLocationVariationsUntilFoundResultTask expects
-      results => Result.Ok(results),
-      _queryOverpassWithLocationForAllBlocksResultsTask(locationWithOsm)
-    )
-  );
-
   return R.composeK(
     // Unwrap the result we created for _queryLocationVariationsUntilFoundResultTask
-    result => of(result.matchWith({
-      Ok: ({value}) => value,
-      Error: ({value}) => value
-    })),
+    // Put it in the {Ok: [], Error: []} structure
+    result => {
+      return of(result.matchWith({
+        Ok: ({value}) => ({
+          Ok: [value],
+          Error: []
+        }),
+        Error: ({value}) => ({
+          Error: [value],
+          Ok: []
+        })
+      }));
+    },
     resultToTaskWithResult(
       locationVariationsWithOsm => R.cond([
         [R.length,
-          locationVariationsWithOsm => _queryOverpassForAllBlocksUntilFoundResultTask(
+          // If we have variations, query then in order until a positive result is returned
+          locationVariationsWithOsm => _queryLocationVariationsUntilFoundResultTask(
+            locationWithOsm => R.map(
+              // This returns a {Ok: [block locations], Error: [Error]}
+              // If anything is in error, we know the query failed, so we pass a Result.Error
+              results => R.ifElse(
+                R.compose(R.length, R.prop('Error')),
+                // Put in a Result.Error so this result is skipped
+                results => Result.Error(R.prop('Error', results)),
+                // Put in a Result.Ok so this result is processed
+                results => Result.Ok(R.prop('Ok', results))
+              )(results),
+              _queryOverpassWithLocationForAllBlocksResultsTask(locationWithOsm)
+            ),
             locationVariationsWithOsm
           )
         ],
@@ -90,7 +103,7 @@ export const locationToOsmAllBlocksQueryResultsTask = ({allowFallbackToCity}, lo
         [R.T,
           () => of(Result.Error({
             errors: ({
-              errors: ['OSM Nominatim query could not resolve a neighborhood or city for this location. Check spelling'],
+              errors: ['This location lacks jurisdiction or geojson properties to allow querying. The location must either have a country and city or geojson whose features all are shapes or have a radius property'],
               location
             }),
             location
@@ -99,7 +112,24 @@ export const locationToOsmAllBlocksQueryResultsTask = ({allowFallbackToCity}, lo
       ])(locationVariationsWithOsm)
     ),
     // Nominatim query on the place search string.
-    location => nominatimLocationResultTask({listSuccessfulResult: true, allowFallbackToCity: allowFallbackToCity || false}, location)
+    location => R.cond([
+      // If it's a geojson shape or has a radius, it's already prime for querying
+      [location => isGeojsonShapeOrHasRadius(location),
+        location => of(Result.Ok([location]))
+      ],
+      // If it's got jurisdiction info, query nominatim to resolve the area
+      [
+        location => isNominatimEligible(location),
+        location => nominatimLocationResultTask({
+          listSuccessfulResult: true,
+          allowFallbackToCity: allowFallbackToCity || false
+        }, location)
+      ],
+      [R.T, location => of(Result.Error({
+        error: 'Location not eligible for nominatim query and does not have a geojson shape or radius',
+        location
+      }))]
+    ])(location)
   )(location);
 };
 
@@ -107,8 +137,13 @@ export const locationToOsmAllBlocksQueryResultsTask = ({allowFallbackToCity}, lo
  * Queries for all blocks matching the Osm area id in the given location
  * @param {Object} locationWithOsm Location object with  bbox, osmId, placeId from
  * @private
- * @returns {Task<Result<[Object]>>} Each block {location, results} with the location block
- * and results containing OSM data
+ * @returns  {Task<Object>} { Ok: location blocks, Error: []
+ * Each location block, and results containing: {node, way, nodesToIntersectingStreets} in the Ok array
+ * node contains node features, way contains way features, and nodesToIntersectingStreets are keyed by node id
+ * and contain one or more street names representing the intersection. It will be just the block name for
+ * a dead end street, and contain the intersecting streets for non-deadends
+ * Errors in the errors array
+ * Result.Error is returned. Object has a ways, nodes
  */
 const _queryOverpassWithLocationForAllBlocksResultsTask = (locationWithOsm) => {
   return R.composeK(
@@ -124,7 +159,7 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (locationWithOsm) => {
           _constructHighwaysQuery(
             {type},
             // These are the only properties we might need from the location
-            pickDeepPaths(['intersections', 'osmId', 'data.osmOverrides'], locationWithOsm)
+            pickDeepPaths(['intersections', 'osmId', 'geojson'], locationWithOsm)
           )
         ],
         ['way', 'node']
@@ -138,7 +173,7 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (locationWithOsm) => {
  * @param location {Object} Only used for context for testing mocks
  * @param {String} wayQuery The Overpass way query
  * @param {String} nodeQuery The overpass node query
- * @returns {Task<Object>} { Ok: location blocks, Errors: []
+ * @returns {Task<Object>} { Ok: location blocks, Error: []
  * Each location block, and results containing: {node, way, nodesToIntersectingStreets} in the Ok array
  * node contains node features, way contains way features, and nodesToIntersectingStreets are keyed by node id
  * and contain one or more street names representing the intersection. It will be just the block name for
@@ -148,116 +183,127 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (locationWithOsm) => {
  */
 export const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: nodeQuery}) => {
   return R.composeK(
-    // Finally get the features from the response
-    res => resultToTaskWithResult(
-      ({way, node}) => {
-        const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
-        return R.composeK(
-          blocks => of({
-            Ok: blocks,
-            Errors: [] // TODO any blocks that don't process
-          }),
-          ({blocks, nodeIdToWays}) => of(R.map(
-            block => {
-              const nodesToIntersectingStreets = _intersectionStreetNamesFromWaysAndNodes(
-                R.prop('ways', block),
-                R.prop('nodes', block),
-                nodeIdToWays
-              );
-              return {
-                // Put the OSM results together
-                results: R.merge(block, {nodesToIntersectingStreets}),
-                // Add the intereections to the location and return it
-                location: R.merge(
-                  location,
-                  {
-                    intersections: R.values(nodesToIntersectingStreets)
-                  }
-                )
-              };
-            },
-            blocks
-          )),
-          // Once we pick the best version of the block, simply take to values and disgard the hash keys,
-          mapToNamedResponseAndInputs('blocks',
-            ({hashToBestBlock}) => of(R.values(hashToBestBlock))
-          ),
-          mapToNamedResponseAndInputs('hashToBestBlock',
-            ({blocks}) => of(R.reduceBy(
-              (otherBlock, block) => {
-                return R.when(
-                  () => otherBlock,
-                  // When we have 2 blocks it means we have the block in each direction, which we expect.
-                  // It's also possible to get some weird cases where ways were entered wrong in OSM and overlap,
-                  // creating the same block in terms of the node has but with different way ids
-                  block => {
-                    if (R.complement(R.equals)(
-                      ...R.map(
-                        b => R.compose(R.sort(R.identity), R.map(R.prop('id')), R.prop('ways'))(b),
-                        [otherBlock, block]
-                      )
-                    )) {
-                      // If way ids aren't the same but the nodes hash the same,
-                      // we have a case where the end of a way overlapped the other,
-                      // creating a short segment with matching node points, just take the first one. This is an OSM
-                      // data upload error and probably a useless pseudo-block that we'll throw away
-                      return otherBlock;
-                    } else {
-                      // Choose the block direction to use based on which starts with the lowest node id or failing
-                      // that for loops which has the lowest first way's second point
-                      // This is determinative so we can detect geojson changes when updating the location
-                      // but otherwise arbitrary.
-                      return R.head(_sortOppositeBlocksByNodeOrdering([otherBlock, block]));
-                    }
-                  })(block);
-              },
-              null,
-              // We'll group the blocks by their hash code
-              block => _hashBlock(block),
-              blocks
-            ))
-          ),
-          mapToNamedResponseAndInputs('blocks',
-            ({blocks, nodeIdToWays}) => {
-              return of(R.map(
-                // Add intersections to the blocks based on the ways and nodes' properties
-                block => R.merge(block, {
-                  nodesToIntersectingStreets: _intersectionStreetNamesFromWaysAndNodes(
-                      R.prop('ways', block),
-                      R.prop('nodes', block),
-                      nodeIdToWays
-                    )
-                  }
-                ),
-                blocks
-              ));
-            }
-          ),
-          mapToNamedResponseAndInputs('blocks',
-            // For each block travel along it and accumulate connected ways until we reach a node or dead end
-            // If a node is reached trim the last way to end at that node
-            ({wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
-              // Block b:: [b] -> Task [b]
-              // Wait in parallel but bucket tasks to prevent stack overflow
-              return waitAllBucketed(R.map(
-                partialBlock => recursivelyBuildBlockTask(
-                  {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
-                  partialBlock
-                ),
-                partialBlocks
-              ));
-            }
-          ),
-          // Creates helpers and partialBlocks, which are blocks with a node and one directional way
-          // from which we'll complete all our blocks
-          // {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks}
-          ({wayFeatures, nodeFeatures, location}) => of(_createPartialBlocks({wayFeatures, nodeFeatures, location}))
-        )({wayFeatures, nodeFeatures, location});
-      }
-    )(res),
+    // Take the Result.Ok with responses and organize the features into blocks
+    // Or put them in an Error array
+    result => of(result.matchWith({
+      Ok: ({value: {way, node}}) => organizeResponseFeaturesResultsTask(location, {way, node}),
+      // Create a Results object with the one error
+      Error: ({value}) => ({Ok: [], Error: [value]})
+    })),
     // Query for the ways and nodes in parallel
     queries => parallelWayNodeQueriesResultTask(location, queries)
   )({way: wayQuery, node: nodeQuery});
+};
+
+/**
+ * Organizes raw features into blocks
+ * @param result {way, node} with each containing response.features and the original query
+ * @returns {Task<Ok:[], Error:[]>}
+ */
+export const organizeResponseFeaturesResultsTask = (location, {way, node}) => {
+  // Finally get the features from the response
+  const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
+  return R.composeK(
+    blocks => of({
+      Ok: blocks,
+      Error: [] // TODO any blocks that don't process
+    }),
+    ({blocks, nodeIdToWays}) => of(R.map(
+      block => {
+        const nodesToIntersectingStreets = _intersectionStreetNamesFromWaysAndNodes(
+          R.prop('ways', block),
+          R.prop('nodes', block),
+          nodeIdToWays
+        );
+        return {
+          // Put the OSM results together
+          results: R.merge(block, {nodesToIntersectingStreets}),
+          // Add the intereections to the location and return it
+          location: R.merge(
+            location,
+            {
+              intersections: R.values(nodesToIntersectingStreets)
+            }
+          )
+        };
+      },
+      blocks
+    )),
+    // Once we pick the best version of the block, simply take to values and disgard the hash keys,
+    mapToNamedResponseAndInputs('blocks',
+      ({hashToBestBlock}) => of(R.values(hashToBestBlock))
+    ),
+    mapToNamedResponseAndInputs('hashToBestBlock',
+      ({blocks}) => of(R.reduceBy(
+        (otherBlock, block) => {
+          return R.when(
+            () => otherBlock,
+            // When we have 2 blocks it means we have the block in each direction, which we expect.
+            // It's also possible to get some weird cases where ways were entered wrong in OSM and overlap,
+            // creating the same block in terms of the node has but with different way ids
+            block => {
+              if (R.complement(R.equals)(
+                ...R.map(
+                  b => R.compose(R.sort(R.identity), R.map(R.prop('id')), R.prop('ways'))(b),
+                  [otherBlock, block]
+                )
+              )) {
+                // If way ids aren't the same but the nodes hash the same,
+                // we have a case where the end of a way overlapped the other,
+                // creating a short segment with matching node points, just take the first one. This is an OSM
+                // data upload error and probably a useless pseudo-block that we'll throw away
+                return otherBlock;
+              } else {
+                // Choose the block direction to use based on which starts with the lowest node id or failing
+                // that for loops which has the lowest first way's second point
+                // This is determinative so we can detect geojson changes when updating the location
+                // but otherwise arbitrary.
+                return R.head(_sortOppositeBlocksByNodeOrdering([otherBlock, block]));
+              }
+            })(block);
+        },
+        null,
+        // We'll group the blocks by their hash code
+        block => _hashBlock(block),
+        blocks
+      ))
+    ),
+    mapToNamedResponseAndInputs('blocks',
+      ({blocks, nodeIdToWays}) => {
+        return of(R.map(
+          // Add intersections to the blocks based on the ways and nodes' properties
+          block => R.merge(block, {
+              nodesToIntersectingStreets: _intersectionStreetNamesFromWaysAndNodes(
+                R.prop('ways', block),
+                R.prop('nodes', block),
+                nodeIdToWays
+              )
+            }
+          ),
+          blocks
+        ));
+      }
+    ),
+    mapToNamedResponseAndInputs('blocks',
+      // For each block travel along it and accumulate connected ways until we reach a node or dead end
+      // If a node is reached trim the last way to end at that node
+      ({wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
+        // Block b:: [b] -> Task [b]
+        // Wait in parallel but bucket tasks to prevent stack overflow
+        return waitAllBucketed(R.map(
+          partialBlock => recursivelyBuildBlockTask(
+            {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
+            partialBlock
+          ),
+          partialBlocks
+        ), 1000);
+      }
+    ),
+    // Creates helpers and partialBlocks, which are blocks with a node and one directional way
+    // from which we'll complete all our blocks
+    // {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks}
+    ({wayFeatures, nodeFeatures, location}) => of(_createPartialBlocks({wayFeatures, nodeFeatures, location}))
+  )({wayFeatures, nodeFeatures, location});
 };
 
 /**
@@ -599,14 +645,12 @@ const _deadEndNodeOfWayTask = (location, way) => {
  * to a neighborhood or city. It can only be left undefined if geojsonBounds is defined
  * @param {Object} data Location data optionally containing OSM overrides
  * @param {Object} [data.osmOverrides] Optional overrides
- * @param {[Number]} [data.osmOverrides.nodes] Optional 2 node ids
- * @param {[Number]} [data.osmOverrides.ways] Optional 1 or more way ids
  * @param {[Object]} [geojsonBounds] Optional. Bounds to use instead of the area of the osmId
  * @returns {string} The complete Overpass query string
  */
-const _constructHighwaysQuery = ({type}, {osmId, data}, geojsonBounds) => {
+const _constructHighwaysQuery = ({type}, {osmId, geojson}) => {
 
-  if (R.not(R.or(osmId, geojsonBounds))) {
+  if (R.not(R.or(osmId, geojson))) {
     throw Error("Improper configuration. osmId or geojsonBounds must be non-nil");
   }
 
@@ -619,15 +663,15 @@ const _constructHighwaysQuery = ({type}, {osmId, data}, geojsonBounds) => {
   const query = `
     ${
     // Declare the way variables if needed
-    _createQueryWaysDeclarations(areaId, geojsonBounds)
-    }
+    _createQueryWaysDeclarations(areaId, geojson)
+  }
     ${
     // Declare the node variables
     _createQueryNodesDeclarations(type)
-    }
+  }
     ${
     _createQueryOutput(type)
-    }`;
+  }`;
   return query;
 };
 
@@ -638,15 +682,27 @@ const _constructHighwaysQuery = ({type}, {osmId, data}, geojsonBounds) => {
  * @returns {String} Overpass query syntax string that declares the way variable
  * @private
  */
-const _createQueryWaysDeclarations = (areaId, geojsonBounds) => {
+const _createQueryWaysDeclarations = (areaId, geojson) => {
   return R.cond([
     // TODO handle geojsonBounds
+    [
+      ({geojson, areaId}) => strPathOr(geojson),
+      ({geojson}) => {
+        const wayQuery = R.ifElse(
+          // Query by geojson and optional areaId
+          R.identity,
+          areaId => `way(area:${areaId})${highwayWayFilters}`,
+          areaId => `way(area:${areaId})${highwayWayFilters}`
+        )(areaId);
+        return `${wayQuery}->.ways;`;
+      }
+    ],
     // We don't have hard-coded way ids, so search for these values by querying
-    [R.T, () => {
+    [R.T, ({areaId}) => {
       const wayQuery = `way(area:${areaId})${highwayWayFilters}`;
       return `${wayQuery}->.ways;`;
     }]
-  ])(geojsonBounds);
+  ])({areaId, geojson});
 };
 
 /**
@@ -661,7 +717,7 @@ const _createQueryNodesDeclarations = type => {
 
 /**
  * Creates syntax for the output of the query.
- * @param {String} type Either way or node. We have to query nodes and ways seperately to prevent geojson output errors
+ * @param {String} type Either way or node. We have to query nodes and ways separately to prevent geojson output errors
  * @returns {String} the syntax for the output
  * @private
  */

@@ -1,10 +1,12 @@
 import * as R from 'ramda';
 import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
 import {
-  locationToOsmAllBlocksQueryResultsTask
+  locationToOsmAllBlocksQueryResultsTask, organizeResponseFeaturesResultsTask
 } from './overpassAllBlocks';
 import {_blocksToGeojson} from './overpassBlockHelpers';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassBlocks';
+import area from '@turf/area';
+import Result from 'folktale/result';
 
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -31,14 +33,32 @@ describe('overpassAllBlocks', () => {
     };
     locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
+        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
           _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
           expect(R.length(locationsAndOsmResults)).toEqual(1068);
         }
       }, errors, done)
     );
+  }, 1000000);
 
+  test('locationToOsmAllBlocksQueryResultsTaskFtLauderdale', done => {
+    expect.assertions(1);
+    const errors = [];
+    const location = {
+      country: 'USA',
+      state: 'FL',
+      city: 'Fort Lauderdale'
+    };
+    locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
+      {
+        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+          // Paste the results of this into a geojson viewer for debugging
+          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          expect(R.length(locationsAndOsmResults)).toEqual(1068);
+        }
+      }, errors, done)
+    );
   }, 1000000);
 
   test('queryLocationForOsmBlockOrAllResultsTask', done => {
@@ -59,7 +79,7 @@ describe('overpassAllBlocks', () => {
     // Detects an area
     queryLocationForOsmBlockOrAllResultsTask(osmConfig, location).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: blocks, Errors: errors}) => {
+        onResolved: ({Ok: blocks, Error: errors}) => {
           expect(R.length(blocks)).toEqual(1068);
         }
       }, errors, incDones)
@@ -70,7 +90,7 @@ describe('overpassAllBlocks', () => {
       {intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']}
     ).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: blocks, Errors: errors}) => {
+        onResolved: ({Ok: blocks, Error: errors}) => {
           // Expect it to be two ways
           expect(R.length(blocks)).toEqual(1);
           expect(R.map(R.prop('id'), reqStrPathThrowing('0.results.ways', blocks))).toEqual(['way/5707230']);
@@ -92,7 +112,7 @@ describe('overpassAllBlocks', () => {
     };
     locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
+        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
           _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
           expect(R.length(locationsAndOsmResults)).toEqual(148);
@@ -102,7 +122,7 @@ describe('overpassAllBlocks', () => {
 
   }, 1000000);
 
-  test('Use street names to limite ways', done => {
+  test('Use street names to limit ways', done => {
     expect.assertions(1);
     const errors = [];
     const location = {
@@ -117,7 +137,7 @@ describe('overpassAllBlocks', () => {
     };
     queryLocationForOsmBlockOrAllResultsTask({}, location).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: locationsAndOsmResults, Errors: errors}) => {
+        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
           _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
           expect(R.length(locationsAndOsmResults)).toEqual(1);
@@ -125,4 +145,79 @@ describe('overpassAllBlocks', () => {
       }, errors, done)
     );
   }, 20000);
+
+  test('Test bounding box', done => {
+    expect.assertions(1);
+    const errors = [];
+    const location = {
+      geojson: {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {},
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -78.87805938720703,
+                    36.0153656546386
+                  ],
+                  [
+                    -78.8902473449707,
+                    36.009672602871746
+                  ],
+                  [
+                    -78.88423919677734,
+                    36.00800626603582
+                  ],
+                  [
+                    -78.87411117553711,
+                    36.00856171556128
+                  ],
+                  [
+                    -78.87805938720703,
+                    36.01133890448606
+                  ],
+                  [
+                    -78.87805938720703,
+                    36.0153656546386
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    };
+    queryLocationForOsmBlockOrAllResultsTask({}, location).run().listen(defaultRunConfig(
+      {
+        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+          // Paste the results of this into a geojson viewer for debugging
+          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          expect(R.length(locationsAndOsmResults)).toEqual(1);
+        }
+      }, errors, done)
+    );
+  }, 200000);
+
+  test('Fort Lauderdale', done => {
+    const errors = [];
+    const nodes = require('./samples/fort_lauderdale_nodes.json');
+    const ways = require('./samples/fort_lauderdale_ways.json');
+    const location = {country: 'USA', state: 'FL', city: 'Fort Lauderdale'};
+    organizeResponseFeaturesResultsTask(location,
+      Result.Ok({
+        node: {response: {features: nodes.features}},
+        way: {response: {features: ways.features}}
+      })).run().listen(defaultRunConfig(
+      {
+        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+          // Paste the results of this into a geojson viewer for debugging
+          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          expect(R.length(locationsAndOsmResults)).toEqual(1068);
+        }
+      }, errors, done));
+  }, 1000000);
 });

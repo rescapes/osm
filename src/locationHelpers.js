@@ -121,8 +121,7 @@ export const addressStringInBothDirectionsOfLocation = locationWithOneIntersecti
 export const addressString = ({country, state, city, neighborhood, blockname, intersections}) => {
 
   // If it's a lat/lon return it
-  if (isLatLng(R.head(intersections)))
-  {
+  if (isLatLng(R.head(intersections))) {
     return R.head(intersections);
   }
 
@@ -338,15 +337,46 @@ export const isResolvableSingleBlockLocation = location => R.either(
 
 /**
  * Resolvable to all blocks in an OSM area, like a city or neighborhood requires that
- * at least a country and city be specified
- * TODO support geojson bounds in the future
+ * at that 1) country and city be specified, 2) A geosjson 'Polygon' or 'Multipolygon' 3) any geojson with a geojson.property.radius
  * @param {Object} location Location props
  * @returns {Boolean} True if resolvable, else false
  */
 export const isResolvableAllBlocksLocation = location => {
-  const requiredProps = ['country', 'city'];
-  return R.all(prop => R.prop(prop, location), requiredProps);
+  return R.cond([
+    [location => isNominatimEligible(location), () => true],
+    // At least one geojson feature and al either have a shape or has a radius property
+    [location => R.and(
+      R.compose(R.length, strPathOr([], 'geojson.features'))(location),
+      isGeojsonShapeOrHasRadius(location)
+    ), () => true],
+    [R.T, () => false]
+  ])(location);
 };
+
+/**
+ * Returns true if the location is eligible for a nominatim
+ * @param location
+ * @returns {f1}
+ */
+export const isNominatimEligible = location => {
+  return R.all(prop => R.prop(prop, location), ['country', 'city']);
+};
+
+/**
+ * Returns true if the given location's features have a shape or has a feature.properties.radius
+ * @param location
+ * @returns {Boolean}
+ */
+export const isGeojsonShapeOrHasRadius = location => R.and(
+  R.compose(R.length, strPathOr([], 'geojson.features'))(location),
+  R.all(
+    feature => R.either(
+      feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Polygon', 'Multipolygon']),
+      feature => strPathOr(false, 'properties.radius', feature)
+    )(feature),
+    strPathOr([], 'geojson.features', location)
+  )
+);
 
 /**
  * Given a location and componentLocations that are locations geospatially within location, create a single

@@ -320,8 +320,8 @@ export const taskQuery = (options, query) => {
  * @returns {Task} A Task to run the query
  */
 export const fetchOsmRawTask = R.curry((options, query) => {
-  // Default settings
-  const settings = options.settings || [`[out:json]`];
+  // Default settings. Set timeout and maxsize to large values
+  const settings = options.settings || [`[timeout:900][maxsize:1073741824][out:json]`];
   const appliedSettings = `${R.join('', settings)}${
     R.ifElse(
       R.prop('bounds'),

@@ -257,7 +257,8 @@ tee settings/local.php << EOF
  @define('CONST_Website_BaseURL', '/nominatim/');
 EOF
 
-# Nginx for nomanatim. Add the following to /etc/nginx/nginx.conf
+# Alternative Nginx for nomanatim. Add the following to /etc/nginx/nginx.conf
+# TODO this doesn't work, but would with some tweeks
         location /nomanatim/ {
           root /srv/nominatim/build/website;
           try_files \$uri \$uri/ @php;

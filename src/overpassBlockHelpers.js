@@ -21,6 +21,7 @@ import {
   osmResultTask
 } from './overpassHelpers';
 import {
+  traverseReduce,
   mapObjToValues,
   reqStrPathThrowing,
   mapMDeep,
@@ -31,7 +32,8 @@ import {
   compactEmpty,
   chainObjToValues,
   splitAtInclusive,
-  toNamedResponseAndInputs
+  toNamedResponseAndInputs,
+  traverseReduceResultError
 } from 'rescape-ramda';
 import {waitAll} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
@@ -169,34 +171,55 @@ export const parallelWayNodeQueriesResultTask = (location, queries) => R.compose
   // Produce the two Result Tasks.
   // TODO If either Result is an Error the whole thing should be a Result Error
   queries => R.map(
+    // If both results are Result.Ok, combine them. Otherwise create a result
     // Just combine the results to get {way: {query, response}, node: {query, response}}
-    objs => R.mergeAll(objs),
+    objResults => R.ifElse(
+      objResults => R.all(r => Result.Ok.hasInstance(r), objResults),
+      // Merge them into a Result.Ok
+      objResults => traverseReduce(R.merge, Result.Ok({}), objResults),
+      // When there is a Result.Error from Overpass it's in the form Result.Error[{value, server}]. So
+      // we concat these errors
+      objResults => traverseReduceResultError(
+        (accum, errors) => {
+          return R.over(
+            R.lensProp('error'), error => R.concat(error, errors), accum
+          );
+        },
+        Result.Error({location, error: []}),
+        objResults
+      )
+    )(objResults),
     waitAll(
       // mapObjToValues removes the way and node keys from query
       mapObjToValues(
-        (query, type) => R.map(
+        (query, type) => R.composeK(
           // Then map the task response to include the query for debugging/error resolution
-          // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
           // if the OSM can't be resolved
-          response => ({
-            [type]: {
-              query,
-              // We never need duplicate nodes, ways, so remove them now
-              response: R.over(
-                R.lensProp('features'),
-                features => R.uniqBy(R.prop('id'), features),
-                response.value
-              )
-            }
-          }),
+          // Maps Result.Ok to a {
+          // way|node: {query: original query, response: unique features}
+          //}
+          result => of(R.map(
+            value => ({
+              [type]: {
+                query,
+                // We never need duplicate nodes, ways, so remove them now
+                response: R.over(
+                  R.lensProp('features'),
+                  features => R.uniqBy(R.prop('id'), features),
+                  value
+                )
+              }
+            }),
+            result
+          )),
           // Perform the task
-          osmResultTask({
+          ({query, type}) => osmResultTask({
               name: `parallelWayNodeQueriesResultTask: ${type}`,
               testMockJsonToKey: R.merge({type}, location)
             },
             options => fetchOsmRawTask(options, query)
           )
-        ),
+        )({query, type}),
         queries
       )
     )

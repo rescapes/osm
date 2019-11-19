@@ -613,6 +613,7 @@ const _createIntersectionQueryNodesDeclarations = function (nodes, explicitExtra
 (.nodes1; .nodes2;)->.nodes;`;
     }],
     // If we have 4 different blocks we change the query to accommodate them
+    // TODO Review this and clarify cases where we have exactly 4 blocks
     [R.always(R.compose(R.equals(4), R.length)(orderedBlocks)), () => {
       return `(node(w.w1)(w.w2)${highwayNodeFilters}${around1};
       node(w.w3)(w.w4)${highwayNodeFilters}${around2};

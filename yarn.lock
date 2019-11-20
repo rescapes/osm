@@ -3665,7 +3665,7 @@ fragment-cache@^0.2.1:
   dependencies:
     map-cache "^0.2.2"
 
-fs-extra@8.1.0, fs-extra@^8.1.0:
+fs-extra@8.1.0:
   version "8.1.0"
   resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-8.1.0.tgz#49d43c45a88cd9677668cb7be1b46efdb8d2e1c0"
   dependencies:
@@ -4103,10 +4103,6 @@ is-accessor-descriptor@^1.0.0:
   dependencies:
     kind-of "^6.0.0"
 
-is-arguments@^1.0.4:
-  version "1.0.4"
-  resolved "https://registry.yarnpkg.com/is-arguments/-/is-arguments-1.0.4.tgz#3faf966c7cba0ff437fb31f6250082fcf0448cf3"
-
 is-arrayish@^0.2.1:
   version "0.2.1"
   resolved "https://registry.yarnpkg.com/is-arrayish/-/is-arrayish-0.2.1.tgz#77c99840527aa8ecb1a8ba697b80645a7a926a9d"
@@ -4212,10 +4208,6 @@ is-function@^1.0.1:
 is-generator-fn@^2.0.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/is-generator-fn/-/is-generator-fn-2.1.0.tgz#7d140adc389aaf3011a8f2a2a4cfa6faadffb118"
-
-is-generator-function@^1.0.7:
-  version "1.0.7"
-  resolved "https://registry.yarnpkg.com/is-generator-function/-/is-generator-function-1.0.7.tgz#d2132e529bb0000a7f80794d4bdf5cd5e5813522"
 
 is-glob@^2.0.0, is-glob@^2.0.1:
   version "2.0.1"
@@ -5257,7 +5249,7 @@ moment-duration-format@^2.3.2:
   version "2.3.2"
   resolved "https://registry.yarnpkg.com/moment-duration-format/-/moment-duration-format-2.3.2.tgz#5fa2b19b941b8d277122ff3f87a12895ec0d6212"
 
-moment@^2.22.2, moment@^2.24.0:
+moment@^2.22.2:
   version "2.24.0"
   resolved "https://registry.yarnpkg.com/moment/-/moment-2.24.0.tgz#0d055d53f5052aa653c9f6eb68bb5d12bf5c2b5b"
 
@@ -5278,10 +5270,6 @@ ms@^2.1.1:
 mute-stream@0.0.8:
   version "0.0.8"
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.8.tgz#1630c42b2251ff81e2a283de96a5497ea92e5e0d"
-
-namedtuplemap@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/namedtuplemap/-/namedtuplemap-1.0.0.tgz#c231789c5b7b47b4b3a3e73317f03ddde1ebcb34"
 
 nan@^2.12.1:
   version "2.14.0"
@@ -5956,46 +5944,9 @@ quickselect@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/quickselect/-/quickselect-2.0.0.tgz#f19680a486a5eefb581303e023e98faaf25dd018"
 
-ramda-fantasy-validation@^0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/ramda-fantasy-validation/-/ramda-fantasy-validation-0.2.0.tgz#55381e2dd5f6924ac2b1fa5660cb1fb9caf612f7"
-  dependencies:
-    ramda "^0.17.1"
-
-ramda-fantasy@>=0.4.0, ramda-fantasy@^0.8.0:
-  version "0.8.0"
-  resolved "https://registry.yarnpkg.com/ramda-fantasy/-/ramda-fantasy-0.8.0.tgz#9e8c37d93ec0a70796cfc10873dd9c50850390f6"
-  dependencies:
-    ramda ">=0.15.0"
-
-ramda-lens@^0.1.2:
-  version "0.1.2"
-  resolved "https://registry.yarnpkg.com/ramda-lens/-/ramda-lens-0.1.2.tgz#e8b340def6e0787b395dde318f3b68ebf28dba9d"
-  dependencies:
-    ramda "^0.19.1"
-
-ramda-maybe@^0.18.0:
-  version "0.18.0"
-  resolved "https://registry.yarnpkg.com/ramda-maybe/-/ramda-maybe-0.18.0.tgz#b450d334b2169b9dcb8c6f95d70ee3386015fbdb"
-  dependencies:
-    ramda "^0.18.0"
-    ramda-fantasy ">=0.4.0"
-
-ramda@>=0.15.0, ramda@^0.26.1:
+ramda@^0.26.1:
   version "0.26.1"
   resolved "https://registry.yarnpkg.com/ramda/-/ramda-0.26.1.tgz#8d41351eb8111c55353617fc3bbffad8e4d35d06"
-
-ramda@^0.17.1:
-  version "0.17.1"
-  resolved "https://registry.yarnpkg.com/ramda/-/ramda-0.17.1.tgz#4c198147d3ab54e8c15255f11730e2116f6e6073"
-
-ramda@^0.18.0:
-  version "0.18.0"
-  resolved "https://registry.yarnpkg.com/ramda/-/ramda-0.18.0.tgz#c6e3c5d4b9ab1f7906727fdeeb039152a85d4db3"
-
-ramda@^0.19.1:
-  version "0.19.1"
-  resolved "https://registry.yarnpkg.com/ramda/-/ramda-0.19.1.tgz#89c4ad697265ff6b1face9f286439e2520d6679c"
 
 randomatic@^3.0.0:
   version "3.1.1"
@@ -6161,7 +6112,7 @@ regenerator-runtime@^0.11.0:
   version "0.11.1"
   resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.11.1.tgz#be05ad7f9bf7d22e056f9726cee5017fbf19e2e9"
 
-regenerator-runtime@^0.13.2, regenerator-runtime@^0.13.3:
+regenerator-runtime@^0.13.2:
   version "0.13.3"
   resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.13.3.tgz#7cf6a77d8f5c6f60eb73c5fc1955b2ceb01e6bf5"
 
@@ -6276,9 +6227,10 @@ require-relative@0.8.7:
   version "0.8.7"
   resolved "https://registry.yarnpkg.com/require-relative/-/require-relative-0.8.7.tgz#7999539fc9e047a37928fa196f8e1563dabd36de"
 
-rescape-helpers@>=1.1.99, rescape-helpers@^1.1.93:
-  version "1.1.99"
-  resolved "https://registry.yarnpkg.com/rescape-helpers/-/rescape-helpers-1.1.99.tgz#7e5e0e8728239fe9b20aa30dafdb46643ba35c1c"
+rescape-helpers@>=1.1.107:
+  version "1.1.107"
+  resolved "https://registry.yarnpkg.com/rescape-helpers/-/rescape-helpers-1.1.107.tgz#b4cf5c539daefa5160442e1e4c513f3114417f67"
+  integrity sha512-ngvfdrDI2CT4IOj2LcyEPeEJ0RYS4oHmJCcueBArZbhbqwSvqKUuA/Mv6u2MrMsxsk+4+sIB+djkv0gNwEnjeA==
   dependencies:
     "@turf/bbox" "^6.0.1"
     "@turf/bbox-polygon" "^6.0.1"
@@ -6286,6 +6238,7 @@ rescape-helpers@>=1.1.99, rescape-helpers@^1.1.93:
     "@turf/meta" "^6.0.2"
     "@turf/rhumb-bearing" "^6.0.1"
     "@turf/rhumb-distance" "^6.0.1"
+    "@turf/square-grid" "^6.0.2"
     "@turf/transform-translate" "^5.1.5"
     apollo-client-preset "^1.0.8"
     babel-plugin-transform-es2015-modules-commonjs-simple "^6.7.4"
@@ -6307,52 +6260,7 @@ rescape-helpers@>=1.1.99, rescape-helpers@^1.1.93:
     redux-debounced "^0.5.0"
     redux-logger "^3.0.6"
     redux-thunk "^2.3.0"
-    rescape-ramda "^1.5.78"
-    rescape-sample-data "^1.2.60"
-    rescape-validate "^1.2.26"
     reselect "^4.0.0"
-
-rescape-ramda@^1.5.70, rescape-ramda@^1.5.76, rescape-ramda@^1.5.78:
-  version "1.6.1"
-  resolved "https://registry.yarnpkg.com/rescape-ramda/-/rescape-ramda-1.6.1.tgz#810898644c50f3e683381f08417dcf50edf993a5"
-  dependencies:
-    folktale "^2.3.2"
-    fs-extra "^8.1.0"
-    namedtuplemap "^1.0.0"
-    ramda "^0.26.1"
-    ramda-fantasy "^0.8.0"
-    ramda-maybe "^0.18.0"
-    util "^0.12.1"
-
-rescape-sample-data@^1.2.60:
-  version "1.2.60"
-  resolved "https://registry.yarnpkg.com/rescape-sample-data/-/rescape-sample-data-1.2.60.tgz#9502d635342217523795db4d6d19522878551044"
-  dependencies:
-    graphql "^14.4.2"
-    graphql-geojson "^1.0.0"
-    graphql-tools "^4.0.5"
-    immutable "^4.0.0-rc.9"
-    moment "^2.24.0"
-    numeral "^2.0.6"
-    parse-decimal-number "^1.0.0"
-    prop-types "^15.7.2"
-    ramda "^0.26.1"
-    ramda-lens "^0.1.2"
-    regenerator-runtime "^0.13.3"
-    rescape-helpers "^1.1.93"
-    rescape-ramda "^1.5.70"
-    rescape-validate "^1.2.25"
-
-rescape-validate@^1.2.25, rescape-validate@^1.2.26:
-  version "1.2.26"
-  resolved "https://registry.yarnpkg.com/rescape-validate/-/rescape-validate-1.2.26.tgz#ebb602611035fc6426718bced76b4bf4a3b10a79"
-  dependencies:
-    folktale "^2.3.2"
-    prop-types "^15.6.2"
-    ramda "^0.26.1"
-    ramda-fantasy "^0.8.0"
-    ramda-fantasy-validation "^0.2.0"
-    rescape-ramda "^1.5.76"
 
 reselect@^4.0.0:
   version "4.0.0"
@@ -7199,16 +7107,6 @@ util@^0.10.3:
   resolved "https://registry.yarnpkg.com/util/-/util-0.10.4.tgz#3aa0125bfe668a4672de58857d3ace27ecb76901"
   dependencies:
     inherits "2.0.3"
-
-util@^0.12.1:
-  version "0.12.1"
-  resolved "https://registry.yarnpkg.com/util/-/util-0.12.1.tgz#f908e7b633e7396c764e694dd14e716256ce8ade"
-  dependencies:
-    inherits "^2.0.3"
-    is-arguments "^1.0.4"
-    is-generator-function "^1.0.7"
-    object.entries "^1.1.0"
-    safe-buffer "^5.1.2"
 
 uuid@>=2.2.1, uuid@^3.1.0, uuid@^3.3.2:
   version "3.3.3"

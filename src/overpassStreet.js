@@ -57,10 +57,15 @@ export const queryOverpassWithLocationForStreetResultTask = locationWithOsm => {
         R.fromPairs(R.map(
           type => [
             type,
-            _constructStreetQuery(
-              {type},
-              locationWithOsm
-            )
+            // We put this in an array since _queryOverpassForAllBlocksResultsTask expects
+            // way and node to have an array of queries. It needs arrays of queries for breaking up large
+            // areas into small queries. We don't do that here since we're trying to find a single street
+            [
+              _constructStreetQuery(
+                {type},
+                locationWithOsm
+              )
+            ]
           ],
           ['way', 'node']
         ))

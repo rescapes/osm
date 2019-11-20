@@ -282,7 +282,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
               R.compose(R.head, R.keys)(nodesToIntersectingStreets)
             )
           )(featureId),
-          R.map(R.prop('id'), location.geojson.features)
+          R.map(R.prop('id'), reqStrPathThrowing('geojson.features', location))
         )
       ],
       streetIntersectionSets
@@ -347,7 +347,7 @@ export const isResolvableAllBlocksLocation = location => {
     // At least one geojson feature and al either have a shape or has a radius property
     [location => R.and(
       R.compose(R.length, strPathOr([], 'geojson.features'))(location),
-      isGeojsonShapeOrHasRadius(location)
+      geojsonFeaturesHaveShapeOrRadii(strPathOr(null, 'geojson', location))
     ), () => true],
     [R.T, () => false]
   ])(location);
@@ -364,18 +364,39 @@ export const isNominatimEligible = location => {
 
 /**
  * Returns true if the given location's features have a shape or has a feature.properties.radius
- * @param location
- * @returns {Boolean}
+ * @param {Object} geojson FeatureCollection or similar
+ * @returns {Boolean} True if all features have either a shape or a properties.radius amount, otherwise false
  */
-export const isGeojsonShapeOrHasRadius = location => R.and(
-  R.compose(R.length, strPathOr([], 'geojson.features'))(location),
+export const geojsonFeaturesHaveShapeOrRadii = geojson => R.either(
+  geojsonFeaturesHaveShape,
+  geojsonFeaturesHaveRadii
+)(geojson);
+
+/**
+ * Returns true if the given geojson's features have a shape. There must be at least one feature or false is returned
+ * @param {Object} geojson FeatureCollection or similar
+ * @returns {Boolean} True if all features have either a shape and there is at least one feature, otherwise false
+ */
+export const geojsonFeaturesHaveShape = geojson => R.and(
+  R.compose(R.length, strPathOr([], 'features'))(geojson),
   R.all(
-    feature => R.either(
-      feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Polygon', 'Multipolygon']),
-      feature => strPathOr(false, 'properties.radius', feature)
-    )(feature),
-    strPathOr([], 'geojson.features', location)
+    feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Polygon', 'Multipolygon']),
+    strPathOr([], 'features', geojson)
   )
+);
+
+/**
+ * Returns true if all the features of the geojson have a radius property, indicating that the feature
+ * should be used as a filter along with a radius. This is normally used with a geojson point.
+ * @param {Object} geojson Geojson featurecollection or similar
+ * @returns {boolean} True if all features have a properties.radius amount, otherwise false
+ */
+export const geojsonFeaturesHaveRadii = geojson => R.and(
+  R.compose(R.length, strPathOr([], 'features'))(geojson),
+  R.all(
+    feature => strPathOr(false, 'properties.radius', feature)
+  ),
+  strPathOr([], 'features', geojson)
 );
 
 /**

@@ -13,10 +13,8 @@ import * as R from 'ramda';
 import {mergeAllWithKey, removeDuplicateObjectsByProp, reqStrPathThrowing} from 'rescape-ramda';
 import {loggers} from 'rescape-log';
 import {buildFilterQuery, taskQuery} from './overpassHelpers';
-import squareGrid from '@turf/square-grid';
 import {concatFeatures} from 'rescape-helpers';
-import {feature as bbox} from '@turf/helpers';
-const log = loggers.get('rescapeDefault');
+import {extractSquareGridBboxesFromBounds} from 'rescape-helpers';
 
 /**
  * fetches transit data from OpenStreetMap using the Overpass API.
@@ -48,6 +46,7 @@ export const fetchTransitOsm = R.curry((options, conditions, types) => {
 });
 
 
+
 /**
  * fetches transit data in squares sequentially from OpenStreetMap using the Overpass API.
  * (concurrent calls were triggering API throttle limits)
@@ -68,11 +67,10 @@ export const fetchTransitOsm = R.curry((options, conditions, types) => {
  * @returns {Task} Chained Tasks to fetchTransitOsm the data
  */
 const fetchOsmTransitCelled = ({cellSize, ...options}, conditions, types) => {
-  const squareGridOptions = {units: 'kilometers'};
-  // Use turf's squareGrid function to break up the bbox by cellSize squares
-  const squareBoundaries = R.map(
-    polygon => bbox(polygon),
-    squareGrid(reqStrPathThrowing('bounds', conditions), cellSize, squareGridOptions).features);
+  const squareBoundaries = extractSquareGridBboxesFromBounds(
+    {cellSize},
+    reqStrPathThrowing('bounds', conditions)
+  );
 
   // Create a fetchTransitOsm Task for reach square boundary
   // fetchTasks :: Array (Task Object)

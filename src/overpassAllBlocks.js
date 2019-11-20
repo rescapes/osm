@@ -8,6 +8,9 @@ import {
   strPathOr,
   waitAllBucketed
 } from 'rescape-ramda';
+import {turfBboxToOsmBbox, extractSquareGridFeatureCollectionFromGeojson} from 'rescape-helpers';
+import bbox from '@turf/bbox';
+import squareGrid from '@turf/square-grid';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import {
@@ -29,7 +32,11 @@ import {
   hashNodeFeature,
   hashWayFeature
 } from './overpassFeatureHelpers';
-import {isGeojsonShapeOrHasRadius, isNominatimEligible} from './locationHelpers';
+import {
+  geojsonFeaturesHaveShapeOrRadii,
+  isNominatimEligible,
+  geojsonFeaturesHaveShape, geojsonFeaturesHaveRadii
+} from './locationHelpers';
 
 /**
  * Created by Andy Likuski on 2019.07.26
@@ -85,8 +92,8 @@ export const locationToOsmAllBlocksQueryResultsTask = ({allowFallbackToCity}, lo
           // If we have variations, query then in order until a positive result is returned
           locationVariationsWithOsm => _queryLocationVariationsUntilFoundResultTask(
             locationWithOsm => R.map(
-              // This returns a {Ok: [block locations], Error: [Error]}
-              // If anything is in error, we know the query failed, so we pass a Result.Error
+              // _queryOverpassWithLocationForAllBlocksResultsTask returns a {Ok: [block locations], Error: [Error]}
+              // We need to reduce this: If anything is in error, we know the query failed, so we pass a Result.Error
               results => R.ifElse(
                 R.compose(R.length, R.prop('Error')),
                 // Put in a Result.Error so this result is skipped
@@ -114,7 +121,7 @@ export const locationToOsmAllBlocksQueryResultsTask = ({allowFallbackToCity}, lo
     // Nominatim query on the place search string.
     location => R.cond([
       // If it's a geojson shape or has a radius, it's already prime for querying
-      [location => isGeojsonShapeOrHasRadius(location),
+      [location => geojsonFeaturesHaveShapeOrRadii(strPathOr(null, 'geojson', location)),
         location => of(Result.Ok([location]))
       ],
       // If it's got jurisdiction info, query nominatim to resolve the area
@@ -147,8 +154,8 @@ export const locationToOsmAllBlocksQueryResultsTask = ({allowFallbackToCity}, lo
  */
 const _queryOverpassWithLocationForAllBlocksResultsTask = (locationWithOsm) => {
   return R.composeK(
-    ({way: wayQuery, node: nodeQuery}) => _queryOverpassForAllBlocksResultsTask(
-      {location: locationWithOsm, way: wayQuery, node: nodeQuery}
+    ({way: wayQueries, node: nodeQueries}) => _queryOverpassForAllBlocksResultsTask(
+      {location: locationWithOsm, way: wayQueries, node: nodeQueries}
     ),
     // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
@@ -156,7 +163,7 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (locationWithOsm) => {
       R.fromPairs(R.map(
         type => [
           type,
-          _constructHighwaysQuery(
+          _constructHighwayQueriesForType(
             {type},
             // These are the only properties we might need from the location
             pickDeepPaths(['intersections', 'osmId', 'geojson'], locationWithOsm)
@@ -171,8 +178,10 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (locationWithOsm) => {
 /**
  * Queries for all blocks
  * @param location {Object} Only used for context for testing mocks
- * @param {String} wayQuery The Overpass way query
- * @param {String} nodeQuery The overpass node query
+ * @param {String} wayQueries The Overpass way queries. One or more queries for the ways. Queries are broken up
+ * for efficiency for large areas and the results are uniquely combined
+ * @param {String} nodeQueries The overpass node queries. Like way queries, queries are broken up
+ * for efficiency for large areas and the results are uniquely combined
  * @returns {Task<Object>} { Ok: location blocks, Error: []
  * Each location block, and results containing: {node, way, nodesToIntersectingStreets} in the Ok array
  * node contains node features, way contains way features, and nodesToIntersectingStreets are keyed by node id
@@ -181,7 +190,7 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (locationWithOsm) => {
  * Errors in the errors array
  * Result.Error is returned. Object has a ways, nodes
  */
-export const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, node: nodeQuery}) => {
+export const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQueries, node: nodeQueries}) => {
   return R.composeK(
     // Take the Result.Ok with responses and organize the features into blocks
     // Or put them in an Error array
@@ -192,7 +201,7 @@ export const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQuery, 
     })),
     // Query for the ways and nodes in parallel
     queries => parallelWayNodeQueriesResultTask(location, queries)
-  )({way: wayQuery, node: nodeQuery});
+  )({way: wayQueries, node: nodeQueries});
 };
 
 /**
@@ -637,7 +646,7 @@ const _deadEndNodeOfWayTask = (location, way) => {
 };
 
 /**
- * Construct an Overpass query to get all eligible highway ways or nodes for area of the given osmId or optionally
+ * Construct one or more Overpass queries to get all eligible highway ways or nodes for area of the given osmId or optionally
  * geojsonBOunds
  * @param {String} type 'way' or 'node' We have to do the queries separately because overpass combines the geojson
  * results in buggy ways
@@ -648,7 +657,7 @@ const _deadEndNodeOfWayTask = (location, way) => {
  * @param {[Object]} [geojsonBounds] Optional. Bounds to use instead of the area of the osmId
  * @returns {string} The complete Overpass query string
  */
-const _constructHighwaysQuery = ({type}, {osmId, geojson}) => {
+const _constructHighwayQueriesForType = ({type}, {osmId, geojson}) => {
 
   if (R.not(R.or(osmId, geojson))) {
     throw Error("Improper configuration. osmId or geojsonBounds must be non-nil");
@@ -658,49 +667,89 @@ const _constructHighwaysQuery = ({type}, {osmId, geojson}) => {
   // Don't calculate this if we didn't pass an osmId
   const areaId = R.when(R.identity, osmIdToAreaId)(osmId);
 
-  // We generate different queries based on the parameters.
-  // Rather than documenting the generated queries here it's better to run the tests and look at the log
-  const query = `
+  // If the we are filtering by geojson features, we need at least one query per feature. Large features
+  // are broken down into smaller square features that are each converted to a bbox for querying Overpass
+  const locationWithSingleFeatures = R.cond([
+    [({geojson}) => geojsonFeaturesHaveShape(geojson),
+      ({areaId, geojson}) => R.map(
+        feature => ({areaId, geojson: {features: [feature]}}),
+        // Get 1km squares of the area
+        extractSquareGridFeatureCollectionFromGeojson({cellSize: 1, units: 'kilometers'}, geojson).features
+      )
+    ],
+    // If feature properties have radii split them up into features but leave them alone. Each feature
+    // has a properties.radius that instructs OSM what around:radius value to use
+    [({geojson}) => geojsonFeaturesHaveRadii(geojson),
+      ({areaId, geojson}) => R.map(
+        feature => ({areaId, geojson: {features: [feature]}}),
+        geojson.features
+      )
+    ],
+    // Just put the location in an array since we'll search for it by areaId
+    [R.prop('areaId'), Array.of],
+    // This should never happen
+    [R.T, () => {
+      throw new Error('Cannot query for a location taht lacks both an areaId and geojson features with shapes or radii');
+    }]
+  ])({areaId, geojson});
+
+  // Return the query for each feature that we have created
+  return R.map(
+    locationWithSingleFeature => {
+      // We generate different queries based on the parameters.
+      // Rather than documenting the generated queries here it's better to run the tests and look at the log
+      const query = `
     ${
-    // Declare the way variables if needed
-    _createQueryWaysDeclarations(areaId, geojson)
-  }
+        // Declare the way variables if needed
+        _createQueryWaysDeclarations(locationWithSingleFeature)
+      }
     ${
-    // Declare the node variables
-    _createQueryNodesDeclarations(type)
-  }
+        // Declare the node variables
+        _createQueryNodesDeclarations(type)
+      }
     ${
-    _createQueryOutput(type)
-  }`;
-  return query;
+        _createQueryOutput(type)
+      }`;
+      return query;
+    },
+    locationWithSingleFeatures
+  );
 };
 
 /**
  * Creates OSM Overpass query syntax to declare ways for a given OSM area id or geojsonBounds.
- * @param {Number} areaId Represents an OSM neighborhood or city
- * @param {Object} [geojsonBounds] Geojson bounds via a polygon. Will override the area id if specified
+ * @param {Object} locationWithSingleFeature
+ * @param {Number} locationWithSingleFeature.areaId Represents an OSM neighborhood or city
+ * @param {Object} [locationWithSingleFeature.geojson] Geojson with one feature. If specifies this limits
+ * the query to the bounds of the geojson
  * @returns {String} Overpass query syntax string that declares the way variable
  * @private
  */
-const _createQueryWaysDeclarations = (areaId, geojson) => {
+const _createQueryWaysDeclarations = ({areaId, geojson}) => {
   return R.cond([
-    // TODO handle geojsonBounds
     [
-      ({geojson, areaId}) => strPathOr(geojson),
+      ({geojson}) => geojsonFeaturesHaveShapeOrRadii(geojson),
       ({geojson}) => {
-        const wayQuery = R.ifElse(
-          // Query by geojson and optional areaId
-          R.identity,
-          areaId => `way(area:${areaId})${highwayWayFilters}`,
-          areaId => `way(area:${areaId})${highwayWayFilters}`
-        )(areaId);
-        return `${wayQuery}->.ways;`;
+        return R.map(
+          feature => {
+            const bounds = R.compose(turfBboxToOsmBbox, bbox)(feature);
+            // Include an area filter if sepecified in addition to the bbox
+            const areaFilterStr = R.when(
+              R.identity,
+              areaId => `(area:${areaId})`
+            )(areaId || '');
+            // Filter by the bounds and optionally by the areaId
+            const wayQuery = `way(${bounds})${areaFilterStr}${highwayWayFilters}`;
+            return `${wayQuery}->.ways;`;
+          },
+          strPathOr([], 'features', geojson)
+        );
       }
     ],
-    // We don't have hard-coded way ids, so search for these values by querying
+    // Just search by area. Name the result ways1 as if there is one geojson feature
     [R.T, ({areaId}) => {
       const wayQuery = `way(area:${areaId})${highwayWayFilters}`;
-      return `${wayQuery}->.ways;`;
+      return `${wayQuery}->.ways1;`;
     }]
   ])({areaId, geojson});
 };

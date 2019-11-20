@@ -33,7 +33,8 @@ import {
   chainObjToValues,
   splitAtInclusive,
   toNamedResponseAndInputs,
-  traverseReduceResultError
+  traverseReduceResultError,
+  sequenceBucketed
 } from 'rescape-ramda';
 import {waitAll} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
@@ -159,8 +160,8 @@ export const _queryLocationVariationsUntilFoundResultTask = R.curry((queryLocati
 /**
  * Perform the OSM queries in parallel
  * @param {Object} location Only used for context for testing with mocks
- * @param {Object} queries Object keyed by query type 'way' and 'node' and valued by the OSM query string.
- * This can technically be more than two queries or have different names
+ * @param {Object} queries Object keyed by query type 'way' and 'node' and valued by and array of OSM query strings.
+ * The feature results of multiple way queries are combined uniquely and the results of multiple node queries are combined uniquely
  * @returns {Task<Result<Object>>} A Result.Ok The original query object with response props added containing the OSM response.
  * If one of the queries fail then a Result.Error object is returned with the errors instead
  * @sig parallelWayNodeQueriesResultTask:: String query, Object response <way: <query, node: <query> -> Task <way: <query, response>, node: <query, response>>>
@@ -192,34 +193,51 @@ export const parallelWayNodeQueriesResultTask = (location, queries) => R.compose
     waitAll(
       // mapObjToValues removes the way and node keys from query
       mapObjToValues(
-        (query, type) => R.composeK(
-          // Then map the task response to include the query for debugging/error resolution
+        (queries, type) => R.composeK(
+          // Then map the task response to include the queries for debugging/error resolution
           // if the OSM can't be resolved
           // Maps Result.Ok to a {
           // way|node: {query: original query, response: unique features}
           //}
-          result => of(R.map(
-            value => ({
-              [type]: {
-                query,
-                // We never need duplicate nodes, ways, so remove them now
-                response: R.over(
-                  R.lensProp('features'),
-                  features => R.uniqBy(R.prop('id'), features),
-                  value
-                )
-              }
-            }),
-            result
-          )),
-          // Perform the task
-          ({query, type}) => osmResultTask({
-              name: `parallelWayNodeQueriesResultTask: ${type}`,
-              testMockJsonToKey: R.merge({type}, location)
-            },
-            options => fetchOsmRawTask(options, query)
+          result => of(
+            R.map(
+              response => ({
+                [type]: {
+                  queries,
+                  response
+                }
+              }),
+              result
+            )
+          ),
+          // For each type, way and node, combine the unique features of all the queries
+          results => of(
+            traverseReduce(
+              (accum, response) => R.over(
+                R.lensProp('features'),
+                features => R.compose(
+                  R.uniqBy(R.prop('id')),
+                  features => R.concat(features, strPathOr([], 'features', response))
+                )(features),
+                accum
+              ),
+              Result.Ok({type: 'FeatureCollection', features: []}),
+              results
+            )
+          ),
+          // Perform the tasks
+          ({queries, type}) => sequenceBucketed(
+            R.map(
+              query => osmResultTask({
+                  name: `parallelWayNodeQueriesResultTask: ${type}`,
+                  testMockJsonToKey: R.merge({type}, location)
+                },
+                options => fetchOsmRawTask(options, query)
+              ),
+              queries
+            )
           )
-        )({query, type}),
+        )({queries, type}),
         queries
       )
     )

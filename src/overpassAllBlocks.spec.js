@@ -5,7 +5,6 @@ import {
 } from './overpassAllBlocks';
 import {_blocksToGeojson} from './overpassBlockHelpers';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassBlocks';
-import area from '@turf/area';
 import Result from 'folktale/result';
 
 /**
@@ -30,25 +29,6 @@ describe('overpassAllBlocks', () => {
       country: 'Canada',
       state: 'BC',
       city: 'Fernie'
-    };
-    locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
-      {
-        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
-          // Paste the results of this into a geojson viewer for debugging
-          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(1068);
-        }
-      }, errors, done)
-    );
-  }, 1000000);
-
-  test('locationToOsmAllBlocksQueryResultsTaskFtLauderdale', done => {
-    expect.assertions(1);
-    const errors = [];
-    const location = {
-      country: 'USA',
-      state: 'FL',
-      city: 'Fort Lauderdale'
     };
     locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
       {
@@ -119,32 +99,9 @@ describe('overpassAllBlocks', () => {
         }
       }, errors, done)
     );
-
   }, 1000000);
 
-  test('Use street names to limit ways', done => {
-    expect.assertions(1);
-    const errors = [];
-    const location = {
-      "intersections": [
-        ["2nd St", "K St"],
-        ["2nd St", "L St"]
-      ],
-      "neighborhood": "Downtown",
-      "city": "Sacramento",
-      "state": "CA",
-      "country": "USA"
-    };
-    queryLocationForOsmBlockOrAllResultsTask({}, location).run().listen(defaultRunConfig(
-      {
-        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
-          // Paste the results of this into a geojson viewer for debugging
-          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(1);
-        }
-      }, errors, done)
-    );
-  }, 20000);
+
 
   test('Test bounding box', done => {
     expect.assertions(1);
@@ -196,12 +153,13 @@ describe('overpassAllBlocks', () => {
         onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
           _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(1);
+          expect(R.length(locationsAndOsmResults)).toEqual(39);
         }
       }, errors, done)
     );
   }, 200000);
 
+  // Tests a large number of ways and nodes to make sure there are no stack overflows
   test('Fort Lauderdale', done => {
     const errors = [];
     const nodes = require('./samples/fort_lauderdale_nodes.json');

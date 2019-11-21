@@ -20,6 +20,7 @@ import os from 'os';
 import 'regenerator-runtime';
 import {loggers} from 'rescape-log';
 import * as Result from 'folktale/result';
+import {isLatLng} from './locationHelpers';
 
 const log = loggers.get('rescapeDefault');
 
@@ -348,19 +349,25 @@ export const fetchOsmRawTask = R.curry((options, query) => {
  * @private
  */
 export const _filterForIntersectionNodesAroundPoint = (intersection, around, outputNodeName, leaveForAndIfBlocksOpen = false) => {
+  // We can only use intersections to help with the query if they are street names.
+  // If intersections are lat, lon strings they can't be used and are set to null here
+  const streetNameIntersection = R.when(
+    isLatLng,
+    () => null
+  )(intersection);
   const possibleNodes = `${outputNodeName}Possible`;
   const oneOfPossibleNodes = `oneOf${outputNodeName}Possible`;
   const waysOfOneOfPossibleNodes = `waysOfOneOf${outputNodeName}Possible`;
   // If the intersection is given use it to limit the ways to the streets of the intersection
   const intersectionNamesFilter = R.ifElse(
     R.identity,
-    intersection => osmIf(
+    streetNameIntersection => osmIf(
       osmOr(
-        R.map(street => osmEqualWithTag('name', street), intersection)
+        R.map(street => osmEqualWithTag('name', street), streetNameIntersection)
       )
     ),
     () => ''
-  )(intersection);
+  )(streetNameIntersection);
   return `node${around}${highwayNodeFilters} -> .${possibleNodes};
 foreach.${possibleNodes} ->.${oneOfPossibleNodes}
 {

@@ -77,11 +77,11 @@ export const locationToOsmAllBlocksQueryResultsTask = ({allowFallbackToCity}, lo
     result => {
       return of(result.matchWith({
         Ok: ({value}) => ({
-          Ok: [value],
+          Ok: R.unless(Array.isArray, Array.of)(value),
           Error: []
         }),
         Error: ({value}) => ({
-          Error: [value],
+          Error: R.unless(Array.isArray, Array.of)(value),
           Ok: []
         })
       }));
@@ -194,11 +194,11 @@ export const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQueries
   return R.composeK(
     // Take the Result.Ok with responses and organize the features into blocks
     // Or put them in an Error array
-    result => of(result.matchWith({
+    result => result.matchWith({
       Ok: ({value: {way, node}}) => organizeResponseFeaturesResultsTask(location, {way, node}),
       // Create a Results object with the one error
-      Error: ({value}) => ({Ok: [], Error: [value]})
-    })),
+      Error: ({value}) => of({Ok: [], Error: [value]})
+    }),
     // Query for the ways and nodes in parallel
     queries => parallelWayNodeQueriesResultTask(location, queries)
   )({way: wayQueries, node: nodeQueries});

@@ -38,6 +38,7 @@ import {
 } from 'rescape-ramda';
 import {waitAll} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
+import {isLatLng} from './locationHelpers';
 
 
 /**
@@ -261,15 +262,17 @@ export const waysByNodeIdTask = (location, {way, node}) => R.map(
   objs => ({way, node, waysByNodeId: R.mergeAll(objs)}),
   waitAll(
     R.map(
-      (nodeId) => R.map(
-        // Then map the task response to include the query for debugging/error resolution
-        // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
-        response => ({[nodeId]: {query: waysOfNodeQuery(nodeId), response: response.value}}),
-        // Perform the task
-        osmResultTask({name: 'waysOfNodeQuery', testMockJsonToKey: R.merge({nodeId, type: 'waysOfNode'}, location)},
-          options => fetchOsmRawTask(options, waysOfNodeQuery(nodeId))
-        )
-      ),
+      nodeId => {
+        return R.map(
+          // Then map the task response to include the query for debugging/error resolution
+          // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
+          response => ({[nodeId]: {query: waysOfNodeQuery(nodeId), response: response.value}}),
+          // Perform the task
+          osmResultTask({name: 'waysOfNodeQuery', testMockJsonToKey: R.merge({nodeId, type: 'waysOfNode'}, location)},
+            options => fetchOsmRawTask(options, waysOfNodeQuery(nodeId))
+          )
+        );
+      },
       // Extract the id of each node
       R.compose(
         R.map(reqStrPathThrowing('id')),
@@ -428,15 +431,20 @@ export const getFeaturesOfBlock = (location, wayFeatures, nodeFeatures) => {
   // Remove any way features whose streets don't match those in the location
   // If the wayFeatures don't have a name, leave them in in case they are needed
   const wayFeaturesOfStreet = R.filter(
-    wayFeature => R.either(
+    wayFeature => R.anyPass([
       R.isNil,
+      // If any intersection is a lat lon than we can't filter by street name, so leave the feature alone
+      () => R.any(isLatLng, strPathOr([], 'intersections', location)),
+      // If we have street names in location.intersections we can eliminate way features that don't match
+      // the street. TODO. This probably isn't 100% certain to work, but works in most cases. The danger
+      // is we filter out a valid way feature that is named weird
       name => R.contains(
         name,
         // Take the first block of each intersection, this is our main block.
         // I believe they're always the same value, but maybe there's a case where the name changes mid-block
         R.uniq(R.map(R.head, location.intersections))
       )
-    )(strPathOr(null, 'properties.tags.name', wayFeature)),
+    ])(strPathOr(null, 'properties.tags.name', wayFeature)),
     wayFeatures
   );
   const lookup = R.reduce(

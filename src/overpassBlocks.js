@@ -226,8 +226,8 @@ export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) =>
           result => {
             // Match the format of locationToOsmAllBlocksQueryResultsTask
             return result.matchWith({
-              Ok: ({value}) => ({Ok: [value]}),
-              Error: ({value}) => ({Error: [value]})
+              Ok: ({value}) => ({Ok: R.unless(Array.isArray, Array.of)(value)}),
+              Error: ({value}) => ({Error: R.unless(Array.isArray, Array.of)(value)})
             });
           },
           queryLocationForOsmSingleBlockResultTask(osmConfig, location)

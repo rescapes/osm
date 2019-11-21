@@ -30,7 +30,7 @@ import {
   osmEquals, osmIdEquals, osmIdToAreaId
 } from './overpassHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
-import {locationHasLocationPoints, locationPoints, locationWithLocationPoints} from './locationHelpers';
+import {isLatLng, locationHasLocationPoints, locationPoints, locationWithLocationPoints} from './locationHelpers';
 import {_googleResolveJurisdictionResultTask, googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
 import {
@@ -103,6 +103,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
     locationResult => {
       return resultToTaskWithResult(
         location => mapMDeep(2,
+          // Map the value within the Task and Result.Ok
           results => ({location, results}),
           _locationToOsmSingleBlockQueryResultTask(location)
         ),
@@ -143,7 +144,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
  * @param {[Object]} [geojsonPoints] Optional two geojson points, which either from Google or User-entered.
  * If specified these further constrain the nodes to within 5 meters of what is found for the street intersections
  * If the street intersections aren't specified then these are used alone to determine the two correct nodes.
- * @param {[[String]]} The pair of intersection names if available. These are used in the query to help ensure
+ * @param {[[String]]} intersections The pair of intersection names if available. These are used in the query to help ensure
  * we get the right ways
  * @returns {Task<Result<Object>>} Result.Ok or a Result.Error in the form {error}
  * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
@@ -154,7 +155,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
  */
-const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geojsonPoints, intersections) => {
+const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geojsonPoints=null, intersections=null) => {
   return R.composeK(
     ({locationWithOsm, queries: {way: wayQuery, node: nodeQuery}}) => _queryOverpassForSingleBlockResultTask(
       // Pass intersections if available to help resolve the right ways
@@ -172,7 +173,7 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geo
             _constructInstersectionsQuery(
               {type},
               // These are the only properties we might need from the location
-              // We pass the intereections if available. We detached them earliser from locationWithOsm
+              // We pass the intersections if available. We detached them earliser from locationWithOsm
               // So that we can update locationWithOsm with the intersections from Overpass
               R.merge({intersections}, pickDeepPaths(['osmId', 'data.osmOverrides'], locationWithOsm)),
               geojsonPoints
@@ -188,7 +189,14 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (locationWithOsm, geo
 /**
  * Tries querying for the location based on the osm area id, osm city id, or intersections of the location
  * @param blockLocation
- * @returns {f1}
+ * @returns {Task<Result<Object>>} Result.Ok or a Result.Error in the form {error}
+ * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
+ * There must be at least on way and possibly more, depending on where two ways meet.
+ * Some blocks have more than two nodes if they have multiple divided ways.
+ * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
+ * the node. There is also an intersections array, which is also keyed by node id but valued by an array
+ * of street names. The main street of the location's block is listed first followed by the rest (usually one)
+ * in alphabetical order
  * @private
  */
 const _queryOverpassBasedLocationPropsForSingleBlockResultTask = blockLocation => {
@@ -356,16 +364,21 @@ const _queryOverpassForSingleBlockResultTask = (location, {way: wayQuery, node: 
     // Once we get our way query and node query done,
     // we want to get all ways of each node that was returned. These ways tell us the street names
     // that OSM has for each intersection, which are our official street names if we didn't collect them manually
-    // Task Result.Ok <way: <query, response>, node: <query, response>>> ->
-    // Task Result.Ok <way: <query, response>, node: <query, response>, waysByNodeId: <node: <query, response>>>> ->
-    resultToTaskNeedingResult(
-      ({location, way, node}) => waysByNodeIdTask(location, {way, node})
-    ),
+    // Task Result.Ok <way: <queries, response>, node: <queries, response>>> ->
+    // Task Result.Ok <way: <queries, response>, node: <queries, response>, waysByNodeId: <node: <queries, response>>>>
+    ({location, result}) => resultToTaskNeedingResult(
+      ({way, node}) => waysByNodeIdTask(location, {way, node})
+    )(result),
 
     // Query for the ways and nodes in parallel
-    // <way: <query, node: <query> -> Task <way: <query, response>, node: <query, response>>>
-    ({location, way, node}) => parallelWayNodeQueriesResultTask(location, {way, node})
-  )({location, way: wayQuery, node: nodeQuery});
+    // <way: [query], node: [query]> -> Task <way: <queries, response>, node: <queries, response>>>
+    mapToNamedResponseAndInputs('result',
+      ({location, way, node}) => parallelWayNodeQueriesResultTask(location, {way, node})
+    )
+    // parallelWayNodeQueriesResultTask Expects an array of way and node queries because larger queries need to
+    // be broken up into smaller tasks. We don't need to break up single block queries. It combines the results
+    // so we get a single FeatureCollection response for each of way and node
+  )({location, way: [wayQuery], node: [nodeQuery]});
 };
 
 /**

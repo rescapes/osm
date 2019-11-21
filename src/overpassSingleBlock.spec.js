@@ -1,6 +1,8 @@
 import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 import {defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
 import * as R from 'ramda';
+import {queryLocationForOsmBlockOrAllResultsTask} from './overpassBlocks';
+import {_blocksToGeojson} from './overpassBlockHelpers';
 
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -142,6 +144,28 @@ describe('overpassSingleBlock', () => {
       }, errors, done));
   }, 50000);
 
-
+  test('Use street names to limit ways', done => {
+    expect.assertions(1);
+    const errors = [];
+    const location = {
+      "intersections": [
+        ["2nd St", "K St"],
+        ["2nd St", "L St"]
+      ],
+      "neighborhood": "Downtown",
+      "city": "Sacramento",
+      "state": "CA",
+      "country": "USA"
+    };
+    queryLocationForOsmBlockOrAllResultsTask({}, location).run().listen(defaultRunConfig(
+      {
+        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+          // Paste the results of this into a geojson viewer for debugging
+          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          expect(R.length(locationsAndOsmResults)).toEqual(1);
+        }
+      }, errors, done)
+    );
+  }, 200000);
 });
 

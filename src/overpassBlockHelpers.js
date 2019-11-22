@@ -34,7 +34,9 @@ import {
   splitAtInclusive,
   toNamedResponseAndInputs,
   traverseReduceResultError,
-  sequenceBucketed
+  sequenceBucketed,
+  mapToNamedResponseAndInputs,
+  resultToTaskNeedingResult
 } from 'rescape-ramda';
 import {waitAll} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
@@ -79,6 +81,36 @@ const nodesOfWayQuery = wayId => {
     node(w.matchingWay)${highwayNodeFilters};
     )->.matchingNodes;
     .matchingNodes out geom;
+  `;
+};
+
+/**
+ * Query to get all intersection nodes of the given way, not just intersection nodes
+ * @param wayId
+ * @returns {string}
+ */
+const intersectionNodesOfWayQuery = wayId => {
+  const id = R.compose(
+    R.last,
+    R.split('/')
+  )(wayId);
+  return `
+    way(id:${id})[area = "yes"]->.matchingAreaWay;
+    way(id:${id})[area != "yes"]->.matchingWay;
+    // Find nodes within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
+    (node(around.w.matchingAreaWay:10)${highwayNodeFilters};
+    node(w.matchingWay)${highwayNodeFilters};
+    )->.matchingNodes;
+    // Find the nodes that are intersections
+    foreach .matchingNodes -> .currentNode(
+  way(bn.currentNode)[highway]["highway" != "driveway"]["highway" != "cycleway"]["highway" != "proposed"]["footway" != "crossing"]["footway" != "sidewalk"]["service" != "parking_aisle"]["service" != "driveway"]["service" != "drive-through"](if: t["highway"] != "service" || t["access"] != "private")->.allWays;
+  (.allWays; - .matchingAreaWay;)->.tmp;
+  (.tmp; - .matchingWay;)->.allOtherWays;
+  node(w.allOtherWays)->.nodesOfAllOtherWays;
+  node.currentNode.nodesOfAllOtherWays->.intersectionNodes;
+  (.intersectionNodes; .allIntersectionNodes;)->.allIntersectionNodes;
+);
+.allIntersectionNodes; out geom;
   `;
 };
 
@@ -283,28 +315,102 @@ export const waysByNodeIdTask = (location, {way, node}) => R.map(
 );
 
 /***
- * Given way results this finds all nodes of each way. Not just intersections nodes.
+ * Given way results this finds all nodes of each way.
+ * It first finds the nodes that are intersections with other streets, followed by nodes that
+ * are not just intersection nodes.
  * @param {Object} location Only used for context for mock tests
  * @param {Object} queries
  * @param {Object} queries.way Response contains the ways
- * @returns {Task<Object>} Object with nodesByWayId, keyed by way and valued by nodes of the way
+ * @returns {Task<Object>}
+ * Object with intersectionNodesByWayId, keyed by way and valued by nodes of the way that are intersections
+ * Object with nodesByWayId, keyed by way and valued by nodes of the way
  * @sig nodesOfWayTask:: Task <way: <query, response>>>> ->
- * Task <way: <query, response>, node: <query, response>, nodesByWayId: <node: <query, response>>>> ->
+ * Task Result.Ok(<way: <query, response>, node: <query, response>, nodesByWayId: <node: <query, response>>, intersectionNodesByWayId: <node: <query, response>>> ->)
  */
-export const nodesByWayIdTask = (location, {way}) => R.map(
+export const nodesByWayIdResultTask = (location, {way}) => R.map(
   // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
-  objs => ({way, nodesByWayId: R.mergeAll(objs)}),
+  objs => R.ifElse(
+    ({objs}) => R.all(Result.Ok.hasInstance)(objs),
+    ({way, objs}) => Result.Ok({
+      way,
+      nodesByWayId: R.mergeAll(R.map(obj => obj.value['nodesOfWay'], objs)),
+      intersectionNodesByWayId: R.mergeAll(R.map(obj => obj.value['intersectionNodesOfWay'], objs))
+    }),
+    // TODO this should never error, but it might need to be structured differently
+    ({way, objs}) => Result.Error({way, objs})
+  )({way, objs}),
   waitAll(
+    // Map each node
     R.map(
-      (wayId) => R.map(
-        // Then map the task response to include the query for debugging/error resolution
-        // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
-        response => ({[wayId]: {query: nodesOfWayQuery(wayId), response: response.value}}),
-        // Perform the task
-        osmResultTask({name: 'nodesOfWayQuery', testMockJsonToKey: R.merge({wayId, type: 'nodesOfWay'}, location)},
-          options => fetchOsmRawTask(options, nodesOfWayQuery(wayId))
+      (wayId) => R.composeK(
+        ({intersectionNodesOfWayResult, nodesOfWayResult}) => {
+          return of(R.ifElse(
+            ({intersectionNodesOfWayResult, nodesOfWayResult}) => R.all(
+              Result.Ok.hasInstance,
+              [intersectionNodesOfWayResult, nodesOfWayResult]
+            ),
+            ({intersectionNodesOfWayResult, nodesOfWayResult}) => {
+              return intersectionNodesOfWayResult.chain(
+                intersectionNodesOfWay => nodesOfWayResult.map(
+                  nodesOfWay => ({
+                    intersectionNodesOfWay,
+                    nodesOfWay
+                  })
+                )
+              );
+            },
+            ({intersectionNodesOfWayResult, nodesOfWayResult}) => Result.Error({
+              intersectionNodesOfWay: intersectionNodesOfWayResult.value,
+              nodesOfWay: nodesOfWayResult.values
+            })
+          )({intersectionNodesOfWayResult, nodesOfWayResult}));
+        },
+
+        // Find intersection nodes and all nodes
+        mapToNamedResponseAndInputs('nodesOfWayResult',
+          ({wayId, nodesOfWayQuery, nodesOfWayResponseResult}) => resultToTaskNeedingResult(
+            nodesOfWayResponse => of({[wayId]: {query: nodesOfWayQuery, response: nodesOfWayResponse}})
+          )(nodesOfWayResponseResult)
+        ),
+        mapToNamedResponseAndInputs('nodesOfWayResponseResult',
+          // Perform the task
+          ({wayId, nodesOfWayQuery}) => osmResultTask({
+              name: 'nodesOfWayQuery',
+              testMockJsonToKey: R.merge({wayId, type: 'nodesOfWay'}, location)
+            },
+            options => fetchOsmRawTask(options, nodesOfWayQuery)
+          )
+        ),
+
+        // Find intersection nodes and all nodes
+        mapToNamedResponseAndInputs('intersectionNodesOfWayResult',
+          // Then map the task response to include the query for debugging/error resolution
+          // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
+          ({wayId, intersectionNodesOfWayQuery, intersectionNodesOfWayResponseResult}) => {
+            return resultToTaskNeedingResult(
+              intersectionNodesOfWayResponse => of({
+                [wayId]: {
+                  query: intersectionNodesOfWayQuery,
+                  response: intersectionNodesOfWayResponse
+                }
+              })
+            )(intersectionNodesOfWayResponseResult);
+          }
+        ),
+        mapToNamedResponseAndInputs('intersectionNodesOfWayResponseResult',
+          // Perform the task
+          ({wayId, intersectionNodesOfWayQuery}) => osmResultTask({
+              name: 'intersectionNodesOfWayQuery',
+              testMockJsonToKey: R.merge({wayId, type: 'nodesOfWay'}, location)
+            },
+            options => fetchOsmRawTask(options, intersectionNodesOfWayQuery)
+          )
         )
-      ),
+      )({
+        wayId,
+        intersectionNodesOfWayQuery: intersectionNodesOfWayQuery(wayId),
+        nodesOfWayQuery: nodesOfWayQuery(wayId)
+      }),
       // Extract the id of each node
       R.compose(
         R.map(reqStrPathThrowing('id')),

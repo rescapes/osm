@@ -9,9 +9,9 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {reqStrPathThrowing, defaultRunConfig} from 'rescape-ramda';
+import {reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import * as R from 'ramda';
-import {getFeaturesOfBlock, nodesByWayIdTask} from './overpassBlockHelpers';
+import {getFeaturesOfBlock, nodesByWayIdResultTask} from './overpassBlockHelpers';
 
 
 describe('overpassBlockHelpers', () => {
@@ -131,7 +131,7 @@ describe('overpassBlockHelpers', () => {
   test('nodesOfWaysTask', done => {
     const errors = [];
     expect.assertions(1);
-    nodesByWayIdTask(
+    nodesByWayIdResultTask(
       {
         country: 'Canada',
         state: 'BC',
@@ -201,11 +201,11 @@ describe('overpassBlockHelpers', () => {
             ]
           }
         }
-      }).run().listen(defaultRunConfig({
-        onResolved: result => {
+      }).run().listen(defaultRunToResultConfig({
+        onResolved: response => {
           // Expect it to be two ways
           expect(
-            reqStrPathThrowing('nodesByWayId', result)
+            reqStrPathThrowing('nodesByWayId', response)
           ).toEqual({
             "way/498142930": {
               "query": "\n    way(id:498142930)[area = \"yes\"]->.matchingAreaWay;\n    way(id:498142930)[area != \"yes\"]->.matchingWay;\n    // Find nodes within 10 meters of the node for ways with area==\"yes\" and ways containing the node otherwise\n    (node(around.w.matchingAreaWay:10)[\"traffic_signals\" != \"signal\"];\n    node(w.matchingWay)[\"traffic_signals\" != \"signal\"];\n    )->.matchingNodes;\n    .matchingNodes out geom;\n  ",

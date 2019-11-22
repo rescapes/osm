@@ -6,7 +6,9 @@ import {
   mapToNamedResponseAndInputs,
   compact,
   strPathOr,
-  waitAllBucketed
+  waitAllBucketed,
+  mapMDeep,
+  resultToTaskNeedingResult
 } from 'rescape-ramda';
 import {turfBboxToOsmBbox, extractSquareGridFeatureCollectionFromGeojson} from 'rescape-helpers';
 import bbox from '@turf/bbox';
@@ -22,14 +24,14 @@ import * as Result from 'folktale/result';
 import {
   _blockToGeojson, _buildPartialBlocks, _sortOppositeBlocksByNodeOrdering,
   _hashBlock,
-  _queryLocationVariationsUntilFoundResultTask, _wayEndPointToDirectionalWays, nodesByWayIdTask
+  _queryLocationVariationsUntilFoundResultTask, _wayEndPointToDirectionalWays, nodesByWayIdResultTask
 } from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {
   _intersectionStreetNamesFromWaysAndNodes,
   findMatchingNodes,
-  hashNodeFeature,
+  hashNodeFeature, hashPoint,
   hashWayFeature
 } from './overpassFeatureHelpers';
 import {
@@ -118,7 +120,7 @@ export const locationToOsmAllBlocksQueryResultsTask = ({allowFallbackToCity}, lo
         ]
       ])(locationVariationsWithOsm)
     ),
-    // Nominatim query on the place search string.
+    // Nominatim query on the place search string or ready for querying because of geojson.
     location => R.cond([
       // If it's a geojson shape or has a radius, it's already prime for querying
       [location => geojsonFeaturesHaveShapeOrRadii(strPathOr(null, 'geojson', location)),
@@ -470,10 +472,11 @@ const recursivelyBuildBlockTask = ({wayIdToNodes, wayEndPointToDirectionalWays, 
   // or another way
   // Or if we have a dead end we need to query Overpass to get the dead end node. That's why this is a task
   // TODO instead of querying for the dead end node here, we could query for all dead end nodes right after we query Overpass,
-  return _addIntersectionNodeOrDeadEndNodeTask(
+  // TODO. just extracting the Result.value for now. We need to check for Result.Error
+  return _addIntersectionNodeOrDeadEndNodeResultTask(
     {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
     nodes, trimmedWays, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay
-  );
+  ).map(result => result.value);
 };
 
 /**
@@ -551,18 +554,18 @@ const _findFirstNodeOfWayAndTrimWay = ({wayIdToNodes, nodeIdToNodePoint}, curren
  * @param {Object} firstFoundNodeOfFinalWay If non-null, the intersection node that has been found to complete the block
  * @param {Object} waysAtEndOfFinalWay If the way ends without an intersection and another way begins, this is the way
  * and we must recurse. Otherwise this is null
- * @returns {Object} nodes with two nodes: nodes + firstFoundNodeOfFinalWay or a dead-end node
+ * @returns {Task<Result.Ok<Object>>} nodes with two nodes: nodes + firstFoundNodeOfFinalWay or a dead-end node
  * from Overpass or the result of recursing on waysAtEndOfFinalWay. ways are allways built up to form the complete block, trimmed
  * to fit the two nodes
  * @private
  */
-const _addIntersectionNodeOrDeadEndNodeTask = (
+const _addIntersectionNodeOrDeadEndNodeResultTask = (
   {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
   nodes, trimmedWays, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay
 ) => {
 
   return R.composeK(
-    node => {
+    nodeResult => resultToTaskNeedingResult(node => {
       const block = ({
         // Combine nodes (always 1 node) with firstFoundNodeOfFinalWay if it was found
         // If no firstFoundNodeOfFinalWay was found, we have a dead end. We need the node
@@ -591,7 +594,7 @@ const _addIntersectionNodeOrDeadEndNodeTask = (
         // Done
         block => of(block)
       )(block);
-    },
+    })(nodeResult),
 
     // If we didn't get firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, we have a dead end and need
     // to query overpass for the node of at the end of the trimmedWays
@@ -601,9 +604,9 @@ const _addIntersectionNodeOrDeadEndNodeTask = (
         R.isEmpty(waysAtEndOfFinalWay)
       ),
       // Find the dead-end node
-      () => _deadEndNodeOfWayTask({}, R.last(trimmedWays)).map(x => x),
+      () => _deadEndNodeOfWayResultTask({}, R.last(trimmedWays)),
       // We have a firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, pass the node (which might be null)
-      () => of(firstFoundNodeOfFinalWay).map(x => x)
+      () => of(Result.Ok(firstFoundNodeOfFinalWay))
     )({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay})
   )({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay});
 };
@@ -616,23 +619,17 @@ const _addIntersectionNodeOrDeadEndNodeTask = (
  * @returns {Object} <way.id: [node]> And object keyed by way id and valued by it's nodes
  * @private
  */
-const _deadEndNodeOfWayTask = (location, way) => {
-  // There are too many of these to mock the results in tests
-  const lastPointOfWay = R.last(reqStrPathThrowing('geometry.coordinates', way));
-  return R.map(
-    ({nodesByWayId}) => R.compose(
-      ({response}) => R.find(
-        // Find the node matching the last way point
-        node => R.equals(lastPointOfWay, reqStrPathThrowing('geometry.coordinates', node)),
-        reqStrPathThrowing('features', response)
-      ),
-      // Only one way response
-      // <wayId: <response, query>> -> <response, query>
-      R.head,
-      // Remove way ids keys
-      R.values
-    )(nodesByWayId),
-    nodesByWayIdTask(
+const _deadEndNodeOfWayResultTask = (location, way) => {
+
+  return mapMDeep(2,
+    // Find the first intersection node starting at the way or failing that
+    // Find the first node starting at the way
+    ({way, intersectionNodesByWayId, nodesByWayId}) => _resolveNode(
+      reqStrPathThrowing('response.features.0', way),
+      {intersectionNodesByWayId, nodesByWayId}
+    ),
+    // Find all nodes of the ways
+    nodesByWayIdResultTask(
       location || {},
       {
         way: {
@@ -643,6 +640,67 @@ const _deadEndNodeOfWayTask = (location, way) => {
       }
     )
   );
+};
+
+/**
+ * Tries to find the first intersection node of the way that is not the first way point
+ * @param {Object} way
+ * @param {Object} nodes
+ * @param {Object} nodes.intersectionNodesByWayId Keyed by one way id and valued by the intersection nodes
+ * of the way
+ * @param {Object} nodes.nodesByWayId
+ * @private
+ */
+const _resolveNode = (way, {intersectionNodesByWayId, nodesByWayId}) => {
+  // There are too many of these to mock the results in tests
+  const lastPointOfWay = R.last(reqStrPathThrowing('geometry.coordinates', way));
+  const wayCoords = hashWayFeature(way);
+
+  // Try to find an intersection node
+  const intersectionNode = R.compose(
+    // Take the first non-null
+    R.head,
+    // Remove nulls
+    compact,
+    featurePoints => {
+      const nodeCoordToFeature = R.fromPairs(R.map(
+        featurePoint => [
+          hashNodeFeature(featurePoint),
+          featurePoint
+        ],
+        featurePoints
+      ));
+      return R.map(
+        // Get the node feature that matches the way coordinate if any
+        wayCoord => R.propOr(null, wayCoord, nodeCoordToFeature),
+        // Find the first node that isn't the first way point
+        R.tail(wayCoords)
+      );
+    },
+    ({response}) => reqStrPathThrowing('features', response),
+    // Only one way response
+    // <wayId: <response, query>> -> <response, query>
+    R.head,
+    // Remove way ids keys
+    R.values
+  )(intersectionNodesByWayId);
+  if (intersectionNode) {
+    return intersectionNode;
+  }
+
+  // Find the last node
+  return R.compose(
+    ({response}) => R.find(
+      // Find the node matching the last way point
+      node => R.equals(lastPointOfWay, reqStrPathThrowing('geometry.coordinates', node)),
+      reqStrPathThrowing('features', response)
+    ),
+    // Only one way response
+    // <wayId: <response, query>> -> <response, query>
+    R.head,
+    // Remove way ids keys
+    R.values
+  )(nodesByWayId);
 };
 
 /**
@@ -749,7 +807,7 @@ const _createQueryWaysDeclarations = ({areaId, geojson}) => {
     // Just search by area. Name the result ways1 as if there is one geojson feature
     [R.T, ({areaId}) => {
       const wayQuery = `way(area:${areaId})${highwayWayFilters}`;
-      return `${wayQuery}->.ways1;`;
+      return `${wayQuery}->.ways;`;
     }]
   ])({areaId, geojson});
 };

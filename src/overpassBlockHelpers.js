@@ -327,51 +327,62 @@ export const waysByNodeIdTask = (location, {way, node}) => R.map(
  * @sig nodesOfWayTask:: Task <way: <query, response>>>> ->
  * Task Result.Ok(<way: <query, response>, node: <query, response>, nodesByWayId: <node: <query, response>>, intersectionNodesByWayId: <node: <query, response>>> ->)
  */
-export const nodesByWayIdResultTask = (location, {way}) => R.map(
+export const nodesAndInteresectionNodesByWayIdResultTask = (location, {way}) => R.map(
   // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
   objs => R.ifElse(
     ({objs}) => R.all(Result.Ok.hasInstance)(objs),
-    ({way, objs}) => Result.Ok({
-      way,
-      nodesByWayId: R.mergeAll(R.map(obj => obj.value['nodesOfWay'], objs)),
-      intersectionNodesByWayId: R.mergeAll(R.map(obj => obj.value['intersectionNodesOfWay'], objs))
-    }),
+    ({way, objs}) => {
+      const nodesByWayId = R.mergeAll(R.map(obj => obj.value['nodesOfWay'], objs));
+      const intersectionNodesByWayId = R.mergeAll(R.map(obj => obj.value['intersectionNodesOfWay'], objs));
+      return Result.Ok({
+        way,
+        nodesByWayId,
+        intersectionNodesByWayId
+      });
+    },
     // TODO this should never error, but it might need to be structured differently
     ({way, objs}) => Result.Error({way, objs})
   )({way, objs}),
   waitAll(
     // Map each node
     R.map(
-      (wayId) => R.composeK(
-        ({intersectionNodesOfWayResult, nodesOfWayResult}) => {
-          return of(R.ifElse(
-            ({intersectionNodesOfWayResult, nodesOfWayResult}) => R.all(
-              Result.Ok.hasInstance,
-              [intersectionNodesOfWayResult, nodesOfWayResult]
-            ),
-            ({intersectionNodesOfWayResult, nodesOfWayResult}) => {
-              return intersectionNodesOfWayResult.chain(
-                intersectionNodesOfWay => nodesOfWayResult.map(
-                  nodesOfWay => ({
-                    intersectionNodesOfWay,
-                    nodesOfWay
-                  })
-                )
-              );
-            },
-            ({intersectionNodesOfWayResult, nodesOfWayResult}) => Result.Error({
-              intersectionNodesOfWay: intersectionNodesOfWayResult.value,
-              nodesOfWay: nodesOfWayResult.values
-            })
-          )({intersectionNodesOfWayResult, nodesOfWayResult}));
+      wayId => R.composeK(
+        // Now we have the intersection nodes of the way and all the nodes of the way.
+        // If anything went wrong we have a Result.Error to report.
+        // If all goes well we combine the two Result.Oks into one Result.Ok
+        ({wayId, intersectionNodesOfWayResult, nodesOfWayResult}) => {
+          return of(
+            R.ifElse(
+              ({intersectionNodesOfWayResult, nodesOfWayResult}) => R.all(
+                Result.Ok.hasInstance,
+                [intersectionNodesOfWayResult, nodesOfWayResult]
+              ),
+              // Combine intersectionNodesOfWayResult and nodesOfWayResult into a single Result.Ok
+              ({intersectionNodesOfWayResult, nodesOfWayResult}) => {
+                return intersectionNodesOfWayResult.chain(
+                  intersectionNodesOfWay => nodesOfWayResult.map(
+                    nodesOfWay => ({
+                      intersectionNodesOfWay,
+                      nodesOfWay
+                    })
+                  )
+                );
+              },
+              ({intersectionNodesOfWayResult, nodesOfWayResult}) => Result.Error({
+                intersectionNodesOfWay: intersectionNodesOfWayResult.value,
+                nodesOfWay: nodesOfWayResult.value
+              })
+            )({intersectionNodesOfWayResult, nodesOfWayResult})
+          );
         },
 
-        // Find intersection nodes and all nodes
+        // Take the result, key by wayId and combine it with the original query for reference
         mapToNamedResponseAndInputs('nodesOfWayResult',
           ({wayId, nodesOfWayQuery, nodesOfWayResponseResult}) => resultToTaskNeedingResult(
             nodesOfWayResponse => of({[wayId]: {query: nodesOfWayQuery, response: nodesOfWayResponse}})
           )(nodesOfWayResponseResult)
         ),
+        // Find all nodes of the way, not just the intersections
         mapToNamedResponseAndInputs('nodesOfWayResponseResult',
           // Perform the task
           ({wayId, nodesOfWayQuery}) => osmResultTask({
@@ -382,10 +393,8 @@ export const nodesByWayIdResultTask = (location, {way}) => R.map(
           )
         ),
 
-        // Find intersection nodes and all nodes
+        // Take the result, key by wayId and combine it with the original query for reference
         mapToNamedResponseAndInputs('intersectionNodesOfWayResult',
-          // Then map the task response to include the query for debugging/error resolution
-          // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
           ({wayId, intersectionNodesOfWayQuery, intersectionNodesOfWayResponseResult}) => {
             return resultToTaskNeedingResult(
               intersectionNodesOfWayResponse => of({
@@ -397,6 +406,7 @@ export const nodesByWayIdResultTask = (location, {way}) => R.map(
             )(intersectionNodesOfWayResponseResult);
           }
         ),
+        // Find the intersection nodes of the way
         mapToNamedResponseAndInputs('intersectionNodesOfWayResponseResult',
           // Perform the task
           ({wayId, intersectionNodesOfWayQuery}) => osmResultTask({

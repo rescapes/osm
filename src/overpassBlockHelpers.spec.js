@@ -11,7 +11,7 @@
 
 import {reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import * as R from 'ramda';
-import {getFeaturesOfBlock, nodesByWayIdResultTask} from './overpassBlockHelpers';
+import {getFeaturesOfBlock, nodesAndInteresectionNodesByWayIdResultTask} from './overpassBlockHelpers';
 
 
 describe('overpassBlockHelpers', () => {
@@ -131,7 +131,7 @@ describe('overpassBlockHelpers', () => {
   test('nodesOfWaysTask', done => {
     const errors = [];
     expect.assertions(1);
-    nodesByWayIdResultTask(
+    nodesAndInteresectionNodesByWayIdResultTask(
       {
         country: 'Canada',
         state: 'BC',

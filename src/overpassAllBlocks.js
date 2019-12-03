@@ -22,9 +22,13 @@ import {
 } from './overpassHelpers';
 import * as Result from 'folktale/result';
 import {
-  _blockToGeojson, _buildPartialBlocks, _sortOppositeBlocksByNodeOrdering,
+  _blockToGeojson,
+  _buildPartialBlocks,
+  _sortOppositeBlocksByNodeOrdering,
   _hashBlock,
-  _queryLocationVariationsUntilFoundResultTask, _wayEndPointToDirectionalWays, nodesByWayIdResultTask
+  _queryLocationVariationsUntilFoundResultTask,
+  _wayEndPointToDirectionalWays,
+  nodesAndInteresectionNodesByWayIdResultTask
 } from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
@@ -496,13 +500,7 @@ const _findFirstNodeOfWayAndTrimWay = ({wayIdToNodes, nodeIdToNodePoint}, curren
   nodeObj => R.ifElse(R.identity, nodeObj => ({
       firstFoundNodeOfFinalWay: R.prop('node', nodeObj),
       // Shorten the way points to the index of the node
-      trimmedWay: R.over(
-        R.lensPath(['geometry', 'coordinates']),
-        // Slice the coordinates to the found node index
-        // (+2 because the index is based on remainingWayPoints and we want to be inclusive)
-        coordinates => R.slice(0, R.prop('index', nodeObj) + 2, coordinates),
-        currentFinalWay
-      )
+      trimmedWay: trimWayToNodeObj(nodeObj, currentFinalWay)
     }),
     // Null case
     () => ({})
@@ -539,6 +537,34 @@ const _findFirstNodeOfWayAndTrimWay = ({wayIdToNodes, nodeIdToNodePoint}, curren
 )(currentFinalWay);
 
 /**
+ * Trims the given way to the index of the nodeObj inclusive
+ * @param {Object} node The node
+ * @param {Object} way The way to trip
+ * @returns {Object} The way trimmed ot the node inclusive
+ */
+const trimWayToNode = (node, way) => {
+  // Take the tail because trimWayToNodeObj expects the index based on the tail
+  const index = R.indexOf(hashNodeFeature(node), R.tail(hashWayFeature(way)));
+  return trimWayToNodeObj({node, index}, way);
+};
+
+/**
+ * Trims the given way to the index of the nodeObj inclusive
+ * @param {Object} nodeObj
+ * @param {Number} nodeObj.index The node index of the node in the way
+ * @param {Object} nodeObj.node The node
+ * @param {Object} way The way to trip
+ * @returns {Object} The way trimmed ot the node inclusive
+ */
+const trimWayToNodeObj = (nodeObj, way) => R.over(
+  R.lensPath(['geometry', 'coordinates']),
+  // Slice the coordinates to the found node index
+  // (+2 because the index is based on remainingWayPoints and we want to be inclusive)
+  coordinates => R.slice(0, R.prop('index', nodeObj) + 2, coordinates),
+  way
+);
+
+/**
  *
  * Create a task to add the found node to the first node to complete the block and set the trimmed ways,
  * Alternatively if we got to a new way then we have to recurse and traverse that way until we find a node
@@ -565,7 +591,7 @@ const _addIntersectionNodeOrDeadEndNodeResultTask = (
 ) => {
 
   return R.composeK(
-    nodeResult => resultToTaskNeedingResult(node => {
+    nodeAndTrimmedWayResult => resultToTaskNeedingResult(({node, ways}) => {
       const block = ({
         // Combine nodes (always 1 node) with firstFoundNodeOfFinalWay if it was found
         // If no firstFoundNodeOfFinalWay was found, we have a dead end. We need the node
@@ -573,7 +599,7 @@ const _addIntersectionNodeOrDeadEndNodeResultTask = (
         nodes: R.concat(nodes, compact([node])),
         // Combine current ways (with the last current way possibly shortened)
         // with waysAtEndOfFinalWay if firstFoundNodeOfFinalWay was null and a connect way was found
-        ways: R.concat(trimmedWays, waysAtEndOfFinalWay)
+        ways
       });
       _blockToGeojson(block);
       // If the block is complete because there are two blocks now, or failing that we didn't find a joining way,
@@ -594,19 +620,22 @@ const _addIntersectionNodeOrDeadEndNodeResultTask = (
         // Done
         block => of(block)
       )(block);
-    })(nodeResult),
+    })(nodeAndTrimmedWayResult),
 
-    // If we didn't get firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, we have a dead end and need
-    // to query overpass for the node of at the end of the trimmedWays
+    // If we didn't get firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, we have a dead end or didn't get result outside our search results
+    // and need to query overpass for the missing intersection node or for a dead end the node at the end of the trimmedWays
     ({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay}) => R.ifElse(
       ({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay}) => R.and(
         R.isNil(firstFoundNodeOfFinalWay),
         R.isEmpty(waysAtEndOfFinalWay)
       ),
-      // Find the dead-end node
-      () => _deadEndNodeOfWayResultTask({}, R.last(trimmedWays)),
-      // We have a firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, pass the node (which might be null)
-      () => of(Result.Ok(firstFoundNodeOfFinalWay))
+      // Find the dead-end node or intersection node outside the query results
+      () => _deadEndNodeAndTrimmedWayOfWayResultTask({}, trimmedWays),
+      // We have a firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, pass the node (which might be null) (TODO how can it be null?)
+      () => of(Result.Ok({
+        node: firstFoundNodeOfFinalWay,
+        ways: R.concat(trimmedWays, waysAtEndOfFinalWay)
+      }))
     )({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay})
   )({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay});
 };
@@ -615,21 +644,35 @@ const _addIntersectionNodeOrDeadEndNodeResultTask = (
  *
  * Queries for the nodes of the given way and returns the node that matches the last point of the way (for dead ends)
  * @param {Object} [location] Default {} Only used for context in unit tests to identify matching mock results
- * @param {Object} way The way to find nodes of
- * @returns {Object} <way.id: [node]> And object keyed by way id and valued by it's nodes
+ * @param {[Object]} ways The ways. We want to find the nodes of the final way
+ * @returns {Task<Result<Object>>} {ways: the single way trimmed to the intersection or dead end, node: The intersection node or dead end}
  * @private
  */
-const _deadEndNodeOfWayResultTask = (location, way) => {
-
+const _deadEndNodeAndTrimmedWayOfWayResultTask = (location, ways) => {
+  // We only process the last way. Any previous ways are prepended to our results
+  const way = R.last(ways);
   return mapMDeep(2,
     // Find the first intersection node starting at the way or failing that
     // Find the first node starting at the way
-    ({way, intersectionNodesByWayId, nodesByWayId}) => _resolveNode(
-      reqStrPathThrowing('response.features.0', way),
-      {intersectionNodesByWayId, nodesByWayId}
-    ),
+    ({way, intersectionNodesByWayId, nodesByWayId}) => {
+      const finalWay = reqStrPathThrowing('response.features.0', way);
+      const endBlockNode = _resolveEndBlockNode(
+        finalWay,
+        {intersectionNodesByWayId, nodesByWayId}
+      );
+      return {
+        // trim the way to the node
+        ways: R.concat(
+          // Keep the ways that aren't the final way
+          R.init(ways),
+          // Trim the final way
+          [trimWayToNode(endBlockNode, finalWay)]
+        ),
+        node: endBlockNode
+      };
+    },
     // Find all nodes of the ways
-    nodesByWayIdResultTask(
+    nodesAndInteresectionNodesByWayIdResultTask(
       location || {},
       {
         way: {
@@ -643,7 +686,10 @@ const _deadEndNodeOfWayResultTask = (location, way) => {
 };
 
 /**
- * Tries to find the first intersection node of the way that is not the first way point
+ * Tries to find the first intersection node of the way that is not the first way point. This is for resolving the
+ * second node of blocks where that second node wasn't part of the query results because of the boundary of the query
+ * results. If it doesn't find tha intersection node it returns the last node of the way, assuming the way is
+ * instead a dead end block
  * @param {Object} way
  * @param {Object} nodes
  * @param {Object} nodes.intersectionNodesByWayId Keyed by one way id and valued by the intersection nodes
@@ -651,7 +697,7 @@ const _deadEndNodeOfWayResultTask = (location, way) => {
  * @param {Object} nodes.nodesByWayId
  * @private
  */
-const _resolveNode = (way, {intersectionNodesByWayId, nodesByWayId}) => {
+const _resolveEndBlockNode = (way, {intersectionNodesByWayId, nodesByWayId}) => {
   // There are too many of these to mock the results in tests
   const lastPointOfWay = R.last(reqStrPathThrowing('geometry.coordinates', way));
   const wayCoords = hashWayFeature(way);
@@ -688,7 +734,7 @@ const _resolveNode = (way, {intersectionNodesByWayId, nodesByWayId}) => {
     return intersectionNode;
   }
 
-  // Find the last node
+  // If we couldn't find an intersection node, we must have a dead end. Find the last node.
   return R.compose(
     ({response}) => R.find(
       // Find the node matching the last way point

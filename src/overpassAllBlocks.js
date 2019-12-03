@@ -8,7 +8,8 @@ import {
   strPathOr,
   waitAllBucketed,
   mapMDeep,
-  resultToTaskNeedingResult
+  resultToTaskNeedingResult,
+  filterWithKeys
 } from 'rescape-ramda';
 import {turfBboxToOsmBbox, extractSquareGridFeatureCollectionFromGeojson} from 'rescape-helpers';
 import bbox from '@turf/bbox';
@@ -36,12 +37,12 @@ import {
   _intersectionStreetNamesFromWaysAndNodes,
   findMatchingNodes,
   hashNodeFeature, hashPoint,
-  hashWayFeature
+  hashWayFeature, nodeMatchesWayEnd
 } from './overpassFeatureHelpers';
 import {
   geojsonFeaturesHaveShapeOrRadii,
   isNominatimEligible,
-  geojsonFeaturesHaveShape, geojsonFeaturesHaveRadii
+  geojsonFeaturesHaveShape, geojsonFeaturesHaveRadii, wayFeatureNameOrDefault
 } from './locationHelpers';
 
 /**
@@ -212,6 +213,8 @@ export const _queryOverpassForAllBlocksResultsTask = ({location, way: wayQueries
 
 /**
  * Organizes raw features into blocks
+ * @param {Object} location Used for context to help resolve the blocks. This location represents the geojson
+ * or jurisdiction data used to create the way and node queries
  * @param result {way, node} with each containing response.features and the original query
  * @returns {Task<Ok:[], Error:[]>}
  */
@@ -315,8 +318,9 @@ export const organizeResponseFeaturesResultsTask = (location, {way, node}) => {
       }
     ),
     // Creates helpers and partialBlocks, which are blocks with a node and one directional way
-    // from which we'll complete all our blocks
-    // {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks}
+    // from which we'll complete all our blocks. Note that this also trims nodeFeatures to get rid of
+    // fake intersections (where the way changes but it's not really a new street)
+    // {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks, nodeFeatures}
     ({wayFeatures, nodeFeatures, location}) => of(_createPartialBlocks({wayFeatures, nodeFeatures, location}))
   )({wayFeatures, nodeFeatures, location});
 };
@@ -328,8 +332,8 @@ export const organizeResponseFeaturesResultsTask = (location, {way, node}) => {
  * @param {[Object]} wayFeatures All the way features of the sought blocks
  * @param {[Object]} nodeFeatures All the node features of the sought blocks
  * @param {Object} location Location defining the bounds of all blocks
- * @returns {Object} {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks} where
- * partialBlocks is the main return value and the others are helpers
+ * @returns {Object} {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks, nodeFeatures} where
+ * partialBlocks is the main return value, nodeFeatures might be trimmed to get rid of fake nodes, and the others are helpers
  * @private
  */
 const _createPartialBlocks = ({wayFeatures, nodeFeatures, location}) => R.compose(
@@ -345,6 +349,51 @@ const _createPartialBlocks = ({wayFeatures, nodeFeatures, location}) => R.compos
       nodePointToNode
     })
   ),
+
+  // Once we trim nodeFeatures, trim nodeIdToWays
+  toNamedResponseAndInputs('nodeIdToWays',
+    // "Invert" wayIdToNodes to create nodeIdToWays
+    ({nodeIdToWays, nodeFeatures}) => {
+    const nodeIdLookup = R.indexBy(R.prop('id'), nodeFeatures);
+    return filterWithKeys(
+      (ways, nodeId) => R.propOr(false, nodeId, nodeIdLookup),
+      nodeIdToWays
+    )
+  }),
+
+
+  // We need to eliminate fake intersection nodes. These are nodes that Overpass returns because the
+  // way id changes, but not because of an intersection. In OpenStreetMap ways can end at any point, it just
+  // depends on the data source. The best we can do is eliminate nodes that only connect two ways,
+  // where both ways start or end at that node, and where those ways have the same name.
+  toNamedResponseAndInputs('nodeFeatures',
+    ({nodeIdToWays, nodeFeatures}) => R.filter(
+      nodeFeature => R.compose(
+        wayFeatures => R.anyPass([
+          // Either more than 2 ways
+          wayFeatures => R.compose(R.lt(2), R.length)(wayFeatures),
+          // The node point is not at the end of a way.
+          wayFeatures => R.any(
+            wayFeature => R.complement(nodeMatchesWayEnd)(wayFeature, nodeFeature),
+            wayFeatures
+          ),
+          // Or more than 1 distinct way names.
+          // If the way doesn't have a name default to the node id, which is to say pretend they have the same name.
+          wayFeatures => R.compose(
+            R.lt(1),
+            R.length,
+            R.uniq,
+            R.map(
+              wayFeature => wayFeatureNameOrDefault(nodeFeature.id, wayFeature)
+            )
+          )(wayFeatures)
+        ])(wayFeatures),
+        R.prop(nodeFeature.id)
+      )(nodeIdToWays),
+      nodeFeatures
+    )
+  ),
+
   toNamedResponseAndInputs('nodeIdToWays',
     // "Invert" wayIdToNodes to create nodeIdToWays
     ({wayIdToNodes, wayIdToWay}) => R.reduce(
@@ -477,10 +526,13 @@ const recursivelyBuildBlockTask = ({wayIdToNodes, wayEndPointToDirectionalWays, 
   // Or if we have a dead end we need to query Overpass to get the dead end node. That's why this is a task
   // TODO instead of querying for the dead end node here, we could query for all dead end nodes right after we query Overpass,
   // TODO. just extracting the Result.value for now. We need to check for Result.Error
-  return _addIntersectionNodeOrDeadEndNodeResultTask(
-    {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
-    nodes, trimmedWays, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay
-  ).map(result => result.value);
+  return R.map(
+    result => result.value,
+    _addIntersectionNodeOrDeadEndNodeResultTask(
+      {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
+      nodes, trimmedWays, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay
+    )
+  );
 };
 
 /**
@@ -612,7 +664,7 @@ const _addIntersectionNodeOrDeadEndNodeResultTask = (
           // And we added a new way, so can recurse
           () => R.compose(R.equals(1), R.length)(waysAtEndOfFinalWay)
         )(block),
-        // If we aren't done recurse
+        // If we aren't done recurse on the calling function
         block => recursivelyBuildBlockTask(
           {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
           block

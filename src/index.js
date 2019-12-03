@@ -37,7 +37,9 @@ export {
   intersectionsByNodeIdToSortedIntersections,
   isResolvableSingleBlockLocation,
   isResolvableAllBlocksLocation,
-  locationHasLocationPoints
+  locationHasLocationPoints,
+  wayFeatureName,
+  wayFeatureNameOrDefault
 } from './locationHelpers';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';
@@ -46,4 +48,4 @@ export {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 export {locationAndOsmResultsToLocationWithGeojson} from './overpassHelpers'
 export {queryLocationForOsmBlockOrAllResultsTask, osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks'
 export {queryOverpassWithLocationForStreetResultTask} from './overpassStreet'
-export {cleanGeojson} from './overpassFeatureHelpers'
+export {cleanGeojson, hashWayFeatureExtents, hashWayFeature, hashNodeFeature, hashPoint, findMatchingNodes, hashPointsToWayCoordinates, nodeMatchesWayEnd} from './overpassFeatureHelpers'

@@ -243,11 +243,27 @@ export const commonStreetOfLocation = (location, streetIntersectionSets) => {
       );
       // Use the name of the way or failing that the id
       // This will probably always match one the names in each intersection, unless the way is super weird
-      return strPathOr(wayFeature.id, 'properties.tags.name', wayFeature);
+      return wayFeatureName(wayFeature)
     },
     common => R.head(common)
   )(common);
 };
+
+/**
+ * Returns the wayFeature street name or failing that the way id. Used to identify a street by its common name when possible
+ * Used to assist queries and identify fake intersections where wayFeatures change ids
+ * @param {Object} wayFeature Looks for wayFeature.properties.tag.name to get the street name
+ * @param {String} The name or wayFeature.id
+ */
+export const wayFeatureName = wayFeature => wayFeatureNameOrDefault(wayFeature.id, wayFeature);
+
+/**
+ * Like wayFeatureName but defaults to defaultTo instead of wayFeature.id
+ * @param {String} defaultTo A string to default to
+ * @param {Object} wayFeature Looks for wayFeature.properties.tag.name to get the street name
+ * @param {String} The name or the default
+ */
+export const wayFeatureNameOrDefault = (defaultTo, wayFeature) => strPathOr(defaultTo, 'properties.tags.name', wayFeature);
 
 /**
  * Finds the common street of the intersections then sorts the intersections alphabetically based on the second street.

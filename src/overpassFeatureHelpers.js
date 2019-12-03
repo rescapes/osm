@@ -54,6 +54,29 @@ export const hashWayFeature = wayFeature => {
 };
 
 /**
+ * Like hashWayFeature but only hashes the first and last points of the way
+ * @param wayFeature
+ * @returns {[String]} Array of two point hashes
+ */
+export const hashWayFeatureExtents = wayFeature => {
+  return R.compose(
+    pointPair => R.map(hashPoint, pointPair),
+    points => R.map(extreme => R[extreme](points), ['head', 'last']),
+    wayFeature => reqStrPathThrowing('geometry.coordinates', wayFeature)
+  )(wayFeature);
+};
+
+/**
+ * Returns true if the nodeFeature is at either end of the given wayFeature.
+ * @param {Object} wayFeature The way
+ * @param {Object} nodeFeature The node
+ * @returns {Boolean} True if the nodeFeature point equals one of the end wayFeature points
+ */
+export const nodeMatchesWayEnd = (wayFeature, nodeFeature) => R.contains(
+  hashNodeFeature(nodeFeature), hashWayFeatureExtents(wayFeature)
+);
+
+/**
  * Reverses hashWayFeature by converting hashed points back to pairs and each number to a float
  * @param hashPoints
  * @returns {[[String]]} String pairs of lon/lat points

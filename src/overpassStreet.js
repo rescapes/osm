@@ -11,7 +11,7 @@
 
 import {
   highwayNodeFilters,
-  highwayWayFilters,
+  highwayWayFiltersNoAreas,
   locationAndOsmResultsToLocationWithGeojson,
   osmEquals,
   osmIdToAreaId
@@ -32,13 +32,15 @@ const log = loggers.get('rescapeDefault');
 /**
  * Given a location with an osmId included, query the Overpass API and cleanup the results to get all the blocks
  * for the given street for the part of the street in the given neighborhood, city, state, country, etc.
+ * @param {Object} osmConfig The osm config
+ * @param {Object} osmConfig.minimumWayLength. The minimum lengths of way features to return. Defaults to 20 meters.
  * @param {Object} locationWithOsm A Location object that also has an osmId to limit the area of the queries.
  * @returns {Task<Result<[Object]>>} Result.Ok with the successful location blocks containing geojson
  * The results contain nodes and ways of the streets, where nodes are where intersections occur
  * There must be at least on way and possibly more
  * Some blocks have more than two nodes if they have multiple divided ways.
  */
-export const queryOverpassWithLocationForStreetResultTask = locationWithOsm => {
+export const queryOverpassWithLocationForStreetResultTask = (osmConfig, locationWithOsm) => {
   return R.composeK(
     // Take the positive results and combine them with the location, which has corresponding intersectiongs
     ({Ok: locationsAndResults}) => of(Result.Ok(R.map(
@@ -47,6 +49,7 @@ export const queryOverpassWithLocationForStreetResultTask = locationWithOsm => {
     ))),
     // Query for all blocks matching the street
     ({locationWithOsm, queries: {way, node}}) => _queryOverpassForAllBlocksResultsTask(
+      osmConfig,
       {location: locationWithOsm, way, node}
     ),
     // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
@@ -103,7 +106,7 @@ const _constructStreetQuery = ({type}, locationWithOsm) => {
   const areaId = osmIdToAreaId(osmId);
   // Query for all the ways and just the ways of the street
   // Nodes must intersect a street from .ways and one from the other ways
-  return `way(area:${areaId})${highwayWayFilters} -> .allWays;
+  return `way(area:${areaId})${highwayWayFiltersNoAreas} -> .allWays;
 way.allWays${osmEquals('name', blockname)} -> .ways;
 (.allWays; - .ways;) -> .otherWays;
 node(w.ways)(w.otherWays)${highwayNodeFilters} -> .nodes;

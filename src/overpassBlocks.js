@@ -70,6 +70,8 @@ const _matchingComponentLocations = (componentLocations, filterLocation) => R.fi
  * Returns the geojson of the location. For country, state, city, neighborhood this is the OSM relation's geojson
  * when available. For streets it's the geojson of all the location blocks of the street within the neighborhood
  * or city
+ * @param {Object} osmConfig The osm config
+ * @param {Object} osmConfig.minimumWayLength. The minimum lengths of way features to return. Defaults to 20 meters.
  * @param {[Object]} componentLocations Locations that might be components of location. If filterLocation
  * is a filtered to a street and some componentLocations match that street, uses the geojson of the
  * componentLocations instead of querying osm. If filterLocation is down to a block (has intersections) find
@@ -79,7 +81,7 @@ const _matchingComponentLocations = (componentLocations, filterLocation) => R.fi
  * @param {Object} filterLocation The location that is scoped to match 0 or more componentLocations.
  * @returns {Task<Result<Object>>} The geojson
  */
-export const osmLocationToLocationWithGeojsonResultTask = (componentLocations, filterLocation) => {
+export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentLocations, filterLocation) => {
   // Look for a way if the location has at least a street specified.
   // For greater scales look for a relation
   const locationType = R.cond([
@@ -179,7 +181,7 @@ export const osmLocationToLocationWithGeojsonResultTask = (componentLocations, f
                   matchingComponentLocations
                 )),
                 // Otherwise query OSM
-                () => queryOverpassWithLocationForStreetResultTask(locationWithOsm)
+                () => queryOverpassWithLocationForStreetResultTask(osmConfig, locationWithOsm)
               )(blockLocations)
             )
           )({

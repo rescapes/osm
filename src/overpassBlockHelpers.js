@@ -17,7 +17,7 @@ import {
 } from './overpassFeatureHelpers';
 import {of} from 'folktale/concurrency/task';
 import {
-  fetchOsmRawTask, highwayNodeFilters, highwayWayFilters,
+  fetchOsmRawTask, highwayNodeFilters, highwayWayFiltersNoAreas, highwayWayFiltersOnlyAreas,
   osmResultTask
 } from './overpassHelpers';
 import {
@@ -35,12 +35,14 @@ import {
   toNamedResponseAndInputs,
   traverseReduceResultError,
   sequenceBucketed,
+  waitAllBucketed,
   mapToNamedResponseAndInputs,
   resultToTaskNeedingResult
 } from 'rescape-ramda';
 import {waitAll} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {isLatLng} from './locationHelpers';
+import {length} from '@turf/turf';
 
 
 /**
@@ -48,7 +50,7 @@ import {isLatLng} from './locationHelpers';
  * @param {String} nodeId In the form 'node/id'
  * @returns {string}
  */
-const waysOfNodeQuery = nodeId => {
+export const waysOfNodeQuery = nodeId => {
   const id = R.compose(
     R.last,
     R.split('/')
@@ -56,8 +58,9 @@ const waysOfNodeQuery = nodeId => {
   return `
     node(id:${id})->.matchingNode;
     // Find ways within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
-    (way(around.bn.matchingNode:10)[area = "yes"]${highwayWayFilters};
-    way(bn.matchingNode)[area != "yes"]${highwayWayFilters};
+    (
+    //way(around.bn.matchingNode:10)${highwayWayFiltersOnlyAreas};
+    way(bn.matchingNode)${highwayWayFiltersNoAreas};
     )->.matchingWays;
     .matchingWays out geom;
   `;
@@ -74,10 +77,11 @@ const nodesOfWayQuery = wayId => {
     R.split('/')
   )(wayId);
   return `
-    way(id:${id})[area = "yes"]->.matchingAreaWay;
+    //way(id:${id})[area = "yes"]->.matchingAreaWay;
     way(id:${id})[area != "yes"]->.matchingWay;
     // Find nodes within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
-    (node(around.w.matchingAreaWay:10)${highwayNodeFilters};
+    (
+    //node(around.w.matchingAreaWay:10)${highwayNodeFilters};
     node(w.matchingWay)${highwayNodeFilters};
     )->.matchingNodes;
     .matchingNodes out geom;
@@ -95,17 +99,19 @@ const intersectionNodesOfWayQuery = wayId => {
     R.split('/')
   )(wayId);
   return `
-    way(id:${id})[area = "yes"]->.matchingAreaWay;
+    //way(id:${id})[area = "yes"]->.matchingAreaWay;
     way(id:${id})[area != "yes"]->.matchingWay;
     // Find nodes within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
-    (node(around.w.matchingAreaWay:10)${highwayNodeFilters};
+    (
+    //node(around.w.matchingAreaWay:10)${highwayNodeFilters};
     node(w.matchingWay)${highwayNodeFilters};
     )->.matchingNodes;
     // Find the nodes that are intersections
     foreach .matchingNodes -> .currentNode(
-  way(bn.currentNode)[highway]["highway" != "driveway"]["highway" != "cycleway"]["highway" != "proposed"]["footway" != "crossing"]["footway" != "sidewalk"]["service" != "parking_aisle"]["service" != "driveway"]["service" != "drive-through"](if: t["highway"] != "service" || t["access"] != "private")->.allWays;
-  (.allWays; - .matchingAreaWay;)->.tmp;
-  (.tmp; - .matchingWay;)->.allOtherWays;
+    // TODO enable area here when areas above is uncommented 
+  way(bn.currentNode)${highwayWayFiltersNoAreas}->.allWays;
+  //(.allWays; - .matchingAreaWay;)->.tmp;
+  (.allWays; - .matchingWay;)->.allOtherWays;
   node(w.allOtherWays)->.nodesOfAllOtherWays;
   node.currentNode.nodesOfAllOtherWays->.intersectionNodes;
   (.intersectionNodes; .allIntersectionNodes;)->.allIntersectionNodes;
@@ -258,8 +264,8 @@ export const parallelWayNodeQueriesResultTask = (location, queries) => R.compose
               results
             )
           ),
-          // Perform the tasks
-          ({queries, type}) => sequenceBucketed(
+          // Perform the tasks in parallel
+          ({queries, type}) => waitAllBucketed(
             R.map(
               query => osmResultTask({
                   name: `parallelWayNodeQueriesResultTask: ${type}`,
@@ -327,7 +333,7 @@ export const waysByNodeIdTask = (location, {way, node}) => R.map(
  * @sig nodesOfWayTask:: Task <way: <query, response>>>> ->
  * Task Result.Ok(<way: <query, response>, node: <query, response>, nodesByWayId: <node: <query, response>>, intersectionNodesByWayId: <node: <query, response>>> ->)
  */
-export const nodesAndInteresectionNodesByWayIdResultTask = (location, {way}) => R.map(
+export const nodesAndIntersectionNodesByWayIdResultTask = (location, {way}) => R.map(
   // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
   objs => R.ifElse(
     ({objs}) => R.all(Result.Ok.hasInstance)(objs),
@@ -350,7 +356,7 @@ export const nodesAndInteresectionNodesByWayIdResultTask = (location, {way}) => 
         // Now we have the intersection nodes of the way and all the nodes of the way.
         // If anything went wrong we have a Result.Error to report.
         // If all goes well we combine the two Result.Oks into one Result.Ok
-        ({wayId, intersectionNodesOfWayResult, nodesOfWayResult}) => {
+        ({intersectionNodesOfWayResult, nodesOfWayResult}) => {
           return of(
             R.ifElse(
               ({intersectionNodesOfWayResult, nodesOfWayResult}) => R.all(
@@ -498,6 +504,8 @@ export const createSingleBlockFeatures = (location, {wayFeatures, nodeFeatures, 
 
 /***
  * Sorts the features by connecting them at their start/ends
+ * @param {Object} location Location block used to identify the correct street names
+ * @param {[[String]]} location.intersections Each set of strings represents an intersection of the location block
  * @param {[Object]} wayFeatures List of way features to sort. This is 1 or more connected ways that might overlap the
  * block on one or both sides
  * @param {[Object]} nodeFeatures Two node features representing the block intersection
@@ -563,48 +571,14 @@ export const getFeaturesOfBlock = (location, wayFeatures, nodeFeatures) => {
     ])(strPathOr(null, 'properties.tags.name', wayFeature)),
     wayFeatures
   );
-  const lookup = R.reduce(
-    (result, feature) => {
-      return _reduceFeaturesByHeadAndLast(result, feature);
-    },
-    {},
-    wayFeaturesOfStreet
-  );
-  // Do any features have the same head or last point? If so flip the coordinates of one
-  // We need to get all the ways "flowing" in the same direction. The ones we flip we tag with __reversed__
-  // so we can flip them back after we finish the sorting
-  const modified_lookup = R.map(
-    headLastObj => {
-      return R.map(
-        features => {
-          return R.when(
-            f => R.compose(R.lt(1), R.length)(f),
-            // Reverse the first features coordinates
-            f => R.compose(
-              f => R.over(R.lensPath([0, '__reversed__']), R.T, f),
-              f => R.over(R.lensPath([0, 'geometry', 'coordinates']), R.reverse, f)
-            )(f)
-          )(features);
-        },
-        headLastObj
-      );
-    },
-    lookup
-  );
-  const modifiedWayFeatures = R.compose(
-    R.values,
-    // Take l if it has __reversed__, otherwise take r assuming r has reversed or neither does and are identical
-    featureObjs => mergeAllWithKey(
-      (_, l, r) => R.ifElse(R.prop('__reversed__'), R.always(l), R.always(r))(l),
-      featureObjs),
-    // Hash each by id
-    features => R.map(feature => ({[feature.id]: feature}), features),
-    R.flatten,
-    values => R.chain(R.values, values),
-    R.values
-  )(modified_lookup);
 
-  // Reduce a LineString feature by its head and last point
+  // Orders the way features, reversing some so that they all flow in the same direction. This results
+  // in a flat ordered list of ways
+  const modifiedWayFeatures = orderWayFeaturesOfBlock(wayFeaturesOfStreet);
+
+  // Reduce a LineString feature by its head and last point. This results
+  // once again in an object keyed by way end point and valued by an object with head and last containing
+  // way features that match the point at the head and last point of the way
   const finalLookup = R.reduce(
     (result, feature) => {
       return _reduceFeaturesByHeadAndLast(result, feature);
@@ -614,15 +588,109 @@ export const getFeaturesOfBlock = (location, wayFeatures, nodeFeatures) => {
   );
 
   // Use the linker to link the features together, dropping those that aren't between two of the nodes
+  // Returns {nodes: nodeFeatures, ways};
   const linkedFeatures = _linkedFeatures(finalLookup, nodeFeatures);
 
-  // Finally remove the __reversed__ tags from the ways (we could leave them on for debugging if needed)
+  // Remove the __reversed__ tag from reversed ways. We don't care anymore because our linking is done
   return R.over(
-    R.lensProp('ways'),
-    ways => R.map(R.omit(['__reversed__']), ways),
+    R.lensProp('way'),
+    wayFeatures => removeReverseTagsOfOrderWayFeaturesOfBlock(wayFeatures),
     linkedFeatures
   );
 };
+
+/**
+ * For way features of a single street, orders the features possibly reversing ways that meet one another flow
+ * in opposite directions. Example ---> <---- <--- is reordered to be <--- <---- <---- where the first is
+ * reversed and marked __reversed__. The __reversed__ should be removed after processing with removeReverseTagsOfOrderWayFeaturesOfBlock
+ * @param wayFeaturesOfStreet
+ */
+export const orderWayFeaturesOfBlock = wayFeaturesOfStreet => {
+  // Reduce the way features. For each head and ladst way point, we index the way by that point, creating an object
+  // That organizes the way features by each point and whether it's the ways head or last point
+  // {
+  //  coordinate_hash1: {head: [features]}, // Only the head of ways match this point
+  //  coordinate_hash2: {head: [features], last: [features]}, // Both heads and last of ways match this point
+  //  coordinate_hash3: {head: [features], last: [features]},
+  //  coordinate_hash3: {last: [features]} // Only the end of ways match this point
+  //  ...
+  // }
+  const wayEndPointToHeadLastWayFeatures = R.reduce(
+    (result, wayFeature) => {
+      return _reduceFeaturesByHeadAndLast(result, wayFeature);
+    },
+    {},
+    wayFeaturesOfStreet
+  );
+  // Do any features have the same head or last point? If so flip the coordinates of one
+  // We need to get all the ways "flowing" in the same direction. The ones we flip we tag with __reversed__
+  // so we can flip them back after we finish the sorting
+  const modifiedWayEndPointToHeadLastWayFeatures = R.map(
+    headLastObj => {
+      return R.map(
+        wayFeatures => {
+          return R.when(
+            // When we have more than 1 feature
+            wayFeatures => R.compose(R.lt(1), R.length)(wayFeatures),
+            // Reverse the first way feature's coordinates
+            wayFeatures => reverseFirstWayFeatureAndTag(wayFeatures)
+          )(wayFeatures);
+        },
+        headLastObj
+      );
+    },
+    wayEndPointToHeadLastWayFeatures
+  );
+  return R.compose(
+    // Remove the feature id keys
+    R.values,
+    // Merge each feature if they have the same id, favoring the reversed one if one version of the feature is reversed
+    // TODO I can't remember why we'd have duplicate feature ids here
+    // Take l if it has __reversed__, otherwise take r assuming r has reversed or neither does and are identical
+    featureObjs => mergeAllWithKey(
+      (_, l, r) => R.ifElse(R.prop('__reversed__'), R.always(l), R.always(r))(l),
+      featureObjs),
+    // Hash each by feature id
+    features => R.map(feature => ({[feature.id]: feature}), features),
+    // Flatten all the sets
+    R.flatten,
+    // Take each head/last object and flatten the way features together, removing head/last
+    values => R.chain(R.values, values),
+    // Remove way end point coordinate keys
+    R.values
+  )(modifiedWayEndPointToHeadLastWayFeatures);
+};
+
+/**
+ Remove any __reversed__ tags from the way features
+ */
+export const removeReverseTagsOfOrderWayFeaturesOfBlock = wayFeatures => {
+  return R.map(R.omit(['__reversed__']), wayFeatures);
+};
+
+/**
+ * Reverses the first given way feature and marks it as __reversed__. Used for sorting ways when two ways
+ * meet at a point but that point is the head point of 1 way and the last point of the other way. In
+ * some cases it doesn't matter which way is reversed, so this function reverses the first way. In other
+ * cases it does matter so make sure to pass they way that needs to be reversed as the first or only way
+ * @param wayFeatures
+ * @returns [Objects] The wayFeatures with the points of the first reversed and the first tagged with __reversed__
+ * The __reversed__ tag should be removed when no longer needed since it's not valid geojson
+ */
+export const reverseFirstWayFeatureAndTag = wayFeatures => R.compose(
+  // Mark that way feature as reversed
+  wayFeatures => R.over(
+    R.lensPath([0, '__reversed__']),
+    R.T,
+    wayFeatures
+  ),
+  // Reverse the coordinates of the first way feature
+  wayFeatures => R.over(
+    R.lensPath([0, 'geometry', 'coordinates']),
+    R.reverse,
+    wayFeatures
+  )
+)(wayFeatures);
 
 /**
  * Utility function to generate geojson from nodes and ways for testing block creation
@@ -658,6 +726,41 @@ export const _blocksToGeojson = blocks => JSON.stringify({
     )
   }, null, '\t'
 );
+
+/**
+ * The length of the given bocks
+ * @param blocks
+ * @returns {*}
+ * @private
+ */
+export const _blocksWithLengths = blocks => {
+  return R.map(
+    // add up the ways
+    block => ({
+      block, length: R.reduce(
+        (accum, way) => R.add(accum, length(way, {units: 'meters'})),
+        0,
+        strPathOr([], 'ways', block)
+      )
+    }),
+    blocks
+  );
+};
+/**
+ * The total length of all given blocks
+ * @param blocks
+ * @private
+ */
+export const _lengthOfBlocks = blocks => {
+  return R.compose(
+    blocksWithLengths => R.reduce(
+      (accum, block) => R.add(accum, block.length),
+      0,
+      blocksWithLengths
+    ),
+    blocks => _blocksWithLengths(blocks)
+  )(blocks);
+};
 
 /**
  * Create a hash based on the nodes and ways based on node ids and way points but independent of order

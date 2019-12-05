@@ -167,9 +167,15 @@ export const osmAnd = expressions => R.join(' && ', expressions);
 export const osmOr = expressions => R.join(' || ', expressions);
 
 
-// Filter to get roads and paths that aren't sidewalks or crossings
-export const highwayWayFilters = R.join('', [
+
+
+const highwayWayFilters = [
   osmAlways('highway'),
+  // temporary for Israel highway!=path
+  osmNotEqual('highway', 'path'),
+  osmNotEqual('highway', 'footway'),
+  // temporary for Israelhighway!=service
+  osmNotEqual('highway', 'service'),
   // We're not currently interested in driveways, but might be in the future
   osmNotEqual('highway', 'driveway'),
   // We don't want to treat cycleways separate from the roads they are on
@@ -191,8 +197,23 @@ export const highwayWayFilters = R.join('', [
       ]
     )
   )
-]);
+];
 
+// Filter to get roads and paths that aren't sidewalks or crossings and not areas
+export const highwayWayFiltersNoAreas = R.join('',
+  R.concat([
+    // No areas
+    osmNotEqual('area', 'yes')
+  ], highwayWayFilters)
+);
+
+// Filter to get roads and paths that aren't sidewalks or crossings but are areas
+export const highwayWayFiltersOnlyAreas = R.join('',
+  R.concat([
+    // No areas
+    osmEquals('area', 'yes')
+  ], highwayWayFilters)
+);
 
 /**
  * Street limitations on nodes.
@@ -371,7 +392,7 @@ export const _filterForIntersectionNodesAroundPoint = (intersection, around, out
   return `node${around}${highwayNodeFilters} -> .${possibleNodes};
 foreach.${possibleNodes} ->.${oneOfPossibleNodes}
 {
-  way(bn.${oneOfPossibleNodes})${intersectionNamesFilter}${highwayWayFilters}->.${waysOfOneOfPossibleNodes};
+  way(bn.${oneOfPossibleNodes})${intersectionNamesFilter}${highwayWayFiltersNoAreas}->.${waysOfOneOfPossibleNodes};
   // If we have at least 2 ways, we have an intersection
   if (${waysOfOneOfPossibleNodes}.count(ways) >= 2)
   {

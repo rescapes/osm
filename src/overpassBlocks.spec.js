@@ -105,7 +105,7 @@ describe('overpassBlocks', () => {
         }
       }
     ];
-    osmLocationToLocationWithGeojsonResultTask(componentLocations, {
+    osmLocationToLocationWithGeojsonResultTask({}, componentLocations, {
       country: 'USA',
       state: 'NY',
       city: 'New York',
@@ -122,7 +122,7 @@ describe('overpassBlocks', () => {
     expect.assertions(1);
     const errors = [];
 
-    osmLocationToLocationWithGeojsonResultTask([], {
+    osmLocationToLocationWithGeojsonResultTask({}, [], {
       country: 'USA',
       state: 'NY',
       city: 'New York',
@@ -147,6 +147,7 @@ describe('overpassBlocks', () => {
       mapResultTaskWithOtherInputs(
         {resultInputKey: 'componentLocationsResult', resultOutputKey: 'locationWithGeojsonResult'},
         ({filterLocation, componentLocations}) => osmLocationToLocationWithGeojsonResultTask(
+          {},
           componentLocations,
           filterLocation
         )
@@ -154,7 +155,7 @@ describe('overpassBlocks', () => {
       // Get the blocks
       mapResultTaskWithOtherInputs(
         {resultInputKey: 'locationWithOsmResult', resultOutputKey: 'componentLocationsResult'},
-        ({locationWithOsm}) => queryOverpassWithLocationForStreetResultTask(locationWithOsm)
+        ({locationWithOsm}) => queryOverpassWithLocationForStreetResultTask({}, locationWithOsm)
       ),
       // Get the osmId
       mapToNamedResponseAndInputs('locationWithOsmResult',
@@ -183,7 +184,7 @@ describe('overpassBlocks', () => {
     expect.assertions(1);
     const errors = [];
 
-    osmLocationToLocationWithGeojsonResultTask([], {
+    osmLocationToLocationWithGeojsonResultTask({}, [], {
       country: 'USA',
       state: 'NY',
       city: 'New York',
@@ -199,7 +200,7 @@ describe('overpassBlocks', () => {
   test('osmLocationToRelationshipGeojsonResultTaskNeighborhood', done => {
     expect.assertions(1);
     const errors = [];
-    osmLocationToLocationWithGeojsonResultTask([], {
+    osmLocationToLocationWithGeojsonResultTask({}, [], {
       country: 'USA',
       state: 'NY',
       city: 'New York',
@@ -217,7 +218,7 @@ describe('overpassBlocks', () => {
   test('osmLocationToRelationshipGeojsonResultTasCity', done => {
     expect.assertions(1);
     const errors = [];
-    osmLocationToLocationWithGeojsonResultTask([], {
+    osmLocationToLocationWithGeojsonResultTask({}, [], {
       country: 'Canada',
       state: 'Northwest Territories',
       city: 'Yellowknife'
@@ -229,7 +230,7 @@ describe('overpassBlocks', () => {
   test('osmLocationToRelationshipGeojsonResultState', done => {
     expect.assertions(1);
     const errors = [];
-    osmLocationToLocationWithGeojsonResultTask([], {
+    osmLocationToLocationWithGeojsonResultTask({}, [], {
       country: 'USA',
       state: 'Colorado'
     }).run().listen(defaultRunToResultConfig({
@@ -242,7 +243,7 @@ describe('overpassBlocks', () => {
   test('osmLocationToRelationshipGeojsonResultCountry', done => {
     expect.assertions(1);
     const errors = [];
-    osmLocationToLocationWithGeojsonResultTask([], {country: 'Nepal'}).run().listen(defaultRunToResultConfig({
+    osmLocationToLocationWithGeojsonResultTask({}, [], {country: 'Nepal'}).run().listen(defaultRunToResultConfig({
       onResolved: location => expect(R.length(reqStrPathThrowing('geojson.features.0.geometry.coordinates.0', location))).toEqual(18843)
     }, errors, done));
   }, 200000);

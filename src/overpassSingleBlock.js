@@ -26,7 +26,7 @@ import * as Result from 'folktale/result';
 import {
   _filterForIntersectionNodesAroundPoint,
   AROUND_LAT_LON_TOLERANCE, highwayNodeFilters,
-  highwayWayFilters,
+  highwayWayFiltersNoAreas,
   osmEquals, osmIdEquals, osmIdToAreaId
 } from './overpassHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
@@ -462,7 +462,7 @@ const _createIntersectionQueryWaysDeclarations = (areaId, explicitWayIds, explic
     [R.T, () => R.join('\n',
       R.addIndex(R.zipWith)(
         (block, extraWaysForBlock, i) => {
-          const wayQuery = `way(area:${areaId})${osmEquals('name', block)}${highwayWayFilters}`;
+          const wayQuery = `way(area:${areaId})${osmEquals('name', block)}${highwayWayFiltersNoAreas}`;
           // For this block if there are extra ways add them to the union
           const extraWays = R.map(id => `way${osmIdEquals(id)}`, R.defaultTo([], extraWaysForBlock));
           const wayUnion = `(${R.join(';', R.concat([wayQuery], extraWays))};)`;
@@ -655,7 +655,7 @@ const _createIntersectionQueryConstrainWaysToNodes = (ways, orderedBlocks) => {
     // We have hard-coded ways, just return these as our final ways
     [R.length, ways => `(${R.map(way => `way(${way});`, ways)})->.ways;`],
     // We have no orderedBlocks but have geojsonPoints, search for all ways matching our nodes
-    [R.always(R.isNil(orderedBlocks)), () => `way${highwayWayFilters}(bn.nodes)->.ways;`],
+    [R.always(R.isNil(orderedBlocks)), () => `way${highwayWayFiltersNoAreas}(bn.nodes)->.ways;`],
     // If we had two different main block names handle it here
     [R.always(R.compose(R.equals(4), R.length)(orderedBlocks)),
       () => `(.w1; .w3;) -> .wx; way.wx(bn.nodes)->.ways;`

@@ -103,7 +103,7 @@ export const hashPointsToWayCoordinates = hashPoints => {
  * head and last keys are valued by the features whose head point is this point and features whose last point
  * is this point, respectively. We need to end up with no more than one Feature per point per head/last. If we get
  * more than one somewhere it means that feature points aren't ordered in the same direction. So if we get
- * more than one we flip the coordinates of one feature and reclassify for the purpose of chainijng
+ * more than one we flip the coordinates of one feature and reclassify for the purpose of chaining
  */
 export const _reduceFeaturesByHeadAndLast = (result, feature) => {
   return R.reduce(
@@ -288,9 +288,8 @@ const orderedWayFeatureGenerator = (lookup, nodeFeatures) => {
       resolvedPointToWaysLookups = R.merge(resolvedPointToWaysLookups, {[startPoint]: startWayFeature});
       let wayFeature = startWayFeature;
       const resolvedWayFeatures = [];
-      // Make the single item object keyed by next point and valued by feature whose head is the next pointj
+      // Make the single item object keyed by next point and valued by feature whose head is the next point
       while (true) {
-
         // Find the lastPointToWayFeatureEntries whose last property contains our wayFeature
         // In other words, does the end of this way match a point that isn't the start of another way?
         const matchingLastPointToWayFeatures = R.filter(
@@ -346,7 +345,6 @@ const orderedWayFeatureGenerator = (lookup, nodeFeatures) => {
         wayFeature => hashWayFeature(wayFeature),
         resolvedWayFeatures
       );
-
 
       const matchingNodeFeatures = compact(R.map(
         // Resolve the nodeFeature or Null

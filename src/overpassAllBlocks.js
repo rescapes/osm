@@ -18,6 +18,7 @@ import squareGrid from '@turf/square-grid';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import {
+  configuredHighwayWayFilters,
   fetchOsmRawTask,
   highwayNodeFilters,
   highwayWayFiltersNoAreas,
@@ -181,6 +182,7 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (osmConfig, locationWi
         type => [
           type,
           _constructHighwayQueriesForType(
+            osmConfig,
             {type},
             // These are the only properties we might need from the location
             pickDeepPaths(['intersections', 'osmId', 'geojson'], locationWithOsm)
@@ -219,7 +221,7 @@ export const _queryOverpassForAllBlocksResultsTask = (osmConfig, {location, way:
       Error: ({value}) => of({Ok: [], Error: [value]})
     }),
     // Query for the ways and nodes in parallel
-    queries => parallelWayNodeQueriesResultTask(location, queries)
+    queries => parallelWayNodeQueriesResultTask(osmConfig, location, queries)
   )({way: wayQueries, node: nodeQueries});
 };
 
@@ -349,6 +351,7 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
         // Wait in parallel but bucket tasks to prevent stack overflow
         return waitAllBucketed(R.map(
           partialBlock => recursivelyBuildBlockTask(
+            osmConfig,
             {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
             partialBlock
           ),
@@ -543,6 +546,7 @@ export const isRealIntersection = (wayFeatures, nodeFeature) => R.anyPass([
  * Given a partial block, meaning a block with one node and one or more connected directional ways, recursively
  * travel from the one node to find the closest node, or failing that the next connected way, or failing that
  * end because we have a dead end
+ * @param {Object} osmConfig
  * @param nodeIdToWays
  * @param wayIdToNodes
  * @param wayEndPointToDirectionalWays
@@ -554,7 +558,7 @@ export const isRealIntersection = (wayFeatures, nodeFeature) => R.anyPass([
  * }. Nodes is normally two unless the block is a dead end. Ways are 1 or more, depending how many ways are need to
  * connect to the closest node (intersection).
  */
-const recursivelyBuildBlockTask = ({nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint}, partialBlock) => {
+const recursivelyBuildBlockTask = (osmConfig, {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint}, partialBlock) => {
   // We only have 1 node until we finish, but we could have any number of ways
   const {nodes, ways} = partialBlock;
   // Get the current final way of the partial block
@@ -602,6 +606,7 @@ const recursivelyBuildBlockTask = ({nodeIdToWays, wayIdToNodes, wayEndPointToDir
   return R.map(
     result => result.value,
     _handleUnendedWaysAndRedundantNodesResultTask(
+      osmConfig,
       {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
       nodes, trimmedWays, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay
     )
@@ -696,6 +701,7 @@ const trimWayToNodeObj = (nodeObj, way) => R.over(
  * or another way
  * Or if we have a dead end we need to query Overpass to get the dead end node. That's why this is a task
  * TODO instead of querying for the dead end node here, we could query for all dead end nodes right after we query Overpass,
+ * @param osmConfig
  * @param context
  * @param context.nodeIdToWays Used to see if the ending node of a block is actually a real intersection.
  * @param context.wayIdToNodes
@@ -712,6 +718,7 @@ const trimWayToNodeObj = (nodeObj, way) => R.over(
  * @private
  */
 const _handleUnendedWaysAndRedundantNodesResultTask = (
+  osmConfig,
   {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
   nodes, trimmedWays, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay
 ) => {
@@ -741,6 +748,7 @@ const _handleUnendedWaysAndRedundantNodesResultTask = (
         )(block),
         // If we aren't done recurse on the calling function
         block => recursivelyBuildBlockTask(
+          osmConfig,
           {wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
           block
         ),
@@ -757,7 +765,7 @@ const _handleUnendedWaysAndRedundantNodesResultTask = (
         R.isEmpty(waysAtEndOfFinalWay)
       ),
       // Find the dead-end node or intersection node outside the query results
-      () => _deadEndNodeAndTrimmedWayOfWayResultTask({}, trimmedWays),
+      () => _deadEndNodeAndTrimmedWayOfWayResultTask(osmConfig, trimmedWays),
       // We have a firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, pass the node (which might be null) (TODO how can it be null?)
       () => of(Result.Ok({
         node: firstFoundNodeOfFinalWay,
@@ -770,12 +778,13 @@ const _handleUnendedWaysAndRedundantNodesResultTask = (
 /**
  *
  * Queries for the nodes of the given way and returns the node that matches the last point of the way (for dead ends)
+ * @param {Object} osmConfig
  * @param {Object} [location] Default {} Only used for context in unit tests to identify matching mock results
  * @param {[Object]} ways The ways. We want to find the nodes of the final way
  * @returns {Task<Result<Object>>} {ways: the single way trimmed to the intersection or dead end, node: The intersection node or dead end}
  * @private
  */
-const _deadEndNodeAndTrimmedWayOfWayResultTask = (location, ways) => {
+const _deadEndNodeAndTrimmedWayOfWayResultTask = (osmConfig, location, ways) => {
   // We only process the last way. Any previous ways are prepended to our results
   const way = R.last(ways);
   // Task Result <way, intersectionNOdesByWayId, nodesByWayId> -> Task Result <ways, node>
@@ -820,6 +829,7 @@ const _deadEndNodeAndTrimmedWayOfWayResultTask = (location, ways) => {
                     )
                   )(ways);
                   return _deadEndNodeAndTrimmedWayOfWayResultTask(
+                    osmConfig,
                     location,
                     R.concat(
                       ways,
@@ -875,6 +885,7 @@ const _deadEndNodeAndTrimmedWayOfWayResultTask = (location, ways) => {
     // Find all nodes of the ways
     mapToNamedResponseAndInputs('nodesAndIntersectionNodesByWayIdResult',
       ({way}) => nodesAndIntersectionNodesByWayIdResultTask(
+        osmConfig,
         location || {},
         {
           way: {
@@ -955,6 +966,7 @@ const _resolveEndBlockNode = (way, {intersectionNodesByWayId, nodesByWayId}) => 
 /**
  * Construct one or more Overpass queries to get all eligible highway ways or nodes for area of the given osmId or optionally
  * geojsonBOunds
+ * @param {Object} osmConfig
  * @param {String} type 'way' or 'node' We have to do the queries separately because overpass combines the geojson
  * results in buggy ways
  * @param {String} [osmId] OSM id to be used to constrain the area of the query. This id corresponds
@@ -964,7 +976,7 @@ const _resolveEndBlockNode = (way, {intersectionNodesByWayId, nodesByWayId}) => 
  * @param {[Object]} [geojsonBounds] Optional. Bounds to use instead of the area of the osmId
  * @returns {string} The complete Overpass query string
  */
-const _constructHighwayQueriesForType = ({type}, {osmId, geojson}) => {
+const _constructHighwayQueriesForType = (osmConfig, {type}, {osmId, geojson}) => {
 
   if (R.not(R.or(osmId, geojson))) {
     throw Error("Improper configuration. osmId or geojsonBounds must be non-nil");
@@ -1008,7 +1020,7 @@ const _constructHighwayQueriesForType = ({type}, {osmId, geojson}) => {
       const query = `
     ${
         // Declare the way variables if needed
-        _createQueryWaysDeclarations(locationWithSingleFeature)
+        _createQueryWaysDeclarations(osmConfig, locationWithSingleFeature)
       }
     ${
         // Declare the node variables
@@ -1025,6 +1037,7 @@ const _constructHighwayQueriesForType = ({type}, {osmId, geojson}) => {
 
 /**
  * Creates OSM Overpass query syntax to declare ways for a given OSM area id or geojsonBounds.
+ * @param {Object} osmConfig
  * @param {Object} locationWithSingleFeature
  * @param {Number} locationWithSingleFeature.areaId Represents an OSM neighborhood or city
  * @param {Object} [locationWithSingleFeature.geojson] Geojson with one feature. If specifies this limits
@@ -1032,7 +1045,7 @@ const _constructHighwayQueriesForType = ({type}, {osmId, geojson}) => {
  * @returns {String} Overpass query syntax string that declares the way variable
  * @private
  */
-const _createQueryWaysDeclarations = ({areaId, geojson}) => {
+const _createQueryWaysDeclarations = (osmConfig, {areaId, geojson}) => {
   return R.cond([
     [
       ({geojson}) => geojsonFeaturesHaveShapeOrRadii(geojson),
@@ -1046,7 +1059,7 @@ const _createQueryWaysDeclarations = ({areaId, geojson}) => {
               areaId => `(area:${areaId})`
             )(areaId || '');
             // Filter by the bounds and optionally by the areaId
-            const wayQuery = `way(${bounds})${areaFilterStr}${highwayWayFiltersNoAreas}`;
+            const wayQuery = `way(${bounds})${areaFilterStr}${configuredHighwayWayFilters(osmConfig)}`;
             return `${wayQuery}->.ways;`;
           },
           strPathOr([], 'features', geojson)
@@ -1055,7 +1068,7 @@ const _createQueryWaysDeclarations = ({areaId, geojson}) => {
     ],
     // Just search by area. Name the result ways1 as if there is one geojson feature
     [R.T, ({areaId}) => {
-      const wayQuery = `way(area:${areaId})${highwayWayFiltersNoAreas}`;
+      const wayQuery = `way(area:${areaId})${configuredHighwayWayFilters(osmConfig)}`;
       return `${wayQuery}->.ways;`;
     }]
   ])({areaId, geojson});

@@ -238,7 +238,7 @@ export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) =>
     ],
     [
       location => isResolvableAllBlocksLocation(location),
-      location => locationToOsmAllBlocksQueryResultsTask(R.pick(['allowFallbackToCity'], osmConfig), location)
+      location => locationToOsmAllBlocksQueryResultsTask(osmConfig, location)
     ],
     [
       R.T,

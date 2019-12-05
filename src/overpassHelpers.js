@@ -199,6 +199,12 @@ const highwayWayFilters = [
   )
 ];
 
+export const configuredHighwayWayFilters = osmConfig => R.ifElse(
+  R.propOr(false, 'includePedestrianArea'),
+  () => R.join('', highwayWayFilters),
+  () => highwayWayFiltersNoAreas
+)(osmConfig);
+
 // Filter to get roads and paths that aren't sidewalks or crossings and not areas
 export const highwayWayFiltersNoAreas = R.join('',
   R.concat([
@@ -360,6 +366,7 @@ export const fetchOsmRawTask = R.curry((options, query) => {
 /**
  * Creates a filter to only accept nodes around a given point that have at 2 least ways attached to them,
  * meaning they are intersections
+ * @param {Object} osmConfig
  * @param {[String]} intersection Optional pair of street names representing the intersection to limit the ways of the node
  * to those ways with those names
  * @param {String} around: e.g. '(around: 10, 40.6660816, -73.8057879)'
@@ -369,7 +376,7 @@ export const fetchOsmRawTask = R.curry((options, query) => {
  * @returns {string} The osm string
  * @private
  */
-export const _filterForIntersectionNodesAroundPoint = (intersection, around, outputNodeName, leaveForAndIfBlocksOpen = false) => {
+export const _filterForIntersectionNodesAroundPoint = (osmConfig, intersection, around, outputNodeName, leaveForAndIfBlocksOpen = false) => {
   // We can only use intersections to help with the query if they are street names.
   // If intersections are lat, lon strings they can't be used and are set to null here
   const streetNameIntersection = R.when(
@@ -392,7 +399,7 @@ export const _filterForIntersectionNodesAroundPoint = (intersection, around, out
   return `node${around}${highwayNodeFilters} -> .${possibleNodes};
 foreach.${possibleNodes} ->.${oneOfPossibleNodes}
 {
-  way(bn.${oneOfPossibleNodes})${intersectionNamesFilter}${highwayWayFiltersNoAreas}->.${waysOfOneOfPossibleNodes};
+  way(bn.${oneOfPossibleNodes})${intersectionNamesFilter}${configuredHighwayWayFilters(osmConfig)}->.${waysOfOneOfPossibleNodes};
   // If we have at least 2 ways, we have an intersection
   if (${waysOfOneOfPossibleNodes}.count(ways) >= 2)
   {

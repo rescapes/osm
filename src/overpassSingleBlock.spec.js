@@ -75,7 +75,8 @@ describe('overpassSingleBlock', () => {
     // This is where the block is a pedestrian area, not a simple line.
     const errors = [];
     expect.assertions(3);
-    const osmConfig = {};
+    // includePedestrianArea isn't currently default functionality
+    const osmConfig = {includePedestrianArea:true};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
       intersections: ['59.952305, 11.047053', '59.952248, 11.045588']
     }).run().listen(defaultRunToResultConfig(

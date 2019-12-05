@@ -10,8 +10,7 @@
  */
 
 import {
-  highwayNodeFilters,
-  highwayWayFiltersNoAreas,
+  configuredHighwayWayFilters,
   locationAndOsmResultsToLocationWithGeojson,
   osmEquals,
   osmIdToAreaId
@@ -65,6 +64,7 @@ export const queryOverpassWithLocationForStreetResultTask = (osmConfig, location
             // areas into small queries. We don't do that here since we're trying to find a single street
             [
               _constructStreetQuery(
+                osmConfig,
                 {type},
                 locationWithOsm
               )
@@ -81,6 +81,7 @@ export const queryOverpassWithLocationForStreetResultTask = (osmConfig, location
  * Construct a query for Overpass to find the entire street specified in one or both of the intersection arrays
  * in intersections
  * Explicit OSM ids are required to limit the query to a city or neighbhorhood
+ * @param {Object} osmConfig
  * @param {String} type 'way' or 'node'
  * @param {Object} locationWithOsm
  * @param {String} [locationWithOsm.street] The street to query for. If not specified then intersections must be sepecified
@@ -92,7 +93,7 @@ export const queryOverpassWithLocationForStreetResultTask = (osmConfig, location
  * to a neighborhood or city.
  * @returns {string} The complete Overpass query string
  */
-const _constructStreetQuery = ({type}, locationWithOsm) => {
+const _constructStreetQuery = (osmConfig, {type}, locationWithOsm) => {
 
   const {street, intersections, osmId} = locationWithOsm;
   // If a street is specified, use it. Otherwise extract the common street from the intersections
@@ -106,10 +107,10 @@ const _constructStreetQuery = ({type}, locationWithOsm) => {
   const areaId = osmIdToAreaId(osmId);
   // Query for all the ways and just the ways of the street
   // Nodes must intersect a street from .ways and one from the other ways
-  return `way(area:${areaId})${highwayWayFiltersNoAreas} -> .allWays;
+  return `way(area:${areaId})${configuredHighwayWayFilters(osmConfig)} -> .allWays;
 way.allWays${osmEquals('name', blockname)} -> .ways;
 (.allWays; - .ways;) -> .otherWays;
-node(w.ways)(w.otherWays)${highwayNodeFilters} -> .nodes;
+node(w.ways)(w.otherWays)${configuredHighwayWayFilters(osmConfig)} -> .nodes;
 .${type}s out geom;
       `;
 };

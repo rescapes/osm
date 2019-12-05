@@ -17,6 +17,7 @@ import {
 } from './overpassFeatureHelpers';
 import {of} from 'folktale/concurrency/task';
 import {
+  configuredHighwayWayFilters,
   fetchOsmRawTask, highwayNodeFilters, highwayWayFiltersNoAreas, highwayWayFiltersOnlyAreas,
   osmResultTask
 } from './overpassHelpers';
@@ -47,10 +48,11 @@ import {length} from '@turf/turf';
 
 /**
  * Simple OSM query to return the ways of an intersection node.
+ * @param {Object} osmConfig
  * @param {String} nodeId In the form 'node/id'
  * @returns {string}
  */
-export const waysOfNodeQuery = nodeId => {
+export const waysOfNodeQuery = (osmConfig, nodeId) => {
   const id = R.compose(
     R.last,
     R.split('/')
@@ -59,7 +61,14 @@ export const waysOfNodeQuery = nodeId => {
     node(id:${id})->.matchingNode;
     // Find ways within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
     (
-    //way(around.bn.matchingNode:10)${highwayWayFiltersOnlyAreas};
+    ${
+    // Include way areas if includePedestrianArea is specified
+    R.ifElse(
+      osmConfig => R.propOr(false, 'includePedestrianArea', osmConfig),
+      () => `way(around.bn.matchingNode:10)${highwayWayFiltersOnlyAreas};`,
+      () => ''
+    )(osmConfig)
+  }
     way(bn.matchingNode)${highwayWayFiltersNoAreas};
     )->.matchingWays;
     .matchingWays out geom;
@@ -68,20 +77,36 @@ export const waysOfNodeQuery = nodeId => {
 
 /**
  * Query to get all nodes of the given way, not just intersection nodes
+ * @param osmConfig
+ * @param {Object} [osmConfig.includePedestrianArea] Default false, include pedestrian areas in the query
+ * This helps us break up blocks at pedestrian areas but currently creates some extra blocks we don't want
  * @param wayId
  * @returns {string}
  */
-const nodesOfWayQuery = wayId => {
+const nodesOfWayQuery = (osmConfig, wayId) => {
   const id = R.compose(
     R.last,
     R.split('/')
   )(wayId);
-  return `
-    //way(id:${id})[area = "yes"]->.matchingAreaWay;
+  return `${
+    // Include way areas if includePedestrianArea is specified
+    R.ifElse(
+      osmConfig => R.propOr(false, 'includePedestrianArea', osmConfig),
+      () => `way(id:${id})[area = "yes"]->.matchingAreaWay;`,
+      () => ''
+    )(osmConfig)
+  }
     way(id:${id})[area != "yes"]->.matchingWay;
     // Find nodes within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
     (
-    //node(around.w.matchingAreaWay:10)${highwayNodeFilters};
+    ${
+    // Include way areas if includePedestrianArea is specified
+    R.ifElse(
+      osmConfig => R.propOr(false, 'includePedestrianArea', osmConfig),
+      () => `node(around.w.matchingAreaWay:10)${highwayNodeFilters};`,
+      () => ''
+    )(osmConfig)
+  }
     node(w.matchingWay)${highwayNodeFilters};
     )->.matchingNodes;
     .matchingNodes out geom;
@@ -90,28 +115,51 @@ const nodesOfWayQuery = wayId => {
 
 /**
  * Query to get all intersection nodes of the given way, not just intersection nodes
+ * @param {Object} osmConfig
+ * @param {Boolean} osmConfig.includePedestrianArea Default false, include areas in way query results
  * @param wayId
  * @returns {string}
  */
-const intersectionNodesOfWayQuery = wayId => {
+const intersectionNodesOfWayQuery = (osmConfig, wayId) => {
   const id = R.compose(
     R.last,
     R.split('/')
   )(wayId);
   return `
-    //way(id:${id})[area = "yes"]->.matchingAreaWay;
+  ${
+    // Include way areas if includePedestrianArea is specified
+    R.ifElse(
+      osmConfig => R.propOr(false, 'includePedestrianArea', osmConfig),
+      () => `way(id:${id})[area = "yes"]->.matchingAreaWay;`,
+      () => ''
+    )(osmConfig)
+  }
     way(id:${id})[area != "yes"]->.matchingWay;
     // Find nodes within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
     (
-    //node(around.w.matchingAreaWay:10)${highwayNodeFilters};
+    ${
+    // Include way areas if includePedestrianArea is specified
+    R.ifElse(
+      osmConfig => R.propOr(false, 'includePedestrianArea', osmConfig),
+      () => `node(around.w.matchingAreaWay:10)${highwayNodeFilters};`,
+      () => ''
+    )(osmConfig)
+  }
     node(w.matchingWay)${highwayNodeFilters};
     )->.matchingNodes;
     // Find the nodes that are intersections
     foreach .matchingNodes -> .currentNode(
     // TODO enable area here when areas above is uncommented 
-  way(bn.currentNode)${highwayWayFiltersNoAreas}->.allWays;
-  //(.allWays; - .matchingAreaWay;)->.tmp;
-  (.allWays; - .matchingWay;)->.allOtherWays;
+  way(bn.currentNode)${configuredHighwayWayFilters(osmConfig)}->.allWays;
+  ${
+    // Include way areas if includePedestrianArea is specified
+    R.ifElse(
+      osmConfig => R.propOr(false, 'includePedestrianArea', osmConfig),
+      () => `(.allWays; - .matchingAreaWay;)->.eligibleWays;`,
+      () => '(.allWays;)->.eligibleWays;'
+    )(osmConfig)
+  }
+  (.eligibleWays; - .matchingWay;)->.allOtherWays;
   node(w.allOtherWays)->.nodesOfAllOtherWays;
   node.currentNode.nodesOfAllOtherWays->.intersectionNodes;
   (.intersectionNodes; .allIntersectionNodes;)->.allIntersectionNodes;
@@ -141,7 +189,7 @@ const intersectionNodesOfWayQuery = wayId => {
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
  */
-export const _queryLocationVariationsUntilFoundResultTask = R.curry((queryLocationResultTask, locationVariationsOfOsm) => {
+export const _queryLocationVariationsUntilFoundResultTask = R.curry((osmConfig, queryLocationResultTask, locationVariationsOfOsm) => {
 
   return R.composeK(
     result => of(
@@ -189,7 +237,7 @@ export const _queryLocationVariationsUntilFoundResultTask = R.curry((queryLocati
       // to the city. Within each area why try up to 3 queries.
       // chain here is used to flatten the multiple results produced by each locationsWithOsm
       R.chain(
-        locationWithOsm => queryLocationResultTask(locationWithOsm),
+        locationWithOsm => queryLocationResultTask(osmConfig, locationWithOsm),
         locationVariationsOfOsm
       )
     )
@@ -198,6 +246,7 @@ export const _queryLocationVariationsUntilFoundResultTask = R.curry((queryLocati
 
 /**
  * Perform the OSM queries in parallel
+ * @param {Object} osmConfig
  * @param {Object} location Only used for context for testing with mocks
  * @param {Object} queries Object keyed by query type 'way' and 'node' and valued by and array of OSM query strings.
  * The feature results of multiple way queries are combined uniquely and the results of multiple node queries are combined uniquely
@@ -205,7 +254,7 @@ export const _queryLocationVariationsUntilFoundResultTask = R.curry((queryLocati
  * If one of the queries fail then a Result.Error object is returned with the errors instead
  * @sig parallelWayNodeQueriesResultTask:: String query, Object response <way: <query, node: <query> -> Task <way: <query, response>, node: <query, response>>>
  */
-export const parallelWayNodeQueriesResultTask = (location, queries) => R.compose(
+export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) => R.compose(
   // This converts failed tasks to a Result.Error and success to Result.Ok
   taskToResultTask,
   // Produce the two Result Tasks.
@@ -324,6 +373,8 @@ export const waysByNodeIdTask = (location, {way, node}) => R.map(
  * Given way results this finds all nodes of each way.
  * It first finds the nodes that are intersections with other streets, followed by nodes that
  * are not just intersection nodes.
+ * @param {Object} osmConfig
+ * @param {Object} osmConfig.includePedestrianArea
  * @param {Object} location Only used for context for mock tests
  * @param {Object} queries
  * @param {Object} queries.way Response contains the ways
@@ -333,7 +384,7 @@ export const waysByNodeIdTask = (location, {way, node}) => R.map(
  * @sig nodesOfWayTask:: Task <way: <query, response>>>> ->
  * Task Result.Ok(<way: <query, response>, node: <query, response>, nodesByWayId: <node: <query, response>>, intersectionNodesByWayId: <node: <query, response>>> ->)
  */
-export const nodesAndIntersectionNodesByWayIdResultTask = (location, {way}) => R.map(
+export const nodesAndIntersectionNodesByWayIdResultTask = (osmConfig, location, {way}) => R.map(
   // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
   objs => R.ifElse(
     ({objs}) => R.all(Result.Ok.hasInstance)(objs),
@@ -424,7 +475,7 @@ export const nodesAndIntersectionNodesByWayIdResultTask = (location, {way}) => R
         )
       )({
         wayId,
-        intersectionNodesOfWayQuery: intersectionNodesOfWayQuery(wayId),
+        intersectionNodesOfWayQuery: intersectionNodesOfWayQuery(osmConfig, wayId),
         nodesOfWayQuery: nodesOfWayQuery(wayId)
       }),
       // Extract the id of each node
@@ -593,7 +644,7 @@ export const getFeaturesOfBlock = (location, wayFeatures, nodeFeatures) => {
 
   // Remove the __reversed__ tag from reversed ways. We don't care anymore because our linking is done
   return R.over(
-    R.lensProp('way'),
+    R.lensProp('ways'),
     wayFeatures => removeReverseTagsOfOrderWayFeaturesOfBlock(wayFeatures),
     linkedFeatures
   );

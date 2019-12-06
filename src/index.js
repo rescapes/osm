@@ -39,13 +39,13 @@ export {
   isResolvableAllBlocksLocation,
   locationHasLocationPoints,
   wayFeatureName,
-  wayFeatureNameOrDefault
+  wayFeatureNameOrDefault,
+  locationAndOsmResultsToLocationWithGeojson
 } from './locationHelpers';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';
 export {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 export {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
-export {locationAndOsmResultsToLocationWithGeojson} from './overpassHelpers'
 export {queryLocationForOsmBlockOrAllResultsTask, osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks'
 export {queryOverpassWithLocationForStreetResultTask} from './overpassStreet'
 export {cleanGeojson, hashWayFeatureExtents, hashWayFeature, hashNodeFeature, hashPoint, findMatchingNodes, hashPointsToWayCoordinates, nodeMatchesWayEnd} from './overpassFeatureHelpers'

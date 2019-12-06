@@ -37,7 +37,6 @@ import {
   createSingleBlockFeatures,
   mapToCleanedFeatures, mapWaysByNodeIdToCleanedFeatures,
   parallelWayNodeQueriesResultTask,
-  predicate,
   waysByNodeIdTask
 } from './overpassBlockHelpers';
 

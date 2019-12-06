@@ -548,7 +548,7 @@ export const createSingleBlockFeatures = (location, {wayFeatures, nodeFeatures, 
       // Normally there are only two unique streets for each intersection.
       // If one or both streets change names or for a >4-wayFeatures intersection, there can be more.
       // If we handle roundabouts correctly in the future these could also account for more
-      intersections: _intersectionStreetNamesFromWaysAndNodes(wayFeatures, nodeFeatures, wayFeaturesByNodeId)
+      nodesToIntersectingStreets: _intersectionStreetNamesFromWaysAndNodes(wayFeatures, nodeFeatures, wayFeaturesByNodeId)
     },
     // Organize the ways and nodes, trimming the ways down to match the nodes
     // Then store the features in {ways: ..., nodes: ...}

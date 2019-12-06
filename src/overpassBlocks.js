@@ -50,7 +50,14 @@ rel(id:${osmId}) -> .rel;
 };
 
 
-// This is only for matching filterLocation streets to filterLocation blocks to blocks
+/**
+ * Find componentLocations that match the filterLocation.
+ * This is only for matching filterLocation streets to filterLocation blocks to blocks
+ * @param componentLocations
+ * @param filterLocation
+ * @returns {f1}
+ * @private
+ */
 const _matchingComponentLocations = (componentLocations, filterLocation) => R.filter(
   componentLocation => eqStrPathsAll(
     // If filterLocation has intersections we match on that property. Otherwise we just match on street
@@ -168,7 +175,7 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
           osmId => R.composeK(
             // Aggregate the geojson of all block features into a street-scope location
             ({locationWithOsm, blockLocationsResult}) => resultToTaskNeedingResult(
-              blockLocations => of(aggregateLocation({}, locationWithOsm, blockLocations))
+              blockLocations => of(aggregateLocation(osmConfig, locationWithOsm, blockLocations))
             )(blockLocationsResult),
 
             // Collect blocks from the matching componentLocations or by querying OSM
@@ -180,7 +187,7 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
                 matchingComponentLocations => of(Result.Ok(
                   matchingComponentLocations
                 )),
-                // Otherwise query OSM
+                // Otherwise query OSM and create the blockLocations
                 () => queryOverpassWithLocationForStreetResultTask(osmConfig, locationWithOsm)
               )(blockLocations)
             )

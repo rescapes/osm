@@ -1,5 +1,5 @@
 import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
-import {defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
 import * as R from 'ramda';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassBlocks';
 import {_blocksToGeojson} from './overpassBlockHelpers';
@@ -71,6 +71,7 @@ describe('overpassSingleBlock', () => {
       }, errors, done));
   }, 20000);
 
+  // TODO Not working since we made area queries optional
   test('fetchLatLonOnyLocationForPedestrianArea', done => {
     // This is where the block is a pedestrian area, not a simple line.
     const errors = [];

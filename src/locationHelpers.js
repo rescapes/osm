@@ -11,7 +11,6 @@
 import {compactEmpty, reqStrPathThrowing, strPathOr, toNamedResponseAndInputs} from 'rescape-ramda';
 import {locationToTurfPoint} from 'rescape-helpers';
 import * as R from 'ramda';
-import {locationAndOsmResultsToLocationWithGeojson} from './overpassHelpers';
 import PropTypes from 'prop-types';
 import {v} from 'rescape-validate';
 import {point} from '@turf/helpers';
@@ -41,11 +40,14 @@ const GOOGLE_STREET_REPLACEMENTS = [
 ];
 
 /***
- * True if the given address is a lat,lng
+ * True if the given address is a lat,lng. If address is an array because it is 2 street names this returns false
  * @param address
  * @returns {Boolean}
  */
 export const isLatLng = address => {
+  if (!R.is(String, address)) {
+    return false
+  }
   try {
     return R.compose(
       coordinates => R.none(Number.isNaN, coordinates),
@@ -121,7 +123,9 @@ export const addressStringInBothDirectionsOfLocation = locationWithOneIntersecti
 export const addressString = ({country, state, city, neighborhood, blockname, intersections}) => {
 
   // If it's a lat/lon return it
-  if (isLatLng(R.head(intersections))) {
+  // We take the first intersection of intersections because we're only resolving single point address here.
+  // If the intersections are 2 intersections, representing a street block, we ignore the second value
+  if (isLatLng(R.head(R.defaultTo([], intersections)))) {
     return R.head(intersections);
   }
 
@@ -413,6 +417,27 @@ export const geojsonFeaturesHaveRadii = geojson => R.and(
     feature => strPathOr(false, 'properties.radius', feature)
   ),
   strPathOr([], 'features', geojson)
+);
+
+
+/**
+ * Combines a location with the ways and nodes that came back from OSM queries, putting them in the location's
+ * geojson property as a FeatureCollection
+ * @param {Object} location A location object with intersections set matching the given ways and nodes
+ * @param {[Object]} List of way features
+ * @param {[Object]} nodes List of node features
+ * @returns {f2|f1}
+ */
+export const locationAndOsmResultsToLocationWithGeojson = (location, {ways, nodes, relations}) => R.set(
+  R.lensProp('geojson'),
+  {
+    // Default geojson properties since we are combining multiple geojson results
+    type: 'FeatureCollection',
+    generator: 'overpass-turbo',
+    copyright: 'The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.',
+    features: R.chain(R.defaultTo([]), [ways, nodes, relations])
+  },
+  location
 );
 
 /**

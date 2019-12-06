@@ -24,27 +24,26 @@ import {rejected} from 'folktale/concurrency/task';
 const austinIntersections = [['Salina St', 'E 21st St'], ['Leona St and E 21st St']];
 
 describe('googleLocation', () => {
-  test('geocodeAddressTask', done => {
+  test('geocodeAddressTaskPartialMatchShouldFaile', done => {
       const errors = [];
       geocodeAddressTask({
         country: 'USA',
         state: 'DC',
         city: 'Washington',
+        // This is incomplete, should be Monroe St NE, 13th St NE
         intersections: ['Monroe St', '13th NE']
       }, 'Monroe St and 13th NE, Washington, DC, USA').run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(
               errorValue => {
-                // This should not happen
-                expect(R.length(errorValue.results)).toEqual(1);
+                expect(R.length(errorValue.error)).toBeTruthy();
                 done();
               }
             ).map(
               resultValue => {
-                expect(resultValue.formatted_address).toEqual('13th St NE & Monroe St NE, Washington, DC 20017, USA');
-                // Make sure we can get full street names
-                expect(resultValue.address_components[0].long_name).toEqual('13th Street Northeast & Monroe Street Northeast');
+                // Should not happen
+                expect(R.length(resultValue)).toEqual(null);
               }
             )
         }, errors, done)
@@ -110,6 +109,7 @@ describe('googleLocation', () => {
     5000);
 
   test('geocodeIntersectionWithWordNorthInName', done => {
+      const errors = [];
       geocodeAddressTask({
         country: 'USA',
         state: 'IL',
@@ -123,22 +123,23 @@ describe('googleLocation', () => {
             result => result.mapError(
               errorValue => {
                 // This should not happen
-                expect(R.length(errorValue.results)).toEqual(1);
+                expect(errorValue).toBeTruthy();
                 done();
               }
             ).map(
               resultValue => {
-                // Yes this returns Street and St. Cmon Google!
-                expect(resultValue.formatted_address).toEqual('North North Street & Main St, Peoria, IL 61602, USA');
+                // Should not happen
+                expect(resultValue).toEqual(null);
                 done();
               }
             )
-        })
+        }, errors)
       );
     },
     20000);
 
   test('geocodeAddressWithBothIntersectionOrdersTask', done => {
+      const errors = [];
       geocodeAddressWithBothIntersectionOrdersTask({
         country: 'USA',
         state: 'IL',
@@ -161,7 +162,7 @@ describe('googleLocation', () => {
                 done();
               }
             )
-        })
+        }, errors)
       );
     },
     20000);
@@ -270,6 +271,7 @@ describe('googleLocation', () => {
       );
     },
     20000);
+
   test('geocodeAddressWithBothIntersectionOrdersTaskWithLatLon', done => {
       const errors = [];
       geocodeAddressWithBothIntersectionOrdersTask({
@@ -693,57 +695,4 @@ describe('googleLocation', () => {
       )
     });
   }, 20000);
-
-  test('aucklandFailure', done => {
-
-      const location = {
-        "intersections": [
-          "-36.849247, 174.766100'"
-        ],
-        "id": 2229955,
-        "blockname": "High St",
-        "intersc1": "Durham St E",
-        "intersc2": "Victoria St E",
-        "intersection1Location": "-36.848499, 174.766344",
-        "intersection2Location": "-36.849247, 174.766100'",
-        "neighborhood": "Viaduct Basin",
-        "city": "Auckland",
-        "state": "",
-        "country": "New Zealand",
-        "data": {},
-        "dataComplete": true,
-        "geojson": {
-          "type": null,
-          "features": null,
-          "generator": null,
-          "copyright": null
-        },
-        "interectionPoints": [
-          {
-            "type": "Feature",
-            "properties": {},
-            "geometry": {
-              "type": "Point",
-              "coordinates": [
-                174.766344,
-                -36.848499
-              ]
-            }
-          },
-          {
-            "type": "Feature",
-            "properties": {},
-            "geometry": {
-              "type": "Point",
-              "coordinates": [
-                174.7661,
-                -36.849247
-              ]
-            }
-          }
-        ],
-        "locationPoints": []
-      };
-    }
-  );
 });

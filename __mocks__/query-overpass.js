@@ -45,9 +45,6 @@ const responses = R.map(
     [LA_BOUNDS, LA_SAMPLE],
     [{
       "type": "way",
-      "country": "Canada",
-      "state": "BC",
-      "city": "Fernie",
       "bbox": [
         49.4749668,
         -115.0907209,
@@ -59,9 +56,6 @@ const responses = R.map(
     }, FERNIE_WAYS],
     [{
       "type": "node",
-      "country": "Canada",
-      "state": "BC",
-      "city": "Fernie",
       "bbox": [
         49.4749668,
         -115.0907209,

@@ -9,13 +9,12 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
+import {reqStrPathThrowing, defaultRunToResultConfig, omitDeep} from 'rescape-ramda';
 import * as R from 'ramda';
 import {getFeaturesOfBlock, nodesAndIntersectionNodesByWayIdResultTask} from './overpassBlockHelpers';
 
 
 describe('overpassBlockHelpers', () => {
-
   test('getFeaturesOfBlockOakland', () => {
     const wayFeatures = [
       {
@@ -75,7 +74,7 @@ describe('overpassBlockHelpers', () => {
         "id": "node/53119610"
       }
     ];
-    const features = getFeaturesOfBlock(wayFeatures, nodeFeatures);
+    const features = getFeaturesOfBlock({}, wayFeatures, nodeFeatures);
     // Expect only 2 way features between the block
     expect(R.length(R.prop('ways', features))).toEqual(2);
   });
@@ -121,7 +120,7 @@ describe('overpassBlockHelpers', () => {
         }
       }
     ];
-    const features = getFeaturesOfBlock(wayFeatures, nodeFeatures);
+    const features = getFeaturesOfBlock({}, wayFeatures, nodeFeatures);
     // Expect only one feature between the block
     expect(R.length(R.prop('ways', features))).toEqual(1);
     // Expect the feature is sliced down two 2 points
@@ -132,11 +131,7 @@ describe('overpassBlockHelpers', () => {
     const errors = [];
     expect.assertions(1);
     nodesAndIntersectionNodesByWayIdResultTask(
-      {
-        country: 'Canada',
-        state: 'BC',
-        city: 'Fernie'
-      },
+      {},
       {
         way: {
           response: {
@@ -205,10 +200,9 @@ describe('overpassBlockHelpers', () => {
         onResolved: response => {
           // Expect it to be two ways
           expect(
-            reqStrPathThrowing('nodesByWayId', response)
+            omitDeep(['query'], reqStrPathThrowing('nodesByWayId', response))
           ).toEqual({
             "way/498142930": {
-              "query": "\n    way(id:498142930)[area = \"yes\"]->.matchingAreaWay;\n    way(id:498142930)[area != \"yes\"]->.matchingWay;\n    // Find nodes within 10 meters of the node for ways with area==\"yes\" and ways containing the node otherwise\n    (node(around.w.matchingAreaWay:10)[\"traffic_signals\" != \"signal\"];\n    node(w.matchingWay)[\"traffic_signals\" != \"signal\"];\n    )->.matchingNodes;\n    .matchingNodes out geom;\n  ",
               "response": {
                 "type": "FeatureCollection",
                 "features": [

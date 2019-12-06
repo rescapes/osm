@@ -11,7 +11,6 @@
 
 import {
   configuredHighwayWayFilters,
-  locationAndOsmResultsToLocationWithGeojson,
   osmEquals,
   osmIdToAreaId
 } from './overpassHelpers';
@@ -23,7 +22,7 @@ import {
 import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {loggers} from 'rescape-log';
-import {commonStreetOfLocation} from './locationHelpers';
+import {commonStreetOfLocation, locationAndOsmResultsToLocationWithGeojson} from './locationHelpers';
 import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocks';
 
 const log = loggers.get('rescapeDefault');
@@ -41,14 +40,18 @@ const log = loggers.get('rescapeDefault');
  */
 export const queryOverpassWithLocationForStreetResultTask = (osmConfig, locationWithOsm) => {
   return R.composeK(
-    // Take the positive results and combine them with the location, which has corresponding intersectiongs
+    // Take the positive results and combine them with the location, which has corresponding intersections
     ({Ok: locationsAndResults}) => of(Result.Ok(R.map(
       ({location, results}) => locationAndOsmResultsToLocationWithGeojson(location, results),
       locationsAndResults
     ))),
     // Query for all blocks matching the street
     ({locationWithOsm, queries: {way, node}}) => _queryOverpassForAllBlocksResultsTask(
-      osmConfig,
+
+      // forceWaysOfNodesQueries  is needed for the street query because we don't get all the ways connected to each
+      // node of the street. We need to know how many ways each node has so we know if it's really an intersection node,
+      // rather than just a point where the way changes.
+      R.merge({forceWaysOfNodeQueries: true}, osmConfig),
       {location: locationWithOsm, way, node}
     ),
     // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
@@ -110,7 +113,7 @@ const _constructStreetQuery = (osmConfig, {type}, locationWithOsm) => {
   return `way(area:${areaId})${configuredHighwayWayFilters(osmConfig)} -> .allWays;
 way.allWays${osmEquals('name', blockname)} -> .ways;
 (.allWays; - .ways;) -> .otherWays;
-node(w.ways)(w.otherWays)${configuredHighwayWayFilters(osmConfig)} -> .nodes;
+node(w.ways)(w.otherWays) -> .nodes;
 .${type}s out geom;
       `;
 };

@@ -406,23 +406,3 @@ foreach.${possibleNodes} ->.${oneOfPossibleNodes}
   .${oneOfPossibleNodes} -> .${outputNodeName};
   ${leaveForAndIfBlocksOpen ? '' : '} };'}`;
 };
-
-/**
- * Combines a location with the ways and nodes that came back from OSM queries, putting them in the location's
- * geojson property as a FeatureCollection
- * @param {Object} location A location object with intersections set matching the given ways and nodes
- * @param {[Object]} List of way features
- * @param {[Object]} nodes List of node features
- * @returns {f2|f1}
- */
-export const locationAndOsmResultsToLocationWithGeojson = (location, {ways, nodes, relations}) => R.set(
-  R.lensProp('geojson'),
-  {
-    // Default geojson properties since we are combining multiple geojson results
-    type: 'FeatureCollection',
-    generator: 'overpass-turbo',
-    copyright: 'The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.',
-    features: R.chain(R.defaultTo([]), [ways, nodes, relations])
-  },
-  location
-);

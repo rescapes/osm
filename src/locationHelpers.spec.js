@@ -1,12 +1,7 @@
 import * as R from 'ramda';
 import {
-  resolveGeoLocationTask,
-  resolveGeojsonTask,
   addressPair,
-  intersectionsFromLocation,
-  locationWithIntersections,
   addressStrings,
-  sortedIntersections,
   intersectionsByNodeIdToSortedIntersections,
   fixWordsThatTripUpGoogle, aggregateLocation, addressStringInBothDirectionsOfLocation, isResolvableAllBlocksLocation
 } from './locationHelpers';

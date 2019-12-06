@@ -44,6 +44,8 @@ import {waitAll} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {isLatLng} from './locationHelpers';
 import {length} from '@turf/turf';
+import {v} from 'rescape-validate';
+import PropTypes from 'prop-types';
 
 
 /**
@@ -59,13 +61,14 @@ export const waysOfNodeQuery = (osmConfig, nodeId) => {
   )(nodeId);
   return `
     node(id:${id})->.matchingNode;
-    // Find ways within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
     (
     ${
     // Include way areas if includePedestrianArea is specified
     R.ifElse(
       osmConfig => R.propOr(false, 'includePedestrianArea', osmConfig),
-      () => `way(around.bn.matchingNode:10)${highwayWayFiltersOnlyAreas};`,
+      () => `// Find ways within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
+      way(around.bn.matchingNode:10)${highwayWayFiltersOnlyAreas};
+      `,
       () => ''
     )(osmConfig)
   }
@@ -334,6 +337,7 @@ export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) =
 
 /***
  * Given node results this finds all ways of each node so that we can resolve street names of the intersections
+ * @param {Object} osmConfig
  * @param {Object} location Only used for context for mock tests
  * @param {Object} queries
  * @param {Object} queries.way Currently non used but returned
@@ -344,7 +348,7 @@ export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) =
  * @sig waysByNodeIdTask:: Task <way: <query, response>, node: <query, response>>> ->
  * Task <way: <query, response>, node: <query, response>, waysByNodeId: <node: <query, response>>>> ->
  */
-export const waysByNodeIdTask = (location, {way, node}) => R.map(
+export const waysByNodeIdTask = (osmConfig, {way, node}) => R.map(
   // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
   objs => ({way, node, waysByNodeId: R.mergeAll(objs)}),
   waitAll(
@@ -353,10 +357,10 @@ export const waysByNodeIdTask = (location, {way, node}) => R.map(
         return R.map(
           // Then map the task response to include the query for debugging/error resolution
           // TODO currently extracting the Result.Ok value here. Instead we should handle Result.Error
-          response => ({[nodeId]: {query: waysOfNodeQuery(nodeId), response: response.value}}),
+          response => ({[nodeId]: {query: waysOfNodeQuery(osmConfig, nodeId), response: response.value}}),
           // Perform the task
-          osmResultTask({name: 'waysOfNodeQuery', testMockJsonToKey: R.merge({nodeId, type: 'waysOfNode'}, location)},
-            options => fetchOsmRawTask(options, waysOfNodeQuery(nodeId))
+          osmResultTask({name: 'waysOfNodeQuery', testMockJsonToKey: {nodeId, type: 'waysOfNode'}},
+            options => fetchOsmRawTask(options, waysOfNodeQuery(osmConfig, nodeId))
           )
         );
       },
@@ -375,7 +379,6 @@ export const waysByNodeIdTask = (location, {way, node}) => R.map(
  * are not just intersection nodes.
  * @param {Object} osmConfig
  * @param {Object} osmConfig.includePedestrianArea
- * @param {Object} location Only used for context for mock tests
  * @param {Object} queries
  * @param {Object} queries.way Response contains the ways
  * @returns {Task<Object>}
@@ -384,7 +387,7 @@ export const waysByNodeIdTask = (location, {way, node}) => R.map(
  * @sig nodesOfWayTask:: Task <way: <query, response>>>> ->
  * Task Result.Ok(<way: <query, response>, node: <query, response>, nodesByWayId: <node: <query, response>>, intersectionNodesByWayId: <node: <query, response>>> ->)
  */
-export const nodesAndIntersectionNodesByWayIdResultTask = (osmConfig, location, {way}) => R.map(
+export const nodesAndIntersectionNodesByWayIdResultTask = (osmConfig, {way}) => R.map(
   // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
   objs => R.ifElse(
     ({objs}) => R.all(Result.Ok.hasInstance)(objs),
@@ -444,7 +447,7 @@ export const nodesAndIntersectionNodesByWayIdResultTask = (osmConfig, location, 
           // Perform the task
           ({wayId, nodesOfWayQuery}) => osmResultTask({
               name: 'nodesOfWayQuery',
-              testMockJsonToKey: R.merge({wayId, type: 'nodesOfWay'}, location)
+              testMockJsonToKey: {wayId, type: 'nodesOfWay'}
             },
             options => fetchOsmRawTask(options, nodesOfWayQuery)
           )
@@ -468,7 +471,7 @@ export const nodesAndIntersectionNodesByWayIdResultTask = (osmConfig, location, 
           // Perform the task
           ({wayId, intersectionNodesOfWayQuery}) => osmResultTask({
               name: 'intersectionNodesOfWayQuery',
-              testMockJsonToKey: R.merge({wayId, type: 'nodesOfWay'}, location)
+              testMockJsonToKey: {wayId, type: 'nodesOfWay'}
             },
             options => fetchOsmRawTask(options, intersectionNodesOfWayQuery)
           )
@@ -476,7 +479,7 @@ export const nodesAndIntersectionNodesByWayIdResultTask = (osmConfig, location, 
       )({
         wayId,
         intersectionNodesOfWayQuery: intersectionNodesOfWayQuery(osmConfig, wayId),
-        nodesOfWayQuery: nodesOfWayQuery(wayId)
+        nodesOfWayQuery: nodesOfWayQuery(osmConfig, wayId)
       }),
       // Extract the id of each node
       R.compose(
@@ -565,7 +568,7 @@ export const createSingleBlockFeatures = (location, {wayFeatures, nodeFeatures, 
  * ways must be at least on way Feature, possibly shortened to match the block and up to n way features with at
  * most the first and last possibly shortened to match the block
  */
-export const getFeaturesOfBlock = (location, wayFeatures, nodeFeatures) => {
+export const getFeaturesOfBlock = v((location, wayFeatures, nodeFeatures) => {
   // First handle some special cases:
   // If we have exactly one way and it has a tag area="yes" then it's a pedestrian zone or similar and the
   // two nodes aren't necessarily nodes of the pedestrian area.
@@ -648,7 +651,11 @@ export const getFeaturesOfBlock = (location, wayFeatures, nodeFeatures) => {
     wayFeatures => removeReverseTagsOfOrderWayFeaturesOfBlock(wayFeatures),
     linkedFeatures
   );
-};
+}, [
+  ['location', PropTypes.shape().isRequired],
+  ['wayFeatures', PropTypes.arrayOf(PropTypes.shape()).isRequired],
+  ['nodeFeatures', PropTypes.arrayOf(PropTypes.shape()).isRequired],
+], 'getFeaturesOfBlock');
 
 /**
  * For way features of a single street, orders the features possibly reversing ways that meet one another flow

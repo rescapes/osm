@@ -376,7 +376,7 @@ const _queryOverpassForSingleBlockResultTask = (osmConfig, location, {way: wayQu
     // Task Result.Ok <way: <queries, response>, node: <queries, response>>> ->
     // Task Result.Ok <way: <queries, response>, node: <queries, response>, waysByNodeId: <node: <queries, response>>>>
     ({location, result}) => resultToTaskNeedingResult(
-      ({way, node}) => waysByNodeIdTask(location, {way, node})
+      ({way, node}) => waysByNodeIdTask(osmConfig, {way, node})
     )(result),
 
     // Query for the ways and nodes in parallel

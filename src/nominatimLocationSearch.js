@@ -17,6 +17,7 @@ import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
 import {loggers} from 'rescape-log';
+import {addressString} from './locationHelpers';
 
 const log = loggers.get('rescapeDefault');
 
@@ -98,7 +99,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
   location => waitAll(R.map(
     keys => {
       const locationProps = R.pick(keys, location);
-      log.debug(`Nomanatim query for the following values ${JSON.stringify(locationProps)}`);
+      log.debug(`Nomanatim query for the following values ${JSON.stringify(R.map(location => addressString(location), locationProps))}`);
       return nominatimResultTask(locationProps)
         .map(responseResult => responseResult.map(value => {
             // bounding box comes as two lats, then two lon, so fix
@@ -110,7 +111,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
             });
           }).mapError(value => {
             // If no results are found, just return null. Hopefully the other nominatin query will return something
-            log.debug(`For Nominatim query ${JSON.stringify(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
+            log.debug(`For Nominatim query ${addressString(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
             return value;
           })
         ).mapRejected(

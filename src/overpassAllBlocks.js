@@ -279,7 +279,7 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
         return {
           // Put the OSM results together
           results: R.merge(block, {nodesToIntersectingStreets}),
-          // Add the intereections to the location and return it
+          // Add the intersections to the location and return it
           location: R.merge(
             location,
             {

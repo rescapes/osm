@@ -17,6 +17,7 @@ import * as Result from 'folktale/result';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
 import {
+  addressString,
   aggregateLocation,
   featuresByOsmType,
   isResolvableAllBlocksLocation,
@@ -33,6 +34,9 @@ import {
   eqStrPathsAll,
   strPathOr
 } from 'rescape-ramda';
+import {loggers} from 'rescape-log';
+
+const log = loggers.get('rescapeDefault');
 
 /**
  * Returns the geojson of a relationship
@@ -231,6 +235,7 @@ export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) =>
     [
       location => isResolvableSingleBlockLocation(location),
       location => {
+        log.debug(`queryLocationForOsmBlockOrAllResultsTask: Found single block location: ${addressString(location)}`);
         return R.map(
           result => {
             // Match the format of locationToOsmAllBlocksQueryResultsTask
@@ -245,7 +250,10 @@ export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) =>
     ],
     [
       location => isResolvableAllBlocksLocation(location),
-      location => locationToOsmAllBlocksQueryResultsTask(osmConfig, location)
+      location => {
+        log.debug(`queryLocationForOsmBlockOrAllResultsTask: Found resolvable all blocks location: ${addressString(location)}`);
+        return locationToOsmAllBlocksQueryResultsTask(osmConfig, location);
+      }
     ],
     [
       R.T,

@@ -171,11 +171,12 @@ export const osmOr = expressions => R.join(' || ', expressions);
 
 const highwayWayFilters = [
   osmAlways('highway'),
-  // temporary for Israel highway!=path
-  osmNotEqual('highway', 'path'),
-  osmNotEqual('highway', 'footway'),
-  // temporary for Israelhighway!=service
-  osmNotEqual('highway', 'service'),
+
+  // temporary for Israel highway!=path. TODO This should be configurable depending on what we want
+  //osmNotEqual('highway', 'path'),
+  //osmNotEqual('highway', 'footway'),
+  //osmNotEqual('highway', 'service'),
+
   // We're not currently interested in driveways, but might be in the future
   osmNotEqual('highway', 'driveway'),
   // We don't want to treat cycleways separate from the roads they are on
@@ -302,7 +303,7 @@ export const osmResultTask = ({tries, name, testMockJsonToKey}, taskFunc) => {
       return taskToResultTask(
         //taskFunc({overpassUrl: server})
         task(({resolve}) => {
-          log.info(`Starting OSM task ${name} attempt ${attempt + 1} of ${attempts} on server ${server}`);
+          log.debug(`Starting OSM task ${name} attempt ${attempt + 1} of ${attempts} on server ${server}`);
           return resolve(server);
         }).chain(server => taskFunc({overpassUrl: server, testMockJsonToKey}))
       ).map(v => v.mapError(e => ({value: e, server})));
@@ -324,7 +325,7 @@ export const taskQuery = (options, query) => {
     // Possibly delay each call to query_overpass to avoid request rate threshold
     // Since we are executing calls sequentially, this will pause sleepBetweenCalls before each call
     setTimeout(() => {
-        log.debug(`Requesting OSM query:\n${query}`);
+        log.debug(`\n\nRequesting OSM query:\n${query}\n\n`);
         queryOverpass(query, (error, data) => {
           if (!error) {
             resolver.resolve(data);

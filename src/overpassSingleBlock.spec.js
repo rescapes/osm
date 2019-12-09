@@ -57,7 +57,7 @@ describe('overpassSingleBlock', () => {
           expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/5707230']);
           expect(R.map(R.prop('id'), R.prop('nodes', results))).toEqual(['node/42875319', 'node/42901997']);
           // Expect our intersection names
-          expect(reqStrPathThrowing('intersections', results)).toEqual({
+          expect(reqStrPathThrowing('nodesToIntersectingStreets', results)).toEqual({
             'node/42875319': [
               '134th Street',
               'South Conduit Avenue'
@@ -87,7 +87,7 @@ describe('overpassSingleBlock', () => {
           expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/570781859']);
           expect(R.map(R.prop('id'), R.prop('nodes', results))).toEqual(['node/706705268', 'node/1287797787']);
           // Expect our intersection names
-          expect(reqStrPathThrowing('intersections', results)).toEqual({
+          expect(reqStrPathThrowing('nodesToIntersectingStreets', results)).toEqual({
             'node/706705268': [
               'way/570781859',
               'Tærudgata'

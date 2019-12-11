@@ -46,7 +46,7 @@ const GOOGLE_STREET_REPLACEMENTS = [
  */
 export const isLatLng = address => {
   if (!R.is(String, address)) {
-    return false
+    return false;
   }
   try {
     return R.compose(
@@ -87,24 +87,62 @@ export const fixWordsThatTripUpGoogle = streetName => {
 };
 
 /**
- * Given a location with one intersection. Returns them in both directions because sometimes Google
+ * Given a location with one intersection. Returns the location with the intersection in both directions because sometimes Google
  * give different results for each order.
  * Example: [[Main St, Chestnut St], [Chestnut St, Main St]]
  * @param locationWithOneIntersectionPair
  * @returns {[String]} Two arrays of two streets or if the intersection are a lat/lon just a one item
  * array with the lat/lon
  */
-export const addressStringInBothDirectionsOfLocation = locationWithOneIntersectionPair => R.ifElse(
-  location => R.both(R.is(String), isLatLng)(reqStrPathThrowing('intersections.0', location)),
-  // If the intersection is a lat/lon, just use that for the address
-  location => [reqStrPathThrowing('intersections.0', location)],
-  // Else create two addresses with the intersection names ordered in both ways
-  // Google can sometimes only handle one ordering
-  location => [
-    addressString(location),
-    addressString(R.over(R.lensPath(['intersections', '0']), R.reverse, location))
-  ]
-)(locationWithOneIntersectionPair);
+export const locationWithIntersectionInBothOrders = locationWithOneIntersectionPair => {
+  const latLng = locationIntersectionAsLatLng(
+    reqStrPathThrowing(
+      'intersections.0',
+      locationWithOneIntersectionPair
+    )
+  );
+  return R.ifElse(
+    () => latLng,
+    // If the intersection is a lat/lon, just use that for the address
+    location => [
+      R.set(R.lensPath(['intersections', 0]), latLng, location)
+    ],
+    // Else create two addresses with the intersection names ordered in both ways
+    // Google can sometimes only handle one ordering
+    location => [
+      location,
+      R.over(R.lensPath(['intersections', 0]), R.reverse, location)
+    ]
+  )(locationWithOneIntersectionPair);
+};
+
+/**
+ * Extracts a 'lat, lon' string from an intersection already in the form 'lat, lon' or 'Main St & lat, lon'
+ * @param intersection
+ * @returns {String}
+ */
+export const locationIntersectionAsLatLng = intersection => R.cond([
+  [address => isLatLng(address), R.identity],
+  [address => R.both(
+    address => R.is(String, address),
+    address => R.any(
+      eitherStreet => isLatLng(eitherStreet),
+      R.map(
+        str => str.trim(),
+        R.split('&', address)
+      )
+    )
+  )(address),
+    address => R.find(
+      eitherStreet => isLatLng(eitherStreet),
+      R.map(
+        str => str.trim(),
+        R.split('&', address)
+      )
+    )
+  ],
+  [R.T, () => null]
+])(intersection);
 
 /**
  * Creates an address string for geolocation resolution
@@ -125,8 +163,9 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
   // If it's a lat/lon return it
   // We take the first intersection of intersections because we're only resolving single point address here.
   // If the intersections are 2 intersections, representing a street block, we ignore the second value
-  if (isLatLng(R.head(R.defaultTo([], intersections)))) {
-    return R.head(intersections);
+  const latLng = locationIntersectionAsLatLng(R.head(R.defaultTo([], intersections)));
+  if (latLng) {
+    return latLng;
   }
 
   // Extract the one intersection pair with corrections for Google if it exists
@@ -247,7 +286,7 @@ export const commonStreetOfLocation = (location, streetIntersectionSets) => {
       );
       // Use the name of the way or failing that the id
       // This will probably always match one the names in each intersection, unless the way is super weird
-      return wayFeatureName(wayFeature)
+      return wayFeatureName(wayFeature);
     },
     common => R.head(common)
   )(common);

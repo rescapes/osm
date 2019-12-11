@@ -32,7 +32,7 @@ describe('googleLocation', () => {
         city: 'Washington',
         // This is incomplete, should be Monroe St NE, 13th St NE
         intersections: ['Monroe St', '13th NE']
-      }, 'Monroe St and 13th NE, Washington, DC, USA').run().listen(
+      }).run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(
@@ -62,7 +62,7 @@ describe('googleLocation', () => {
         ['Monroe Dr NE', '10th St. NE'],
         ['Monroe Dr NE', 'Kanuga Dr.']
       ]
-    }, null).run().listen(
+    }).run().listen(
       defaultRunConfig({
         onResolved:
           result => result.mapError(
@@ -89,7 +89,7 @@ describe('googleLocation', () => {
         state: 'CA',
         city: 'Irvine',
         intersections: []
-      }, 'Irvine, CA, USA').run().listen(
+      }).run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(
@@ -117,7 +117,7 @@ describe('googleLocation', () => {
         // Google can't handle North North St even though it returns that.
         // Our code overrides values like North that google doesn't like
         intersections: [['Main St', 'N North St']]
-      }, null).run().listen(
+      }).run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(
@@ -302,11 +302,42 @@ describe('googleLocation', () => {
     },
     20000);
 
+  test('geocodeAddressWithBothIntersectionOrdersTaskWithLatLonInIntersection', done => {
+      const errors = [];
+      geocodeAddressWithBothIntersectionOrdersTask({
+        country: 'USA',
+        state: 'IL',
+        city: 'Peoria',
+        // Sometimes we have intersections with one lat/lon, so the code just takes the lat/lon and ignores the street
+        intersections: ['Main St & 40.699546, -89.597790']
+      }).run().listen(
+        defaultRunConfig({
+          onResolved:
+            result => result.mapError(
+              errorValue => {
+                // This should not happen
+                expect(R.length(errorValue.results)).toEqual(1);
+                done();
+              }
+            ).map(
+              resultValue => {
+                // We just get back the coords. No need to geocode
+                expect(R.map(
+                  n => n.toFixed(2),
+                  resultValue.geojson.geometry.coordinates)
+                ).toEqual(['-89.60', '40.70']);
+              }
+            )
+        }, errors, done)
+      );
+    },
+    20000);
+
   test('geocodeAddressWithLatLng', done => {
       const errors = [];
       // Leave the location blank since we don't need it when we use a lat/lng
       const latLon = '60.004471, -44.663669';
-      geocodeAddressTask({intersections: [latLon]}, null).run().listen(
+      geocodeAddressTask({intersections: [latLon]}).run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(

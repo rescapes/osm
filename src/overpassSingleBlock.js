@@ -10,7 +10,13 @@
  */
 
 import * as R from 'ramda';
+import bboxPolygon from '@turf/bbox-polygon';
+import buffer from '@turf/buffer';
+import bbox from '@turf/bbox';
+import distance from '@turf/distance';
+import {featureCollection} from '@turf/helpers';
 import {
+  compact,
   mapMDeep,
   mapKeysAndValues,
   reqStrPathThrowing,
@@ -33,12 +39,15 @@ import {isLatLng, locationHasLocationPoints, locationPoints, locationWithLocatio
 import {_googleResolveJurisdictionResultTask, googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
 import {
+  _blocksToGeojson,
   _queryLocationVariationsUntilFoundResultTask,
   createSingleBlockFeatures,
   mapToCleanedFeatures, mapWaysByNodeIdToCleanedFeatures,
   parallelWayNodeQueriesResultTask,
   waysByNodeIdTask
 } from './overpassBlockHelpers';
+import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
+import {extents} from './overpassFeatureHelpers';
 
 const log = loggers.get('rescapeDefault');
 
@@ -154,7 +163,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
  */
-const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationWithOsm, geojsonPoints=null, intersections=null) => {
+const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationWithOsm, geojsonPoints = null, intersections = null) => {
   return R.composeK(
     ({locationWithOsm, queries: {way: wayQuery, node: nodeQuery}}) => _queryOverpassForSingleBlockResultTask(
       osmConfig,
@@ -191,7 +200,7 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationW
  * Tries querying for the location based on the osm area id, osm city id, or intersections of the location
  * @param {Object} osmConfig
  * @param blockLocation
- * @returns {Task<Result<Object>>} Result.Ok or a Result.Error in the form {error}
+ * @returns {[Task<Result<Object>>[]} List of task with Result.Ok or a Result.Error in the form {error}
  * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
  * Some blocks have more than two nodes if they have multiple divided ways.
@@ -201,42 +210,47 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationW
  * in alphabetical order
  * @private
  */
-const _queryOverpassBasedLocationPropsForSingleBlockResultTask = (osmConfig, blockLocation) => {
+const _queryOverpassBasedLocationPropsForSingleBlockResultTasks = (osmConfig, blockLocation) => {
   // Get geojson points representing the  block location
   const geojsonPoints = R.prop('locationPoints', blockLocation);
 
-  return R.ifElse(
-    blockLocation => locationHasLocationPoints(blockLocation),
-    // If the query has lat/lng points use them
-    blockLocation => [
-      _queryOverpassWithLocationForSingleBlockResultTask(
-        osmConfig,
-        // Remove the lat/lng intersections so we can replace them with street names or failing that way ids from OSM
-        R.omit(['intersections'], blockLocation),
-        geojsonPoints,
-        // Specify the intersections if available. This helps our overpass query get the right ways
-        R.propOr(null, 'intersections', blockLocation)
-      )
-    ],
-    // Else use intersections and possible google points
-    blockLocation => R.concat(
-      [
-        // First try to find the location using intersections
-        _queryOverpassWithLocationForSingleBlockResultTask(osmConfig, blockLocation)
-      ],
-      R.unless(
-        R.isEmpty,
-        geojsonPoints => [
-          // Next try using both intersections and Google intersection points
-          _queryOverpassWithLocationForSingleBlockResultTask(osmConfig, blockLocation, geojsonPoints),
-          // Finally try using only Google intersection points
+  return R.compose(
+    tasks => tasks,
+    blockLocation => {
+      return R.ifElse(
+        blockLocation => locationHasLocationPoints(blockLocation),
+        // If the query has lat/lng points use them. Just create one task
+        blockLocation => [
           _queryOverpassWithLocationForSingleBlockResultTask(
             osmConfig,
+            // Remove the lat/lng intersections so we can replace them with street names or failing that way ids from OSM
             R.omit(['intersections'], blockLocation),
-            geojsonPoints)
-        ]
-      )(geojsonPoints)
-    )
+            geojsonPoints,
+            // Specify the intersections if available. This helps our overpass query get the right ways
+            R.propOr(null, 'intersections', blockLocation)
+          )
+        ],
+        // Else use intersections and possible google points
+        blockLocation => R.concat(
+          [
+            // First try to find the location using intersections
+            _queryOverpassWithLocationForSingleBlockResultTask(osmConfig, blockLocation)
+          ],
+          R.unless(
+            R.isEmpty,
+            geojsonPoints => [
+              // Next try using both intersections and Google intersection points
+              _queryOverpassWithLocationForSingleBlockResultTask(osmConfig, blockLocation, geojsonPoints),
+              // Finally try using only Google intersection points
+              _queryOverpassWithLocationForSingleBlockResultTask(
+                osmConfig,
+                R.omit(['intersections'], blockLocation),
+                geojsonPoints)
+            ]
+          )(geojsonPoints)
+        )
+      )(blockLocation);
+    }
   )(blockLocation);
 };
 
@@ -265,11 +279,35 @@ const _queryOverpassBasedLocationPropsForSingleBlockResultTask = (osmConfig, blo
 const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
   const queryOverpassForSingleBlockUntilFoundResultTask = _queryLocationVariationsUntilFoundResultTask(
     osmConfig,
-    _queryOverpassBasedLocationPropsForSingleBlockResultTask
+    _queryOverpassBasedLocationPropsForSingleBlockResultTasks
   );
 
   // Sort LineStrings (ways) so we know how they are connected
   return R.composeK(
+    // If we get a Result.Error, it means our query failed. Try next with a bounding box query using the two location
+    // points
+    result => result.matchWith({
+      Ok: of,
+      Error: ({value: {errors, location}}) => {
+        return R.ifElse(
+          location => R.length(strPathOr([], 'locationPoints', location)),
+          location => {
+
+            return R.map(
+              result => result.mapError(
+                ({location: failedLocation, errors: newErrors}) => Result.Error({
+                  location,
+                  errors: R.concat(errors, newErrors)
+                })
+              ),
+              _locationToOsmSingleBlockBoundsQueryResultTask(osmConfig, location)
+            );
+          },
+          // We can't do anything more
+          location => of(Result.Errror({errors, location}))
+        )(location);
+      }
+    }),
     resultToTaskWithResult(
       // Chain our queries until we get a result or fail
       locationVariationsWithOsm => R.cond([
@@ -297,6 +335,73 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
     // Only neeeded if location.locationPoints is empty, meaning we don't know where the block is geospatially
     location => locationBlocksLatLonsOrNominatimLocationResultTask(location)
   )(location);
+};
+
+/**
+ * Queries for a single block using a bounds query. The bounds are the box around the two location.locationPoints
+ * @param osmConfig
+ * @param location
+ * @private
+ */
+export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, location) => {
+  const geojson = R.compose(
+    // Make a feature collection
+    feature => featureCollection([feature]),
+    // Make a polygon box from the bounds
+    points => bboxPolygon(points),
+    // Get the bounds
+    features => bbox(features),
+    // Make a feature collection of point
+    points => featureCollection(points),
+    // Buffer the points by 20 meters so we don't miss the intersection nodes at the corners of the bounding box
+    points => R.map(point => buffer(point, 20, {units: 'meters'}), points),
+    location => reqStrPathThrowing('locationPoints', location)
+  )(location);
+  const locationWithGeojsonBounds = R.merge(location, {geojson});
+  // Try to query by bounds, if we fail accumulate errors
+
+  return R.composeK(
+    matchingLocationsWithResults => _locationToOsmSingleBlockBoundsResolveResultTask(matchingLocationsWithResults),
+    location => locationToOsmAllBlocksQueryResultsTask(osmConfig, location)
+  )(locationWithGeojsonBounds);
+};
+
+const _locationToOsmSingleBlockBoundsResolveResultTask = ({Ok: locationsWithResults, Errors: errors}) => {
+  // Debug
+  _blocksToGeojson(R.map(R.prop('results'), locationsWithResults));
+  // Find the block that has nodes within an acceptable tolerance of location.locationPoints to be
+  // considered the correct block
+  const matchingLocationsWithResults = compact(R.map(
+    ({location, results}) => {
+      const nodes = extents(reqStrPathThrowing('nodes', results));
+      const nodeDistances = R.map(
+        // Compare each node to each point and take the shortest distance
+        locationPoint => {
+          return R.compose(
+            R.head,
+            R.sortBy(({node, distance}) => distance),
+            R.map(node => ({node, distance: distance(node, locationPoint, {units: 'meters'})}))
+          )(nodes);
+        },
+        reqStrPathThrowing('locationPoints', location)
+      );
+      // If both nodes are withing the tolerance distance of the locationPoints, accept the block, else null it
+      return R.ifElse(
+        () => R.all(nodeDistance => R.gt(AROUND_LAT_LON_TOLERANCE, nodeDistance.distance), nodeDistances),
+        R.identity,
+        () => null
+      )({location, result: results});
+    },
+    locationsWithResults
+  ));
+  return R.ifElse(
+    matchingLocationsWithResults => R.compose(R.lt(1), R.length)(matchingLocationsWithResults),
+    matchingLocationsWithResults => Result.Ok(R.head(matchingLocationsWithResults)),
+    () => Result.Error({
+      location,
+      errors: [`_locationToOsmSingleBlockBoundsQueryResultTask could not resolve location with bounds`]
+    })
+  )(matchingLocationsWithResults);
 };
 
 /**

@@ -20,6 +20,7 @@ import {
   filterWithKeys
 } from 'rescape-ramda';
 import 'regenerator-runtime';
+import {wayFeatureNameOrDefault} from './locationHelpers';
 
 /**
  * Makes a string from a point array for hashing
@@ -61,10 +62,19 @@ export const hashWayFeature = wayFeature => {
 export const hashWayFeatureExtents = wayFeature => {
   return R.compose(
     pointPair => R.map(hashPoint, pointPair),
-    points => R.map(extreme => R[extreme](points), ['head', 'last']),
+    points => extents(points),
     wayFeature => reqStrPathThrowing('geometry.coordinates', wayFeature)
   )(wayFeature);
 };
+
+/**
+ * Retursn the first and last item of a list
+ * @param list
+ * @returns {f1}
+ */
+export const extents = list => {
+  return R.map(extreme => R[extreme](list), ['head', 'last'])
+}
 
 /**
  * Returns true if the nodeFeature is at either end of the given wayFeature.
@@ -553,7 +563,7 @@ export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeFeatur
       })(R.propOr(null, nodeId, nodeIdToWayFeatures))
     ];
   }, nodeFeatures));
-  const nameOrIdOfFeature = feature => strPathOr(reqStrPathThrowing('id', feature), 'properties.tags.name', feature);
+  const nameOrIdOfFeature = feature => wayFeatureNameOrDefault(reqStrPathThrowing('id', feature), feature);
   const wayNames = R.map(nameOrIdOfFeature, wayFeatures);
   const wayIds = R.map(R.prop('id'), wayFeatures);
   const wayMatches = R.concat(wayIds, wayNames);

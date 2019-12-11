@@ -3,7 +3,7 @@ import {
   addressPair,
   addressStrings,
   intersectionsByNodeIdToSortedIntersections,
-  fixWordsThatTripUpGoogle, aggregateLocation, addressStringInBothDirectionsOfLocation, isResolvableAllBlocksLocation
+  fixWordsThatTripUpGoogle, aggregateLocation, locationWithIntersectionInBothOrders, isResolvableAllBlocksLocation
 } from './locationHelpers';
 
 describe('LocationSelector', () => {
@@ -278,7 +278,7 @@ describe('LocationSelector', () => {
   });
 
   test('addressStringInBothDirectionsOfLocation', () => {
-    expect(addressStringInBothDirectionsOfLocation({
+    expect(locationWithIntersectionInBothOrders({
       "intersections": [
         "-36.849247, 174.766100"
       ],
@@ -302,7 +302,7 @@ describe('LocationSelector', () => {
       }
     })).toEqual(["-36.849247, 174.766100"]);
 
-    expect(addressStringInBothDirectionsOfLocation({
+    expect(locationWithIntersectionInBothOrders({
       "intersections": [
         ['High St', 'Durham St E'], ['High St', 'Victoria St E']
       ],

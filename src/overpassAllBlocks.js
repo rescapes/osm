@@ -413,8 +413,8 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
 const _createPartialBlocks = ({wayFeatures, nodeFeatures, referenceNodeIdToWays, location}) => R.compose(
   toNamedResponseAndInputs('partialBlocks',
     ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => _buildPartialBlocks(
-  {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}
-)
+      {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}
+    )
   ),
   toNamedResponseAndInputs('wayEndPointToDirectionalWays',
     ({wayFeatures, wayIdToWayPoints, nodePointToNode}) => _wayEndPointToDirectionalWays({
@@ -554,7 +554,7 @@ const _eliminateFakeIntersectionNodes = ({nodeFeatures, nodeIdToWays, referenceN
       )(nodeFeatures)
     )
   )({nodeFeatures, nodeIdToWays, mergedNodeIdToWays});
-}
+};
 
 /**
  * Returns true if the given nodeFeature connects at least two wayFeatures that have different street names.
@@ -1036,7 +1036,8 @@ const _constructHighwayQueriesForType = (osmConfig, {type}, {osmId, geojson}) =>
   // If the we are filtering by geojson features, we need at least one query per feature. Large features
   // are broken down into smaller square features that are each converted to a bbox for querying Overpass
   const locationWithSingleFeatures = R.cond([
-    [({geojson}) => geojsonFeaturesHaveShape(geojson),
+    [
+      ({geojson}) => geojsonFeaturesHaveShape(geojson),
       ({areaId, geojson}) => R.map(
         feature => ({areaId, geojson: {features: [feature]}}),
         // Get 1km squares of the area

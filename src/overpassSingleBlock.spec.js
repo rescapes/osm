@@ -1,8 +1,12 @@
-import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
+import {
+  _locationToOsmSingleBlockBoundsQueryResultTask,
+  queryLocationForOsmSingleBlockResultTask
+} from './overpassSingleBlock';
 import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
 import * as R from 'ramda';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassBlocks';
 import {_blocksToGeojson} from './overpassBlockHelpers';
+import {locationWithLocationPoints} from './locationHelpers';
 
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -168,6 +172,38 @@ describe('overpassSingleBlock', () => {
         }
       }, errors, done)
     );
+  }, 200000);
+
+  // If the single location query fails the codee should perform a bounds query based on the two locationPoints
+  // to resolve the block
+  test('testUseBoundsQueryForFailingSingleLocationQuery', done => {
+    const errors = [];
+    expect.assertions(4);
+    const osmConfig = {};
+    queryLocationForOsmSingleBlockResultTask(osmConfig, {
+      intersections: ['47.547286, 7.584755', '47.545305, 7.59128']
+    }).run().listen(defaultRunToResultConfig(
+      {
+        onResolved: ({results, location}) => {
+
+        }
+      }, errors, done));
+  }, 200000);
+
+  // If the single location query fails the codee should perform a bounds query based on the two locationPoints
+  // to resolve the block
+  test('testUseBoundsQueryForSingleLocationQuery', done => {
+    const errors = [];
+    expect.assertions(4);
+    const osmConfig = {};
+    _locationToOsmSingleBlockBoundsQueryResultTask(osmConfig, locationWithLocationPoints({
+      intersections: ['47.547286, 7.584755', '47.545305, 7.59128']
+    })).run().listen(defaultRunToResultConfig(
+      {
+        onResolved: ({results, location}) => {
+
+        }
+      }, errors, done));
   }, 200000);
 });
 

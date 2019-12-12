@@ -920,57 +920,63 @@ export const _wayEndPointToDirectionalWays = ({wayFeatures, wayIdToWayPoints, no
 // At the end of this process we have a list of objects with nodes and ways.
 // nodes has just the start node and ways has just one directional (partial) way whose first point
 // is the node
-export const _buildPartialBlocks = ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => R.unnest(chainObjToValues(
-  (ways, nodeId) => {
-    const nodePoint = reqStrPathThrowing(nodeId, nodeIdToNodePoint);
-    return R.map(
-      way => {
-        const wayToSplitAndOrderedWays = way => R.compose(
-          ({way, wayPoints, index}) => R.map(
-            // Process splits, maybe reverse the partial way points to start at the node index
-            partialWayPoints => {
-              const orderedWayPartialPoints = R.unless(
-                R.compose(
-                  R.equals(0),
-                  R.indexOf(nodePoint)
-                ),
-                R.reverse
-              )(partialWayPoints);
-              // Create a new version of the way with these points
-              return R.set(
-                R.lensPath(['geometry', 'coordinates']),
-                // Changed the hashed points pack to array pairs
-                hashPointsToWayCoordinates(orderedWayPartialPoints),
-                way
-              );
+export const _buildPartialBlocks = ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => {
+  return R.unnest(chainObjToValues(
+    (ways, nodeId) => {
+      const nodePoint = reqStrPathThrowing(nodeId, nodeIdToNodePoint);
+
+      return R.map(
+        way => {
+          // Travel in one or both directions returning a separate object for each node with one ordered ways coming from it
+          return R.map(
+            partialWay => {
+              return {nodes: [R.prop(nodeId, nodeIdToNode)], ways: [partialWay]};
             },
-            // Split the way points at the node index (ignoring intersections with other nodes)
-            // We split inclusively to get the split point in each result set, but reject single
-            // point results
-            R.reject(
-              R.compose(R.equals(1), R.length),
-              compactEmpty(splitAtInclusive(index, wayPoints))
-            )
+            _wayToSplitAndOrderedWays(wayIdToWayPoints, nodePoint, way)
+          );
+        },
+        ways
+      );
+    },
+    nodeIdToWays
+  ));
+};
+
+const _wayToSplitAndOrderedWays = (wayIdToWayPoints, nodePoint, way) => {
+  return R.compose(
+    ({way, wayPoints, index}) => R.map(
+      // Process splits, maybe reverse the partial way points to start at the node index
+      partialWayPoints => {
+        const orderedWayPartialPoints = R.unless(
+          R.compose(
+            R.equals(0),
+            R.indexOf(nodePoint)
           ),
-          toNamedResponseAndInputs('index',
-            // Get the index of the node in the way's points
-            ({wayPoints}) => R.indexOf(nodePoint, wayPoints)
-          ),
-          toNamedResponseAndInputs('wayPoints',
-            // Get the way points of the way
-            ({way}) => reqStrPathThrowing(R.prop('id', way), wayIdToWayPoints)
-          )
-        )({way});
-        // Travel in one or both directions returning a separate object for each node with one ordered ways coming from it
-        return R.map(
-          partialWay => {
-            return {nodes: [R.prop(nodeId, nodeIdToNode)], ways: [partialWay]};
-          },
-          wayToSplitAndOrderedWays(way)
+          R.reverse
+        )(partialWayPoints);
+        // Create a new version of the way with these points
+        return R.set(
+          R.lensPath(['geometry', 'coordinates']),
+          // Changed the hashed points pack to array pairs
+          hashPointsToWayCoordinates(orderedWayPartialPoints),
+          way
         );
       },
-      ways
-    );
-  },
-  nodeIdToWays
-));
+      // Split the way points at the node index (ignoring intersections with other nodes)
+      // We split inclusively to get the split point in each result set, but reject single
+      // point results
+      R.reject(
+        R.compose(R.equals(1), R.length),
+        compactEmpty(splitAtInclusive(index, wayPoints))
+      )
+    ),
+    toNamedResponseAndInputs('index',
+      // Get the index of the node in the way's points
+      ({wayPoints}) => R.indexOf(nodePoint, wayPoints)
+    ),
+    toNamedResponseAndInputs('wayPoints',
+      // Get the way points of the way
+      ({way}) => reqStrPathThrowing(R.prop('id', way), wayIdToWayPoints)
+    )
+  )({way});
+};

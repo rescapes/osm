@@ -167,8 +167,6 @@ export const osmAnd = expressions => R.join(' && ', expressions);
 export const osmOr = expressions => R.join(' || ', expressions);
 
 
-
-
 const highwayWayFilters = [
   osmAlways('highway'),
 
@@ -176,11 +174,14 @@ const highwayWayFilters = [
   //osmNotEqual('highway', 'path'),
   //osmNotEqual('highway', 'footway'),
   //osmNotEqual('highway', 'service'),
-
+  osmNotEqual('building', 'yes'),
+  osmNotEqual('highway', 'elevator'),
   // We're not currently interested in driveways, but might be in the future
   osmNotEqual('highway', 'driveway'),
   // We don't want to treat cycleways separate from the roads they are on
   osmNotEqual('highway', 'cycleway'),
+  // We might be able to support some steps in the future
+  osmNotEqual('highway', 'steps'),
   // Can't deal with things that don't exist yet
   osmNotEqual('highway', 'proposed'),
   // Crosswalks
@@ -190,11 +191,21 @@ const highwayWayFilters = [
   osmNotEqual('service', 'parking_aisle'),
   osmNotEqual('service', 'driveway'),
   osmNotEqual('service', 'drive-through'),
+  // One of these must not be true
   osmIf(
     osmOr(
       [
         osmNotEqualWithTag('highway', 'service'),
         osmNotEqualWithTag('access', 'private')
+      ]
+    )
+  ),
+  // Both of these cannot be true
+  osmIf(
+    osmOr(
+      [
+        osmNotEqualWithTag('highway', 'footway'),
+        osmNotEqualWithTag('indoor', 'yes')
       ]
     )
   )

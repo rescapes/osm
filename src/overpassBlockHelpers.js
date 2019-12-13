@@ -776,18 +776,22 @@ export const _blockToGeojson = ({nodes, ways}) => JSON.stringify({
  * @returns {string}
  * @private
  */
-export const _blocksToGeojson = blocks => JSON.stringify({
-    "type": "FeatureCollection",
-    "generator": "overpass-ide",
-    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
-    "timestamp": "",
-    "features": R.reduce(
-      (acc, {nodes, ways}) => R.concat(acc, R.concat(ways, nodes)),
-      [],
-      blocks
-    )
-  }, null, '\t'
-);
+export const _blocksToGeojson = blocks => {
+  return JSON.stringify({
+      "type": "FeatureCollection",
+      "generator": "overpass-ide",
+      "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
+      "timestamp": "",
+      "features": R.reduce(
+        (acc, {nodes, ways}) => {
+          return R.concat(acc, R.concat(ways, nodes))
+        },
+        [],
+        blocks
+      )
+    }, null, '\t'
+  );
+};
 
 /**
  * The length of the given bocks

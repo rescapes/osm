@@ -35,7 +35,7 @@ import {
   osmEquals, osmIdEquals, osmIdToAreaId
 } from './overpassHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
-import {isLatLng, locationHasLocationPoints, locationPoints, locationWithLocationPoints} from './locationHelpers';
+import {locationHasLocationPoints, locationWithLocationPoints} from './locationHelpers';
 import {_googleResolveJurisdictionResultTask, googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
 import {
@@ -124,7 +124,8 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
           R.over(
             R.lensProp('intersections'),
             () => R.view(R.lensPath(['data', 'osmOverrides', 'intersections']), location),
-            location)
+            location
+          )
         ))
       ],
       [location => locationHasLocationPoints(location), R.compose(of, Result.Ok)],
@@ -479,7 +480,7 @@ const _queryOverpassForSingleBlockResultTask = (osmConfig, location, {way: wayQu
     // that OSM has for each intersection, which are our official street names if we didn't collect them manually
     // Task Result.Ok <way: <queries, response>, node: <queries, response>>> ->
     // Task Result.Ok <way: <queries, response>, node: <queries, response>, waysByNodeId: <node: <queries, response>>>>
-    ({location, result}) => resultToTaskNeedingResult(
+    ({result}) => resultToTaskNeedingResult(
       ({way, node}) => waysByNodeIdTask(osmConfig, {way, node})
     )(result),
 

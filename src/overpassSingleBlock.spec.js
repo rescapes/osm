@@ -201,7 +201,7 @@ describe('overpassSingleBlock', () => {
     })).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({results, location}) => {
-
+          expect(results).toEqual(results)
         }
       }, errors, done));
   }, 200000);

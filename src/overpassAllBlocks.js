@@ -36,7 +36,7 @@ import {
   nodesAndIntersectionNodesByWayIdResultTask,
   waysOfNodeQuery,
   removeReverseTagsOfOrderWayFeaturesOfBlock,
-  orderWayFeaturesOfBlock, waysByNodeIdTask
+  orderWayFeaturesOfBlock, waysByNodeIdTask, _blocksToGeojson
 } from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
@@ -264,7 +264,7 @@ export const _queryOverpassForAllBlocksResultsTask = (osmConfig, {location, way:
  */
 export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, node, referenceNodeIdToWays}) => {
   // Finally get the features from the response
-  const [wayFeatures, nodeFeatures] = R.map(reqStrPathThrowing('response.features'), [way, node]);
+  const [ways, nodes] = R.map(reqStrPathThrowing('response.features'), [way, node]);
   return R.composeK(
     blocks => of({
       Ok: blocks,
@@ -277,7 +277,7 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
           R.prop('nodes', block),
           nodeIdToWays
         );
-        return {
+        return ({
           // Put the OSM results together
           results: R.merge(block, {nodesToIntersectingStreets}),
           // Add the intersections to the location and return it
@@ -287,7 +287,7 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
               intersections: R.values(nodesToIntersectingStreets)
             }
           )
-        };
+        });
       },
       blocks
     )),
@@ -354,7 +354,10 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
       )
     ),
     mapToNamedResponseAndInputs('blocks',
-      ({blocks, nodeIdToWays}) => {
+      ({blocksResult, nodeIdToWays}) => {
+        // TODO just extracting the value from Result.Ok here.
+        // Change to deal with Result.Error
+        const blocks = blocksResult.value;
         return of(R.map(
           // Add intersections to the blocks based on the ways and nodes' properties
           block => R.merge(block, {
@@ -369,14 +372,15 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
         ));
       }
     ),
-    mapToNamedResponseAndInputs('blocks',
+    mapToNamedResponseAndInputs('blocksResult',
       // For each block travel along it and accumulate connected ways until we reach a node or dead end
       // If a node is reached trim the last way to end at that node
       ({nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
-        // Block b:: [b] -> Task [b]
+        // Block b:: [b] -> Task Result [b]
         // Wait in parallel but bucket tasks to prevent stack overflow
-        return R.map(
+        return mapMDeep(2,
           ({blocks}) => {
+            // Remove the empty partialBlocks, just returning the blocks
             return blocks;
           },
           traverseReduceWhile(
@@ -391,9 +395,14 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
             },
             ({value: {partialBlocks, blocks}}, x) => {
               return mapMDeep(2,
+                // partialBlocks are those remaining to be processed
+                // block is the completed block that was created with one or more partial blocks
                 ({partialBlocks, block}) => {
                   return {partialBlocks, blocks: R.concat(blocks, [block])};
                 },
+                // Call this R.length(partialBlocks) times until there are no partialBlocks left.
+                // At most we call this R.length(partialBlocks) times, but if some partialBlocks join
+                // into one we call it fewer times
                 recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask(
                   osmConfig,
                   {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
@@ -409,164 +418,161 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
       }
     ),
     // Creates helpers and partialBlocks, which are blocks with a node and one directional way
-    // from which we'll complete all our blocks. Note that this also trims nodeFeatures to get rid of
+    // from which we'll complete all our blocks. Note that this also trims nodes to get rid of
     // fake intersections (where the way changes but it's not really a new street)
-    // Returns {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks, nodeFeatures}
-    ({wayFeatures, nodeFeatures, location}) => of(_createPartialBlocks({
-      wayFeatures,
-      nodeFeatures,
-      referenceNodeIdToWays,
+    // Returns {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks, nodes}
+    ({ways, nodes, location}) => of(_createPartialBlocks({
+      ways,
+      nodes,
       location
     }))
-  )({wayFeatures, nodeFeatures, referenceNodeIdToWays, location});
+  )({ways, nodes, referenceNodeIdToWays, location});
 };
 
 /**
  * Creates a bunch of data structures and ultimately the partialBlocks, which are blocks that
  * have a node and one way, where all are unique pairs of a node and directional way.
  * Also returns the data structures for further use
- * @param {[Object]} wayFeatures All the way features of the sought blocks
- * @param {[Object]} nodeFeatures All the node features of the sought blocks
+ * @param {[Object]} ways All the way features of the sought blocks
+ * @param {[Object]} nodes All the node features of the sought blocks
  * @param {Object} [referenceNodeIdToWays] Optional Only needed for narrow street queries where we need to know the ways
  * of the node features so we know if they are real intersections or not. This is keyed by node id and valued by way features
  * @param {Object} location Location defining the bounds of all blocks
- * @returns {Object} {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks, nodeFeatures} where
- * partialBlocks is the main return value, nodeFeatures might be trimmed to get rid of fake nodes, and the others are helpers
+ * @returns {Object} {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, partialBlocks, nodes} where
+ * partialBlocks is the main return value, nodes might be trimmed to get rid of fake nodes, and the others are helpers
  * @private
  */
-const _createPartialBlocks = ({wayFeatures, nodeFeatures, referenceNodeIdToWays, location}) => R.compose(
-  toNamedResponseAndInputs('partialBlocks',
-    ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => _buildPartialBlocks(
-      {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}
-    )
-  ),
-  toNamedResponseAndInputs('wayEndPointToDirectionalWays',
-    ({wayFeatures, wayIdToWayPoints, nodePointToNode}) => _wayEndPointToDirectionalWays({
-      wayFeatures,
-      wayIdToWayPoints,
-      nodePointToNode
-    })
-  ),
-
-  toNamedResponseAndInputs('nodeIdToWays',
-    // "Invert" wayIdToNodes to create nodeIdToWays
-    ({wayIdToNodes, wayIdToWay}) => R.reduce(
-      (hash, [wayId, nodes]) => {
-        const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
-        return R.reduce(
-          // Add the wayId to the nodeId key
-          (hsh, nodeId) => R.over(
-            // Lens to get the node id in the hash
-            R.lensProp(nodeId),
-            // Add the way to the list of the nodeId
-            wayList => R.concat(wayList || [], [R.prop(wayId, wayIdToWay)]),
-            hsh
-          ),
-          hash,
-          nodeIds
-        );
-      },
-      {},
-      R.toPairs(wayIdToNodes))
-  ),
-  toNamedResponseAndInputs('wayIdToWayPoints',
-    // Map the way id to its points
-    ({wayFeatures}) => R.fromPairs(R.map(
-      wayFeature => [
-        R.prop('id', wayFeature),
-        hashWayFeature(wayFeature)
-      ],
-      wayFeatures
-    ))
-  ),
-  toNamedResponseAndInputs('wayIdToNodes',
-    // Hash all way ids by intersection node if any waynode matches or
-    // is an area-way (pedestrian area) within 5m  <-- TODO
-    ({nodePointToNode, wayFeatures}) => {
-      return R.fromPairs(R.map(
-        wayFeature => [R.prop('id', wayFeature), findMatchingNodes(nodePointToNode, wayFeature)],
-        wayFeatures
-      ));
-    }
-  ),
-  toNamedResponseAndInputs('wayIdToWay',
-    // way id to way
-    ({wayFeatures}) => R.indexBy(
-      R.prop('id'),
-      wayFeatures
-    )
-  ),
-  toNamedResponseAndInputs('nodeIdToNodePoint',
-    // Hash intersection nodes by id. These are all intersections
-    ({nodeIdToNode}) => R.map(
-      nodeFeature => hashNodeFeature(nodeFeature),
-      nodeIdToNode
-    )
-  ),
-  toNamedResponseAndInputs('nodePointToNode',
-    // Hash the node points to match ways to them
-    ({nodeFeatures}) => R.indexBy(
-      nodeFeature => hashNodeFeature(nodeFeature),
-      nodeFeatures
-    )
-  ),
-  toNamedResponseAndInputs('nodeIdToNode',
-    // Hash intersection nodes by id. These are all intersections
-    ({nodeFeatures}) => R.indexBy(
-      R.prop('id'),
-      nodeFeatures
-    )
-  )
-)({wayFeatures, nodeFeatures, location});
-
+const _createPartialBlocks = ({ways, nodes, location}) => {
+  return R.compose(
+    toNamedResponseAndInputs('partialBlocks',
+      ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => _buildPartialBlocks(
+        {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}
+      )
+    ),
+    ({ways, nodes}) => _calculateNodeAndWayRelationships(({ways, nodes}))
+  )({ways, nodes, location});
+};
 
 /**
- * TODO No longer used because we actaully still need these nodes, we just want to treat them as intersections
- *  Eliminate fake intersection nodes. These are nodes that Overpass returns because the
- * way id changes, but not because of an intersection. In OpenStreetMap ways can end at any point, it just
- * depends on the data source. The best we can do is eliminate nodes that only connect two ways,
- * where both ways start or end at that node, and where those ways have the same name.
- * @param {[Object]} nodeFeatures The nodeFeatures to trim
- * @param {Object} nodeIdToWays Used to trim nodeFeatures, and these also git trimmed to the trimmed nodeFeatures
- * @param {Object} referenceNodeIdToWays Only needed when nodeIdToWays is incomplete because of a narrow query.
- * This supplies all of the ways of each node in nodeFeatures/nodeIdToWays
- * @returns {Object} Object with trimmed versions of {nodeFeature, nodeIdToWays}
+ * Creates data structures that relate the nodes and ways
+ * @param {[Object]} ways Way features
+ * @param {[Object]} nodes Node features
+ * @returns {Object} nodeIdToNode, nodePointToNode, nodeIdToNodePoint, wayIdToWay, wayIdToNodes, wayIdToWayPoints, nodeIdToWays, wayEndPointToDirectionalWays
  * @private
  */
-const _eliminateFakeIntersectionNodes = ({nodeFeatures, nodeIdToWays, referenceNodeIdToWays}) => {
-
-  // If we have optional referenceNodeIdToWays, merge them into the nodeIdToWays
-  // referenceNodeIdToWays are only need for narrow street queries where we didn't get all the ways of the nodes back
-  // from the original query, so we augment it with individual node query results
-  const mergedNodeIdToWays = R.mergeDeepWith(
-    (a, b) => R.uniqBy(R.prop('id'), R.concat(a, b)),
-    nodeIdToWays,
-    referenceNodeIdToWays || {}
-  );
-
+const _calculateNodeAndWayRelationships = ({ways, nodes}) => {
   return R.compose(
-    // Once we trim nodeFeatures, trim nodeIdToWays. Note that we don't trim mergedNodeIdToWays because
-    // we don't want to return the contextual helper ways in referenceNodeIdToWays
+    toNamedResponseAndInputs('wayEndPointToDirectionalWays',
+      ({ways, wayIdToWayPoints, nodePointToNode}) => _wayEndPointToDirectionalWays({
+        ways,
+        wayIdToWayPoints,
+        nodePointToNode
+      })
+    ),
     toNamedResponseAndInputs('nodeIdToWays',
       // "Invert" wayIdToNodes to create nodeIdToWays
-      ({nodeFeatures, nodeIdToWays}) => {
-        const nodeIdLookup = R.indexBy(R.prop('id'), nodeFeatures);
-        return filterWithKeys(
-          (ways, nodeId) => R.propOr(false, nodeId, nodeIdLookup),
-          nodeIdToWays
-        );
-      }),
-
-    toNamedResponseAndInputs('nodeFeatures',
-      ({nodeFeatures, mergedNodeIdToWays}) => R.filter(
-        nodeFeature => R.compose(
-          wayFeatures => isRealIntersection(wayFeatures, nodeFeature),
-          // This will find a matching nodeFeature except in cases where the node is part of a way area.
-          mergedNodeIdToWays => R.propOr([], nodeFeature.id, mergedNodeIdToWays)
-        )(mergedNodeIdToWays)
-      )(nodeFeatures)
+      ({wayIdToNodes, wayIdToWay}) => R.reduce(
+        (hash, [wayId, nodes]) => {
+          const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
+          return R.reduce(
+            // Add the wayId to the nodeId key
+            (hsh, nodeId) => R.over(
+              // Lens to get the node id in the hash
+              R.lensProp(nodeId),
+              // Add the way to the list of the nodeId
+              wayList => R.concat(wayList || [], [R.prop(wayId, wayIdToWay)]),
+              hsh
+            ),
+            hash,
+            nodeIds
+          );
+        },
+        {},
+        R.toPairs(wayIdToNodes))
+    ),
+    toNamedResponseAndInputs('wayIdToWayPoints',
+      // Map the way id to its points
+      ({ways}) => R.fromPairs(R.map(
+        wayFeature => [
+          R.prop('id', wayFeature),
+          hashWayFeature(wayFeature)
+        ],
+        ways
+      ))
+    ),
+    toNamedResponseAndInputs('wayIdToNodes',
+      // Hash all way ids by intersection node if any waynode matches or
+      // is an area-way (pedestrian area) within 5m  <-- TODO
+      ({nodePointToNode, ways}) => {
+        return R.fromPairs(R.map(
+          wayFeature => [R.prop('id', wayFeature), findMatchingNodes(nodePointToNode, wayFeature)],
+          ways
+        ));
+      }
+    ),
+    toNamedResponseAndInputs('wayIdToWay',
+      // way id to way
+      ({ways}) => R.indexBy(
+        R.prop('id'),
+        ways
+      )
+    ),
+    toNamedResponseAndInputs('nodeIdToNodePoint',
+      // Hash intersection nodes by id. These are all intersections
+      ({nodeIdToNode}) => R.map(
+        nodeFeature => hashNodeFeature(nodeFeature),
+        nodeIdToNode
+      )
+    ),
+    toNamedResponseAndInputs('nodePointToNode',
+      // Hash the node points to match ways to them
+      ({nodes}) => R.indexBy(
+        nodeFeature => hashNodeFeature(nodeFeature),
+        nodes
+      )
+    ),
+    toNamedResponseAndInputs('nodeIdToNode',
+      // Hash intersection nodes by id. These are all intersections
+      ({nodes}) => R.indexBy(
+        R.prop('id'),
+        nodes
+      )
     )
-  )({nodeFeatures, nodeIdToWays, mergedNodeIdToWays});
+  )({ways, nodes});
+};
+
+/**
+ * Adds new block data to the data computed by _calculateNodeAndWayRelationships. This is used when
+ * we have to query for more ways and nodes and add them to our existing context
+ * TODO this isn't comprehensive. If a newly queried way/node intersects another node in our context,
+ * we won't detect it here. We could run _calculateNodeAndWayRelationships on everything
+ * if that's problematic, but with a performance hit
+ * @param {Object} context
+ * @param {Object} context. nodeIdToWays
+ * @param {Object} context.wayIdToNodes
+ * @param {Object} context.wayEndPointToDirectionalWays
+ * @param {Object} nodeIdToNodePoint
+ * @param {Object} block Block with new ways and nodes. Duplicates of old data is fine
+ * @returns {Object} Merged {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint}
+ * @private
+ */
+const _mergeInNewNodeAndWayRelationships = ({nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint}, block) => {
+  return R.mergeWith(
+    // For each matching top level key, merge and concat+unique arrays or take first for nodeIdToNodePoint
+    R.mergeWith(
+      (a, b) => R.when(
+        Array.isArray, a => R.compose(
+          R.uniqBy(R.prop('id')),
+          R.concat
+        )(a, b)
+      )(a)
+    ),
+    {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
+    R.pick(
+      ['nodeIdToWays', 'wayIdToNodes', 'wayEndPointToDirectionalWays', 'nodeIdToNodePoint'],
+      _calculateNodeAndWayRelationships(block)
+    )
+  );
 };
 
 /**
@@ -615,7 +621,7 @@ export const isRealIntersection = (wayFeatures, nodeFeature) => R.anyPass([
  * @param wayIdToNodes
  * @param wayEndPointToDirectionalWays
  * @param nodeIdToNodePoint
- * @param {Task<Result<Object>>} partialBlocks Contains nodes and ways of the partial block {nodes, ways}
+ * @param {[Object]} partialBlocks Contains nodes and ways of the partial block {nodes, ways}
  * @returns {Object} task that resolves to A complete block that has {
  * nodes: [one or more nodes],
  * ways: [one or more ways],
@@ -631,80 +637,81 @@ const recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = (
   // Take the first partialBlock. We only have 1 node until we finish, but we could have any number of ways
   const {nodes, ways} = R.head(partialBlocks);
   const remainingPartialBlocks = R.tail(partialBlocks);
-  // Get the current final way of the partial block
-  const currentFinalWay = R.last(ways);
+  _blockToGeojson({nodes, ways});
+  _blocksToGeojson(remainingPartialBlocks);
+  // Get the current final way of the partial block. This is the way we will process
+  const way = R.last(ways);
   // Get the remaining way points, excluding the first point that the node is on
-  const remainingWayPoints = R.compose(
+  const tailWayPoints = R.compose(
     R.tail,
-    currentFinalWay => hashWayFeature(currentFinalWay)
-  )(currentFinalWay);
+    way => hashWayFeature(way)
+  )(way);
 
-  // Get the first node along this final way, excluding the starting point.
+  // Get the first node along the way, excluding the starting point.
   // If the way is a loop with no other nodes, it could be the same node we started with
-  const {firstFoundNodeOfFinalWay, trimmedWay} = _findFirstNodeOfWayAndTrimWay(
+  const {firstFoundNodeOfWay, trimmedWay} = _findFirstNodeOfWayAndTrimWay(
     {wayIdToNodes, nodeIdToNodePoint},
-    currentFinalWay,
-    remainingWayPoints
+    way,
+    tailWayPoints
   );
 
   // If no node was found, look for the ways at the of the currentFinalWay
   // There might be a way or we might be at a dead end where there is no connecting way
   // The found ways points will flow in the correct direction since wayEndPointToDirectionalWays directs
   // ways from the end point
-  const waysAtEndOfFinalWay = R.ifElse(R.isNil,
+  const waysAtEndOfFinalWay = R.ifElse(
+    R.isNil,
     () => R.compose(
       // Minus the current final way itself. Use the id for comparison because we don't want a trimmed
       // way to evaluate to be not equal to the full version of the same way
-      ways => R.reject(R.eqProps('id', currentFinalWay), ways),
+      ways => R.reject(R.eqProps('id', way), ways),
       // Any way touching the end point of the current final way
       endPoint => R.propOr([], endPoint, wayEndPointToDirectionalWays),
       // Get the last point of the current final way
       wayPoints => R.last(wayPoints)
-    )(remainingWayPoints),
+    )(tailWayPoints),
     () => []
-  )(firstFoundNodeOfFinalWay);
+  )(firstFoundNodeOfWay);
 
-  // Replaced the last way of ways with the trimmedWay if it was found
+  // Replace the last way of ways with the trimmedWay if it was found
   const trimmedWays = R.concat(R.init(ways), [trimmedWay || R.last(ways)]);
   // Create a task to add the found node to the first node to complete the block and set the trimmed ways,
-  // Alternatively if we got to a new way then we have to recurse and traverse that way until we find a node
-  // or another way
-  // Or if we have a dead end we need to query Overpass to get the dead end node. That's why this is a task
-  // TODO instead of querying for the dead end node here, we could query for all dead end nodes right after we query Overpass,
-  return R.map(
-    // TODO. just extracting the Result.value for now. We need to check for Result.Error
-    result => {
-      return {block: result.value, partialBlocks};
-    },
-    _handleUnendedWaysAndRedundantNodesAndRemainingPartialBlocksResultTask(
-      osmConfig,
-      {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
-      remainingPartialBlocks, nodes, trimmedWays, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay
-    )
+  // Alternatively if we got to a new way then we have to recurse and traverse that way until we find an intersection node
+  // Or if we have a dead end we need to query Overpass to get the dead end node.
+  return _handleUnendedWaysAndRedundantNodesAndRemainingPartialBlocksResultTask(
+    osmConfig,
+    {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
+    {partialBlocks: remainingPartialBlocks, firstFoundNodeOfFinalWay: firstFoundNodeOfWay, waysAtEndOfFinalWay},
+    {nodes, ways: trimmedWays}
   );
 };
 
 /**
- * Searches the given currentFinalWay and it's remainingWayPoints to find the first intersection node along it.
- * Returns {firstFoundNodeOfFinalWay, trimmedWay}, the node and the way trimmed to that node
- * If it doesn't find a node because we are at dead end then both values are returned as null.
+ * Searches the given way and its remainingWayPoints (not first point) to find the first intersection node along it.
  * @param {Object} context
  * @param {Object} context.wayIdToNodes Lookup of way id to its nodes
  * @param {Object} context.nodeIdToNodePoint Lookup of node it to its point
- * @param {Object} currentFinalWay The way being searched
- * @param {[Object]} remainingWayPoints The remaining points of the currentFinalWay or all the points if the
+ * @param {Object} way The way being searched
+ * @param {[Object]} tailWayPoints The remaining points of the way or all the points if the
  * way hasn't been reduced by previous traversal
+ * @returns {Object} Returns {firstFoundNodeOfWay, trimmedWay}, the node and the way trimmed to that node
+ * If it doesn't find a node because we are at dead end then both values are returned as null.
  * @private
  */
-const _findFirstNodeOfWayAndTrimWay = ({wayIdToNodes, nodeIdToNodePoint}, currentFinalWay, remainingWayPoints) => R.compose(
+const _findFirstNodeOfWayAndTrimWay = ({wayIdToNodes, nodeIdToNodePoint}, way, tailWayPoints) => R.compose(
   // Chop the way at the node intersection
-  nodeObj => R.ifElse(R.identity, nodeObj => ({
-      firstFoundNodeOfFinalWay: R.prop('node', nodeObj),
+  nodeObj => R.ifElse(
+    R.identity,
+    nodeObj => ({
+      firstFoundNodeOfWay: R.prop('node', nodeObj),
       // Shorten the way points to the index of the node
-      trimmedWay: trimWayToNodeObj(nodeObj, currentFinalWay)
+      trimmedWay: trimWayToNodeObj(nodeObj, way)
     }),
     // Null case
-    () => ({})
+    () => ({
+      firstFoundNodeOfWay: null,
+      trimmedWay: null
+    })
   )(nodeObj),
   // Take the closest node
   nodeObjs => R.head(nodeObjs),
@@ -721,7 +728,7 @@ const _findFirstNodeOfWayAndTrimWay = ({wayIdToNodes, nodeIdToNodePoint}, curren
   nodes => R.map(
     node => ({
       node, index: R.compose(
-        nodePoint => R.indexOf(nodePoint, remainingWayPoints),
+        nodePoint => R.indexOf(nodePoint, tailWayPoints),
         nodeId => R.prop(nodeId, nodeIdToNodePoint),
         node => R.prop('id', node)
       )(node)
@@ -729,12 +736,12 @@ const _findFirstNodeOfWayAndTrimWay = ({wayIdToNodes, nodeIdToNodePoint}, curren
     nodes
   ),
   // Get the nodes of the way
-  currentFinalWayId => reqStrPathThrowing(
-    currentFinalWayId,
+  wayId => reqStrPathThrowing(
+    wayId,
     wayIdToNodes
   ),
-  currentFinalWay => R.prop('id', currentFinalWay)
-)(currentFinalWay);
+  way => R.prop('id', way)
+)(way);
 
 /**
  * Trims the given way to the index of the nodeObj inclusive
@@ -770,22 +777,26 @@ const trimWayToNodeObj = (nodeObj, way) => R.over(
  * Alternatively if we got to a new way then we have to recurse and traverse that way until we find a node
  * or another way
  * Or if we have a dead end we need to query Overpass to get the dead end node. That's why this is a task
- * TODO instead of querying for the dead end node here, we could query for all dead end nodes right after we query Overpass,
- * @param osmConfig
- * @param context
- * @param context.nodeIdToWays Used to see if the ending node of a block is actually a real intersection.
- * @param context.wayIdToNodes
- * @param context.wayEndPointToDirectionalWays
- * @param context.nodeIdToNodePoint
- * @param {[Object]} partialBlocks. partialBlocks not used yet
- * @param {[Object]} trimmedWays, trimmed ways forming the block thus far
- * @param {[Object]} nodes, at least one node of the partial block
- * @param {Object} firstFoundNodeOfFinalWay If non-null, the intersection node that has been found to complete the block
- * @param {Object} waysAtEndOfFinalWay If the way ends without an intersection and another way begins, this is the way
- * and we must recurse. Otherwise this is null
- * @returns {Task<Result.Ok<Object>>} {block, partialBlocks}
- * block with {nodes, ways}. nodes  with two nodes: nodes + firstFoundNodeOfFinalWay or a dead-end node
- * from Overpass or the result of recursing on waysAtEndOfFinalWay. ways are allways built up to form the complete block, trimmed
+ * @param {Object} osmConfig
+ * @param {Object} context Ways and node context of all of the search area
+ * @param {Object} context.nodeIdToWays Used to see if the ending node of a block is actually a real intersection.
+ * @param {Object} context.wayIdToNodes
+ * @param {Object} context.wayEndPointToDirectionalWays
+ * @param {Object} context.nodeIdToNodePoint
+ * @param {Object} blockContext Ways and node context of the immediate block being resolved
+ * @param {[Object]} blockContext.partialBlocks. partialBlocks not used yet. This does not include the current block's way
+ * @param {Object} blockContext.firstFoundNodeOfFinalWay If non-null, the intersection node that has been found to complete the block
+ * It's possible that this isn't a real intersection node, simply a node where the ways change but no other way
+ * intersects. In this case we continue with the other way connected to this node
+ * @param {Object} blockContext.waysAtEndOfFinalWay If the way ends without an intersection and another way begins, this is the way
+ * and we must recurse. TODO I believe this case is covered by firstFoundNodeOfFinalWay where that node is not
+ * a real intersection. So we might not need this value*
+ * @param {Object} block The current block being built up
+ * @param {[Object]} block.ways, trimmed ways forming the block thus far
+ * @param {[Object]} block.nodes, at least one node of the partial block
+ * @returns {Task<Result.Ok<Object>>} {block: {ways, nodes}, partialBlocks}
+ * block with {nodes, ways}. nodes  with two or more nodes: nodes + firstFoundNodeOfFinalWay or a dead-end node
+ * from Overpass or the result of recursing on waysAtEndOfFinalWay. ways are always built up to form the complete block, trimmed
  * to fit the two nodes.
  * Also returns the unused partialBlocks
  * @private
@@ -793,107 +804,174 @@ const trimWayToNodeObj = (nodeObj, way) => R.over(
 const _handleUnendedWaysAndRedundantNodesAndRemainingPartialBlocksResultTask = (
   osmConfig,
   {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
-  partialBlocks,
-  nodes,
-  trimmedWays,
-  firstFoundNodeOfFinalWay,
-  waysAtEndOfFinalWay
+  {partialBlocks, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay},
+  {nodes, ways}
 ) => {
+  _blockToGeojson({nodes, ways});
+  _blocksToGeojson(partialBlocks);
   return R.composeK(
-    nodeAndTrimmedWayResult => resultToTaskNeedingResult(
+    nodeAndTrimmedWayResult => resultToTaskWithResult(
       ({block, remainingPartialBlocks}) => {
         // For debugging only
         _blockToGeojson(block);
+        _blocksToGeojson(remainingPartialBlocks);
         // If the block is complete because there are two nodes now, or failing that we didn't find a joining way,
         // just return the block, otherwise recurse to travel more to
         // reach a node along the new way, reach another way, or reach a dead end
         return R.ifElse(
-          // If we added a new way, we recurse
-          block => R.lt(R.length(trimmedWays), R.length(block.ways)),
+          // If we added a new way, we recurse.
+          block => R.lt(R.length(ways), R.length(block.ways)),
           // If we aren't done recurse on the calling function, appending the block to the remainingPartialBlocks,
           // which will cause block to be processed
-          block => recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask(
-            osmConfig,
-            {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint},
-            R.concat([block], remainingPartialBlocks)
-          ),
-          // Done
-          block => of(block)
+          // We don't necessarily need to add anything else, but we have to check that it's complete
+          block => {
+            return recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask(
+              osmConfig,
+              // Merge the new way/node relationships into the existing
+              _mergeInNewNodeAndWayRelationships({
+                  nodeIdToWays,
+                  wayIdToNodes,
+                  wayEndPointToDirectionalWays,
+                  nodeIdToNodePoint
+                },
+                block
+              ),
+              R.concat([block], remainingPartialBlocks)
+            )
+          },
+          // Done building the block
+          block => of(Result.Ok({block, partialBlocks: remainingPartialBlocks}))
         )(block);
       }
     )(nodeAndTrimmedWayResult),
 
-    ({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay}) => R.cond([
-      [
-        // If we didn't get firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, we have a dead end or need a node outside our search results
-        // and need to query overpass for the missing intersection node or for a dead end the node at the end of the trimmedWays
-        ({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay}) => R.and(
-          R.isNil(firstFoundNodeOfFinalWay),
-          R.isEmpty(waysAtEndOfFinalWay)
-        ),
-        // Find the dead-end node or intersection node outside the query results
-        () => mapMDeep(2,
-          block => ({
-            block: R.over(
-              R.lensProp('nodes'),
-              n => R.concat(nodes, n),
-              block
-            ),
-            remainingPartialBlocks: partialBlocks
-          }),
-          _deadEndNodeAndTrimmedWayOfWayResultTask(osmConfig, trimmedWays)
-        )
-      ],
-      [
-        // If we got firstFoundNodeOfFinalWay but it's not a real intersection node, recurse. Nodes that are not
-        // real intersections are nodes that simply connect two ways of the same street. It's allowable in OpenStreetmap
-        // to start a new way without being at a true intersection, or it might be the intersection of a parking lot
-        // or something we don't treat as a new block. We treat two (and only two) joining ways as a not real intersection
-        // unless the street name changes
-        ({firstFoundNodeOfFinalWay}) => R.and(
-          firstFoundNodeOfFinalWay,
-          R.not(
-            isRealIntersection(
-              R.prop(R.prop('id', firstFoundNodeOfFinalWay), nodeIdToWays),
-              firstFoundNodeOfFinalWay
-            )
-          )
-        ),
-        () => {
-          // TODO we need to find the partial block and remove it from the list
-          // Find the partial block of firstFoundNodeOfFinalWay
-          const partialBlockOfNode = R.find(
-            partialBlock => R.compose(
-              R.length,
-              partialBlock => R.contains(
-                R.prop('id', firstFoundNodeOfFinalWay),
-                R.map(R.prop('id'), partialBlock.nodes)
-              )
-            )(partialBlock),
-            partialBlocks
-          );
-          return of(Result.Ok({
-            block: {
-              nodes: R.concat(nodes, [firstFoundNodeOfFinalWay]),
-              ways: R.concat(trimmedWays, partialBlockOfNode.ways)
-            },
-            remainingPartialBlocks: R.without([partialBlockOfNode], partialBlocks)
-          }));
-        }
-      ],
-      // We have a firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, pass the node (which might be null) (TODO how can it be null?)
-      [
-        R.T,
-        () => of(Result.Ok({
-          block: {
-            nodes: R.concat(nodes, [firstFoundNodeOfFinalWay]),
-            ways: R.concat(trimmedWays, waysAtEndOfFinalWay)
-          },
+    // Use the context and blockContext to resolve the next part of the block. This might involve
+    // going to the server for more data to resolve dead ends
+    ({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay}) => _choicePointProcessPartialBlockResultTask(
+      osmConfig,
+      {nodeIdToWays},
+      {firstFoundNodeOfFinalWay, waysAtEndOfFinalWay, partialBlocks},
+      {nodes, ways}
+    )
+  )({
+    osmConfig,
+    firstFoundNodeOfFinalWay, waysAtEndOfFinalWay, nodeIdToWays,
+    partialBlocks,
+    nodes, ways
+  });
+};
+
+/**
+ * Choice point to figure out how to process the the block.
+ * We have 3 conditions:
+ * 1) "dead-end" way. There is no node information about the end of the way in our context so we need to query
+ * OSM to see if this is actually a dead end way or we just need to get more nodes/ways from the server. If
+ * it is a dead-end we end the block with the node that is at the end of the way. Otherwise we continue constructing
+ * the block with the matching node and ways that come back from the serverr
+ * 2) We have firstFoundNodeOfFinalWay but it's not a real intersection, it's simply the node connecting two
+ * ways of the same street where there is no intersection. In this case we want to continue along the connecting
+ * way
+ * 3) Otherwise if we have firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, we append firstFoundNodeOfFinalWay to
+ * the blocks nodes and waysAtEndOfFinalWay to the ways and are done with the block. TODO I don't remember
+ * what the case for waysAtEndOfFinalWay is anymore.
+ * @param osmConfig
+ * @param {Object} context
+ * @param {Object} context.nodeIdToWays
+ * @param {Object} blockContext
+ * @param {Object} blockContext.firstFoundNodeOfFinalWay
+ * @param {Object} blockContext.waysAtEndOfFinalWay
+ * @param {[Object]} blockContext.partialBlocks
+ * @param {Object} block
+ * @param {[Object]} block.nodes
+ * @param {[Object]} block.ways
+ * @returns {Task<Result<Object>>} Returns a task resolving to a Result.Ok containing the constructed block
+ * {block: {ways, nodes}, remainingPartialBlocks: {[Object]}}}
+ * and the remainingPartialBlocks, meaning the partialBlocks that weren't needed to construct the rest of this block.
+ * @private
+ */
+const _choicePointProcessPartialBlockResultTask = (osmConfig, {nodeIdToWays}, {firstFoundNodeOfFinalWay, waysAtEndOfFinalWay, partialBlocks}, {nodes, ways}) => {
+  return R.cond([
+    [
+      // If we didn't get either or firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, we have a dead end or need a node outside our search results
+      // and need to query overpass for the missing intersection node or for a dead end the node at the end of the trimmedWays
+      ({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay}) => R.and(
+        R.isNil(firstFoundNodeOfFinalWay),
+        R.isEmpty(waysAtEndOfFinalWay)
+      ),
+      // Find the dead-end node or intersection node outside the query results
+      () => mapMDeep(2,
+        block => ({
+          block: R.over(
+            R.lensProp('nodes'),
+            n => R.concat(nodes, n),
+            block
+          ),
           remainingPartialBlocks: partialBlocks
-        }))
-      ]
-    ])({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay})
-  )({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay});
+        }),
+        _deadEndNodeAndTrimmedWayOfWayResultTask(osmConfig, ways)
+      )
+    ],
+    [
+      // If we got firstFoundNodeOfFinalWay but it's not a real intersection node, recurse. Nodes that are not
+      // real intersections are nodes that simply connect two ways of the same street. It's allowable in OpenStreetmap
+      // to start a new way without being at a true intersection, or it might be the intersection of a parking lot
+      // or something we don't treat as a new block. We treat two (and only two) joining ways as a not real intersection
+      // unless the street name changes
+      ({firstFoundNodeOfFinalWay}) => R.and(
+        firstFoundNodeOfFinalWay,
+        R.not(
+          isRealIntersection(
+            R.prop(R.prop('id', firstFoundNodeOfFinalWay), nodeIdToWays),
+            firstFoundNodeOfFinalWay
+          )
+        )
+      ),
+      () => {
+        // Find the partial block of firstFoundNodeOfFinalWay
+        // If firstFoundNodeOfFinalWay was found by extra queries it won't be in partialBlocks, so just ignore
+        const partialBlockOfNode = R.find(
+          partialBlock => R.compose(
+            R.length,
+            partialBlock => R.contains(
+              R.prop('id', firstFoundNodeOfFinalWay),
+              R.map(R.prop('id'), partialBlock.nodes)
+            )
+          )(partialBlock),
+          partialBlocks
+        );
+        return of(Result.Ok({
+          block: {
+            // Add firstFoundNodeOfFinalWay if it isn't already there
+            // TODO firstFoundNodeOfFinalWay has already been added if we are being
+            // called after extending a 'dead-end' way. This might be ok or might be the result of bad logic
+            nodes: R.compose(
+              R.uniqBy(R.prop('id')),
+              R.concat(nodes)
+            )([firstFoundNodeOfFinalWay]),
+            // Add the partialBlockOfNode ways if there is a partialBlockOfNode
+            ways: R.concat(ways, strPathOr([], 'ways', partialBlockOfNode))
+          },
+          // Add the partialBlockOfNode if there is one
+          remainingPartialBlocks: R.without(compact(Array.of(partialBlockOfNode)), partialBlocks)
+        }));
+      }
+    ],
+    // We have a firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, pass the node (which might be null) (TODO how can it be null?)
+    [
+      R.T,
+      () => of(Result.Ok({
+        block: {
+          // Add firstFoundNodeOfFinalWay if it isn't already added
+          nodes: R.compose(
+            R.uniqBy(R.prop('id')),
+            R.concat(nodes)
+          )([firstFoundNodeOfFinalWay]),
+          ways: R.concat(ways, waysAtEndOfFinalWay)
+        },
+        remainingPartialBlocks: partialBlocks
+      }))
+    ]
+  ])({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay});
 };
 
 /**
@@ -909,6 +987,7 @@ const _deadEndNodeAndTrimmedWayOfWayResultTask = (osmConfig, ways) => {
   const way = R.last(ways);
   // Task Result <way, intersectionNOdesByWayId, nodesByWayId> -> Task Result <ways, node>
   return R.composeK(
+    x => of(x),
     // If we used an intersectionNode, query for its ways and recurse if this node isn't a real intersection
     // because it just connects two ways with the same street name
     ({way, waysAndNodeResult}) => resultToTaskWithResult(
@@ -925,56 +1004,69 @@ const _deadEndNodeAndTrimmedWayOfWayResultTask = (osmConfig, ways) => {
           // not a real intersection take the second way that is not way and recurse.
           // Diagram +------ - ----- where + is one end of the way and - is what we thought was an intersection,
           // but is actually just a continuation of the street with another way
-          ({ways, node}) => R.composeK(
-            isRealIntersectionResult => resultToTaskWithResult(
-              ({realIntersection, waysOfIntersection}) => R.ifElse(
-                R.identity,
-                // Done
-                () => of(Result.Ok({ways, nodes: [node]})),
-                // Recurse with the new way added, possibly reversed to match the flow of the ways
-                () => {
-                  // Get the next way R.differenceWith will always be 1 new way, because unreal intersection
-                  // connect our existing way with 1 other way (if there were more ways it would be a real intersection)
-                  const nextWay = R.compose(
-                    R.head,
-                    // Remove the __reversed__ tag if it was created, we don't need it.
-                    // We just want the way reversed if needed so we flow in the correct direction from way to nextWayFeature
-                    nextWayFeature => removeReverseTagsOfOrderWayFeaturesOfBlock([nextWayFeature]),
-                    // Reverse the nextWayFeature if needed to match the flow of ways. orderWayFeaturesOfBlock always reverses the first way if any, so list it first
-                    nextWayFeature => R.head(orderWayFeaturesOfBlock(R.concat([nextWayFeature], ways))),
-                    R.head,
-                    R.differenceWith(
-                      R.eqProps('id'),
-                      waysOfIntersection
-                    )
-                  )(ways);
-                  return _deadEndNodeAndTrimmedWayOfWayResultTask(
-                    osmConfig,
-                    R.concat(
-                      ways,
-                      [nextWay]
-                    )
-                  );
+          ({ways, node}) => {
+            return R.composeK(
+              isRealIntersectionResult => resultToTaskWithResult(
+                ({realIntersection, waysOfIntersection}) => R.ifElse(
+                  R.identity,
+                  // It's a real intersection, so just accept the node and return the completed block
+                  () => of(Result.Ok({ways, nodes: [node]})),
+                  // It's not a real intersection.
+                  // Recurse with the new way added, possibly reversed to match the flow of the ways
+                  () => {
+                    // Get the next way R.differenceWith will always be 1 new way, because unreal intersection
+                    // connects our existing way with 1 other way (if there were more ways it would be a real intersection)
+                    const nextWay = R.compose(
+                      R.head,
+                      // Remove the __reversed__ tag if it was created, we don't need it.
+                      // We just want the way reversed if needed so we flow in the correct direction from way to nextWayFeature
+                      nextWayFeature => removeReverseTagsOfOrderWayFeaturesOfBlock([nextWayFeature]),
+                      // Reverse the nextWayFeature if needed to match the flow of ways. orderWayFeaturesOfBlock always reverses the first way if any, so list it first
+                      nextWayFeature => R.head(orderWayFeaturesOfBlock(R.concat([nextWayFeature], ways))),
+                      R.head,
+                      R.differenceWith(
+                        R.eqProps('id'),
+                        waysOfIntersection
+                      )
+                    )(ways);
+                    // Treat the new way as a dead end since we presumably don't have any data
+                    // beyond the way we just added
+                    return _deadEndNodeAndTrimmedWayOfWayResultTask(
+                      osmConfig,
+                      R.concat(
+                        ways,
+                        [nextWay]
+                      )
+                    );
+                  }
+                )(realIntersection)
+              )(isRealIntersectionResult),
+
+              // Get the ways of the node to determine if it's a real intersection
+              result => resultToTaskNeedingResult(
+                response => {
+                  const waysOfIntersection = response.features;
+                  return of({
+                    realIntersection: isRealIntersection(waysOfIntersection, node),
+                    waysOfIntersection
+                  });
                 }
-              )(realIntersection)
-            )(isRealIntersectionResult),
-            result => resultToTaskNeedingResult(
-              response => {
-                const waysOfIntersection = response.features;
-                return of({
-                  realIntersection: isRealIntersection(waysOfIntersection, node),
-                  waysOfIntersection
-                });
-              }
-            )(result),
-            ({node}) => osmResultTask({
-                name: 'waysOfNodeQueryForDeadEnds',
-                testMockJsonToKey: {node: node.id, type: 'waysOfNode'}
-              },
-              options => fetchOsmRawTask(options, waysOfNodeQuery(osmConfig, node.id))
-            )
-          )({ways, node}),
-          ({ways, node}) => of(Result.Ok({ways, nodes: [node]}))
+              )(result),
+
+              // Query for ways of the node
+              ({node}) => osmResultTask({
+                  name: 'waysOfNodeQueryForDeadEnds',
+                  testMockJsonToKey: {node: node.id, type: 'waysOfNode'}
+                },
+                options => fetchOsmRawTask(options, waysOfNodeQuery(osmConfig, node.id))
+              )
+            )({ways, node});
+          },
+
+          // Otherwise we're done
+          ({ways, node}) => {
+            return of(Result.Ok({ways, nodes: [node]}));
+          }
         )({way, intersectionNodesByWayId, ways, node});
       }
     )(waysAndNodeResult),

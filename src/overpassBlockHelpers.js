@@ -60,6 +60,7 @@ export const waysOfNodeQuery = (osmConfig, nodeId) => {
     R.split('/')
   )(nodeId);
   return `
+    // waysOfNodeQuery for nodeId: ${id}
     node(id:${id})->.matchingNode;
     (
     ${
@@ -706,8 +707,8 @@ export const orderWayFeaturesOfBlock = wayFeaturesOfStreet => {
   return R.compose(
     // Remove the feature id keys
     R.values,
-    // Merge each feature if they have the same id, favoring the reversed one if one version of the feature is reversed
-    // TODO I can't remember why we'd have duplicate feature ids here
+    // At this point we have a each way listed twice, once from the end point and once from the start point
+    // Merge each way feature with the same id, favoring the reversed one if one version of the feature is reversed
     // Take l if it has __reversed__, otherwise take r assuming r has reversed or neither does and are identical
     featureObjs => mergeAllWithKey(
       (_, l, r) => R.ifElse(R.prop('__reversed__'), R.always(l), R.always(r))(l),
@@ -869,12 +870,12 @@ export const _sortOppositeBlocksByNodeOrdering = oppositeBlockPair => {
 
 /**
  *
- * @param wayFeatures
+ * @param ways
  * @param wayIdToWayPoints
  * @param nodePointToNode
  * @private
  */
-export const _wayEndPointToDirectionalWays = ({wayFeatures, wayIdToWayPoints, nodePointToNode}) => R.compose(
+export const _wayEndPointToDirectionalWays = ({ways, wayIdToWayPoints, nodePointToNode}) => R.compose(
   // way end points will usually be unique, but some will match two ways when two ways meet at a place
   // that is not an intersection
   // This produces {wayEndPoint: [...ways with that end point], ...}
@@ -913,7 +914,7 @@ export const _wayEndPointToDirectionalWays = ({wayFeatures, wayIdToWayPoints, no
       )(wayCoordinates);
     }
   )
-)(wayFeatures);
+)(ways);
 
 // 1 Travel from every node along the directional ways
 //  A If starting at way end, travel other direction. Go to step 2 for the one direction CONTINUE

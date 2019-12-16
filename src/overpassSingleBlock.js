@@ -362,39 +362,41 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
   // Try to query by bounds, if we fail accumulate errors
 
   return R.composeK(
-    matchingLocationsWithResults => _locationToOsmSingleBlockBoundsResolveResultTask(matchingLocationsWithResults),
+    matchingLocationsWithResults => of(_locationToOsmSingleBlockBoundsResolve(matchingLocationsWithResults)),
     location => locationToOsmAllBlocksQueryResultsTask(osmConfig, location)
   )(locationWithGeojsonBounds);
 };
 
-const _locationToOsmSingleBlockBoundsResolveResultTask = ({Ok: locationsWithResults, Errors: errors}) => {
+const _locationToOsmSingleBlockBoundsResolve = ({Ok: locationsWithResults, Errors: errors}) => {
   // Debug
   _blocksToGeojson(R.map(R.prop('results'), locationsWithResults));
   // Find the block that has nodes within an acceptable tolerance of location.locationPoints to be
   // considered the correct block
-  const matchingLocationsWithResults = compact(R.map(
-    ({location, results}) => {
-      const nodes = extents(reqStrPathThrowing('nodes', results));
-      const nodeDistances = R.map(
-        // Compare each node to each point and take the shortest distance
-        locationPoint => {
-          return R.compose(
-            R.head,
-            R.sortBy(({node, distance}) => distance),
-            R.map(node => ({node, distance: distance(node, locationPoint, {units: 'meters'})}))
-          )(nodes);
-        },
-        reqStrPathThrowing('locationPoints', location)
-      );
-      // If both nodes are withing the tolerance distance of the locationPoints, accept the block, else null it
-      return R.ifElse(
-        () => R.all(nodeDistance => R.gt(AROUND_LAT_LON_TOLERANCE, nodeDistance.distance), nodeDistances),
-        R.identity,
-        () => null
-      )({location, result: results});
-    },
-    locationsWithResults
-  ));
+  const matchingLocationsWithResults = compact(
+    R.map(
+      ({location, results}) => {
+        const nodes = extents(reqStrPathThrowing('nodes', results));
+        const nodeDistances = R.map(
+          // Compare each node to each point and take the shortest distance
+          locationPoint => {
+            return R.compose(
+              R.head,
+              R.sortBy(({node, distance}) => distance),
+              R.map(node => ({node, distance: distance(node, locationPoint, {units: 'meters'})}))
+            )(nodes);
+          },
+          reqStrPathThrowing('locationPoints', location)
+        );
+        // If both nodes are withing the tolerance distance of the locationPoints, accept the block, else null it
+        return R.ifElse(
+          () => R.all(nodeDistance => R.gt(AROUND_LAT_LON_TOLERANCE, nodeDistance.distance), nodeDistances),
+          R.identity,
+          () => null
+        )({location, result: results});
+      },
+      locationsWithResults
+    )
+  );
   return R.ifElse(
     matchingLocationsWithResults => R.compose(R.lt(1), R.length)(matchingLocationsWithResults),
     matchingLocationsWithResults => Result.Ok(R.head(matchingLocationsWithResults)),

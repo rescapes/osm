@@ -200,10 +200,11 @@ describe('overpassSingleBlock', () => {
       intersections: ['47.547286, 7.584755', '47.545305, 7.59128']
     })).run().listen(defaultRunToResultConfig(
       {
-        onResolved: ({results, location}) => {
+        onResolved: ({results}) => {
+          _blocksToGeojson(results)
           expect(results).toEqual(results)
         }
       }, errors, done));
-  }, 200000);
+  }, 2000000);
 });
 

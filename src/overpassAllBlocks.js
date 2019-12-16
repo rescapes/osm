@@ -49,7 +49,7 @@ import {
 import {
   geojsonFeaturesHaveShapeOrRadii,
   isNominatimEligible,
-  geojsonFeaturesHaveShape, geojsonFeaturesHaveRadii, wayFeatureNameOrDefault
+  geojsonFeaturesHaveShape, geojsonFeaturesHaveRadii, wayFeatureNameOrDefault, wayFeatureName
 } from './locationHelpers';
 import {length} from '@turf/turf';
 import {v} from 'rescape-validate';
@@ -390,6 +390,7 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
                 // Quit if we have no more partial blocks
                 return R.length(partialBlocks);
               },
+              // Chain to chain the results of each task. R.map would embed them within each other
               mappingFunction: R.chain,
               monadConstructor: of
             },
@@ -449,7 +450,26 @@ const _createPartialBlocks = ({ways, nodes, location}) => {
         {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}
       )
     ),
-    ({ways, nodes}) => _calculateNodeAndWayRelationships(({ways, nodes}))
+    // Repeat with reduced nodes
+    ({ways, nodes}) => R.merge({ways, nodes}, _calculateNodeAndWayRelationships(({ways, nodes}))),
+    // If any node only has two ways that are the same street, eliminate that node
+    // These nodes are not desired as they make fake block divisions
+    ({ways, nodes, nodeIdToWays, nodeIdToNode}) => R.compose(
+      nodes => ({ways, nodes}),
+      nodeIds => R.map(nodeId => R.prop(nodeId, nodeIdToNode), nodeIds),
+      nodeIdToWays => R.keys(nodeIdToWays),
+      nodeIdToWays => R.filter(
+        ways => R.compose(
+          R.not,
+          ways => R.both(
+            ways => R.compose(R.equals(1), R.length, R.uniq, R.map(wayFeatureName))(ways),
+            ways => R.compose(R.equals(2), R.length)(ways)
+          )(ways)
+        )(ways),
+        nodeIdToWays
+      )
+    )(nodeIdToWays),
+    ({ways, nodes}) => R.merge({ways, nodes}, _calculateNodeAndWayRelationships(({ways, nodes})))
   )({ways, nodes, location});
 };
 
@@ -807,14 +827,9 @@ const _handleUnendedWaysAndRedundantNodesAndRemainingPartialBlocksResultTask = (
   {partialBlocks, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay},
   {nodes, ways}
 ) => {
-  _blockToGeojson({nodes, ways});
-  _blocksToGeojson(partialBlocks);
   return R.composeK(
     nodeAndTrimmedWayResult => resultToTaskWithResult(
       ({block, remainingPartialBlocks}) => {
-        // For debugging only
-        _blockToGeojson(block);
-        _blocksToGeojson(remainingPartialBlocks);
         // If the block is complete because there are two nodes now, or failing that we didn't find a joining way,
         // just return the block, otherwise recurse to travel more to
         // reach a node along the new way, reach another way, or reach a dead end
@@ -837,7 +852,7 @@ const _handleUnendedWaysAndRedundantNodesAndRemainingPartialBlocksResultTask = (
                 block
               ),
               R.concat([block], remainingPartialBlocks)
-            )
+            );
           },
           // Done building the block
           block => of(Result.Ok({block, partialBlocks: remainingPartialBlocks}))
@@ -917,15 +932,15 @@ const _choicePointProcessPartialBlockResultTask = (osmConfig, {nodeIdToWays}, {f
       // to start a new way without being at a true intersection, or it might be the intersection of a parking lot
       // or something we don't treat as a new block. We treat two (and only two) joining ways as a not real intersection
       // unless the street name changes
-      ({firstFoundNodeOfFinalWay}) => R.and(
-        firstFoundNodeOfFinalWay,
-        R.not(
+      ({firstFoundNodeOfFinalWay}) => R.both(
+        R.identity,
+        firstFoundNodeOfFinalWay => R.not(
           isRealIntersection(
             R.prop(R.prop('id', firstFoundNodeOfFinalWay), nodeIdToWays),
             firstFoundNodeOfFinalWay
           )
         )
-      ),
+      )(firstFoundNodeOfFinalWay),
       () => {
         // Find the partial block of firstFoundNodeOfFinalWay
         // If firstFoundNodeOfFinalWay was found by extra queries it won't be in partialBlocks, so just ignore

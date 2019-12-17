@@ -785,7 +785,7 @@ export const _blocksToGeojson = blocks => {
       "timestamp": "",
       "features": R.reduce(
         (acc, {nodes, ways}) => {
-          return R.concat(acc, R.concat(ways, nodes))
+          return R.concat(acc, R.concat(ways, nodes));
         },
         [],
         blocks
@@ -930,8 +930,7 @@ export const _buildPartialBlocks = ({wayIdToWayPoints, nodeIdToWays, nodeIdToNod
     (ways, nodeId) => {
       const nodePoint = reqStrPathThrowing(nodeId, nodeIdToNodePoint);
 
-      return R.map(
-        way => {
+      return R.map(way => {
           // Travel in one or both directions returning a separate object for each node with one ordered ways coming from it
           return R.map(
             partialWay => {
@@ -947,6 +946,15 @@ export const _buildPartialBlocks = ({wayIdToWayPoints, nodeIdToWays, nodeIdToNod
   ));
 };
 
+/**
+ * Given a way and node point, split the way at the node, returning two way segments. Or if the node is at
+ * one end just return a single way, possibly reordered to start at the node index
+ * @param {Object} wayIdToWayPoints Mapping of the way id to way points
+ * @param {Object} nodePoint The node's point
+ * @param {Object} way A way feature
+ * @returns {[Object]} One or two ways ordered from the node point
+ * @private
+ */
 const _wayToSplitAndOrderedWays = (wayIdToWayPoints, nodePoint, way) => {
   return R.compose(
     ({way, wayPoints, index}) => R.map(

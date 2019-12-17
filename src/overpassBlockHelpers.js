@@ -925,67 +925,113 @@ export const _wayEndPointToDirectionalWays = ({ways, wayIdToWayPoints, nodePoint
 // At the end of this process we have a list of objects with nodes and ways.
 // nodes has just the start node and ways has just one directional (partial) way whose first point
 // is the node
-export const _buildPartialBlocks = ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => {
+export const _buildPartialBlocks = ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, wayIdToNodes, wayIdToWay}) => {
   return R.unnest(chainObjToValues(
-    (ways, nodeId) => {
-      const nodePoint = reqStrPathThrowing(nodeId, nodeIdToNodePoint);
-
-      return R.map(way => {
-          // Travel in one or both directions returning a separate object for each node with one ordered ways coming from it
-          return R.map(
-            partialWay => {
-              return {nodes: [R.prop(nodeId, nodeIdToNode)], ways: [partialWay]};
-            },
-            _wayToSplitAndOrderedWays(wayIdToWayPoints, nodePoint, way)
-          );
-        },
-        ways
-      );
+    (nodes, wayId) => {
+      const way = R.prop(wayId, wayIdToWay);
+      // Split the way by nodes, traveling in each direction from each node to the next node or dead end.
+      // This creates twin pairs of each way segment.
+      // If a way has no nodes it won't be processed
+      return _wayToPartialBlocks({wayIdToWayPoints, nodeIdToNodePoint}, nodes, way);
     },
-    nodeIdToWays
+    wayIdToNodes
   ));
 };
 
 /**
- * Given a way and node point, split the way at the node, returning two way segments. Or if the node is at
- * one end just return a single way, possibly reordered to start at the node index
- * @param {Object} wayIdToWayPoints Mapping of the way id to way points
- * @param {Object} nodePoint The node's point
+ * Given a way and nodes intersecting it, split the way at the nodes, and travel from each node in both directions
+ * to the next node or end of the way
+ * Thus we return to partial blocks from each node to the next node or end of the way. We order the way points
+ * to be flowing from each node. This results in "twins" where one partial block has node A and flows
+ * to the next node B but doesn't include B. Another partial block flows from B to A but doesn't include A.
+ * We create the twins like bi-directional travel lanes so we can construct complete blocks by flowing in either
+ * direction when we traverse all the blocks
+ * @param {Object} context
+ * @param {Object} context.wayIdToWayPoints Mapping of the way id to way points
+ * @param {Object} context.nodeIdToNodePoint Mapping of the way id to way points
+ * @param {Object} nodes The intersection nodes of the way
  * @param {Object} way A way feature
- * @returns {[Object]} One or two ways ordered from the node point
+ * @returns {[Object]} One or two partial blocks, each containing ways: [a single partial way] and nodes: [the first node]
  * @private
  */
-const _wayToSplitAndOrderedWays = (wayIdToWayPoints, nodePoint, way) => {
+const _wayToPartialBlocks = ({wayIdToWayPoints, nodeIdToNodePoint}, nodes, way) => {
+  _blockToGeojson({nodes, ways: [way]});
   return R.compose(
-    ({way, wayPoints, index}) => R.map(
-      // Process splits, maybe reverse the partial way points to start at the node index
-      partialWayPoints => {
-        const orderedWayPartialPoints = R.unless(
-          R.compose(
-            R.equals(0),
-            R.indexOf(nodePoint)
-          ),
-          R.reverse
-        )(partialWayPoints);
-        // Create a new version of the way with these points
-        return R.set(
-          R.lensPath(['geometry', 'coordinates']),
-          // Changed the hashed points pack to array pairs
-          hashPointsToWayCoordinates(orderedWayPartialPoints),
-          way
-        );
-      },
-      // Split the way points at the node index (ignoring intersections with other nodes)
-      // We split inclusively to get the split point in each result set, but reject single
-      // point results
-      R.reject(
-        R.compose(R.equals(1), R.length),
-        compactEmpty(splitAtInclusive(index, wayPoints))
+    ({way, wayPoints, nodeAndIndices}) => {
+      const wayPointIndices = R.map(R.prop('wayPointIndex'), nodeAndIndices);
+      return R.map(
+        // Process splits, maybe reverse the partial way points to start at the node index
+        ({node, wayPointIndex}) => {
+          const otherWayPointIndices = R.without([wayPointIndex], wayPointIndices);
+          const nodePoint = R.prop(R.prop('id', node), nodeIdToNodePoint);
+          // Split the way points at the node index (ignoring intersections with other nodes)
+          // We split inclusively to get the split point in each result set, but reject single
+          // point results
+          return R.compose(
+            // Turn the 1 or 2 partial ways into trimmed ways going from either direction of the node
+            wayPointsOfBothSides => R.map(
+              R.compose(
+                // Finally combine relevant node to form the partial block
+                way => {
+                  const block = ({ways: [way], nodes: [node]})
+                  _blockToGeojson(block)
+                  return block
+                },
+                // Create a new version of the way with these points
+                partialWayPoints => R.set(
+                  R.lensPath(['geometry', 'coordinates']),
+                  // Changed the hashed points pack to array pairs
+                  hashPointsToWayCoordinates(partialWayPoints),
+                  way
+                ),
+                // Reverse the way points that don't flow from the node
+                partialWayPoints => R.ifElse(
+                  partialWayPoints => R.compose(
+                    R.equals(0),
+                    R.indexOf(nodePoint)
+                  )(partialWayPoints),
+                  partialWayPoints => {
+                    // Find the next wayPointIndex greater than and closest to the wayPointIndex
+                    const nodeIndex = R.compose(
+                      R.head,
+                      otherWayPointIndices => R.sortBy(nodeIndex => R.subtract(nodeIndex, wayPointIndex), otherWayPointIndices),
+                      otherWayPointIndices => R.filter(R.lt(wayPointIndex), otherWayPointIndices)
+                    )(otherWayPointIndices);
+                    // Slice the full way from the wayPointIndex to the closest nodeIndex (or way end) inclusive
+                    return R.slice(wayPointIndex, R.ifElse(R.identity, R.add(1), ()=>Infinity)(nodeIndex), wayPoints)
+                  },
+                  // Reverse the wayPoints
+                  partialWayPoints => {
+                    // Find the next wayPointIndex less than and closest to the wayPointIndex
+                    const nodeIndex = R.compose(
+                      R.head,
+                      otherWayPointIndices => R.sortBy(nodeIndex => R.subtract(wayPointIndex, nodeIndex), otherWayPointIndices),
+                      otherWayPointIndices => R.filter(R.gt(wayPointIndex), otherWayPointIndices)
+                    )(otherWayPointIndices);
+                    // Slice the full way from the closest nodeIndex (or way start) inclusive to the wayPointIndex inclusive
+                    // Reverse so we flow from the wayPointIndex node
+                    return R.reverse(R.slice(nodeIndex || 0, wayPointIndex+1, wayPoints))
+                  }
+                )(partialWayPoints)
+              ),
+              wayPointsOfBothSides
+            ),
+            // So we get one or two partial ways
+            wayPoints => R.reject(
+              R.compose(R.equals(1), R.length),
+              compactEmpty(splitAtInclusive(parseInt(wayPointIndex), wayPoints))
+            )
+          )(wayPoints);
+        },
+        nodeAndIndices
+      );
+    },
+    toNamedResponseAndInputs('nodeAndIndices',
+      // Get the index of the nodes in the way's points
+      ({wayPoints}) => R.map(
+        node => ({node, wayPointIndex: R.indexOf(reqStrPathThrowing(R.prop('id', node), nodeIdToNodePoint), wayPoints)}),
+        nodes
       )
-    ),
-    toNamedResponseAndInputs('index',
-      // Get the index of the node in the way's points
-      ({wayPoints}) => R.indexOf(nodePoint, wayPoints)
     ),
     toNamedResponseAndInputs('wayPoints',
       // Get the way points of the way

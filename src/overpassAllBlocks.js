@@ -512,8 +512,8 @@ const _traversePartialBlocksToBuildBlocks = (
 const _createPartialBlocks = ({ways, nodes, location}) => {
   return R.compose(
     toNamedResponseAndInputs('partialBlocks',
-      ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}) => _buildPartialBlocks(
-        {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint}
+      ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, wayIdToNodes, wayIdToWay}) => _buildPartialBlocks(
+        {wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, wayIdToNodes, wayIdToWay}
       )
     ),
     ({ways, nodes}) => R.merge({ways, nodes}, _calculateNodeAndWayRelationships(({ways, nodes})))
@@ -716,12 +716,18 @@ const _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = (
     R.find(
       partialBlock => {
         const node = reqStrPathThrowing('nodes.0', partialBlock);
-        return isRealIntersection(nodeIdToWays(R.prop('id', node)), node);
+        return isRealIntersection(
+          R.compose(
+            nodeId => R.prop(nodeId, nodeIdToWays),
+            node => R.prop('id', node)
+          )(node),
+          node
+        );
       },
       partialBlocks
     )
   );
-  const matchingPartialBlocks =_matchingPartialBlocks(hashToPartialBlocks, partialBlock);
+  const matchingPartialBlocks = _matchingPartialBlocks(hashToPartialBlocks, partialBlock);
   const remainingPartialBlocks = R.without(matchingPartialBlocks, partialBlocks);
   const {nodes, ways} = partialBlock;
   _blockToGeojson({nodes, ways});
@@ -1111,7 +1117,7 @@ const _extendBlockToFakeIntersectionPartialBlock = (
  * @private
  */
 const _matchingPartialBlocks = (hashToPartialBlocks, partialBlock) => {
-  R.defaultTo(
+  return R.defaultTo(
     // Default to just the partialBlock or null
     R.when(R.identity, Array.of)(partialBlock),
     // Find the twin block and the partial block in hashToPartialBlocks

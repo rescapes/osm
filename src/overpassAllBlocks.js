@@ -292,7 +292,7 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
       ({blocks}) => of(
         R.filter(
           block => R.compose(
-            // ways add up to at least 10 meters
+            // ways add up to at least 20 meters
             R.lte(R.propOr(20, 'minimumWayLength', osmConfig)),
             // add up the ways
             ways => R.reduce(

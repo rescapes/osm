@@ -12,12 +12,13 @@
 import xhr from 'xhr';
 import {task, waitAll, of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
-import {compactEmpty, promiseToTask, traverseReduceDeepResults} from 'rescape-ramda';
+import {compactEmpty, promiseToTask, traverseReduceDeepResults, taskToResultTask, mapMDeep} from 'rescape-ramda';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
 import {loggers} from 'rescape-log';
 import {addressString} from './locationHelpers';
+import {mapObjToValues} from 'rescape-ramda';
 
 const log = loggers.get('rescapeDefault');
 
@@ -172,18 +173,9 @@ export const nominatimResultTask = location => {
     compactEmpty,
     R.props(['blockname', 'neighborhood', 'city', 'state', 'country'])
   )(location);
-  const host = 'nominatim.openstreetmap.org';
-  const geocoder = new Nominatim({
-      secure: true, // enables ssl
-      host
-    },
-    {
-      // No effective limit
-      limit: 1000
-    }
-  );
-  log.debug(`Nominatim query: http://${host}?q=${query}&addressDetails=1&format=json&limit=1000`);
-  return promiseToTask(geocoder.search({q: query, addressDetails: 1}).then(
+
+  const task = nominatimQueryResultTask('search', {q: query, addressDetails: 1});
+  return task.map(
     results => {
       const filter = R.ifElse(
         R.prop('blockname'),
@@ -201,12 +193,55 @@ export const nominatimResultTask = location => {
         // Assume the first match is the best since results are ordered by importance
         return (Result.Ok(R.head(matches)));
       } else {
-        log.debug(`Nominatim no matches for query ${query}`);
-        return (Result.Error({error: "No qualifying results", results, query}));
+        log.debug(`Nominatim no matches for query ${queryArgs}`);
+        return (Result.Error({error: "No qualifying results", results, query: queryArgs}));
       }
     }
-    ).catch(error => Result.Error({error}))
+  ).orElse(error => Result.Error({error}));
+};
+
+/**
+ * Reverse geocode and return the city, (state), country
+ * @param lat
+ * @param lon
+ * @returns {Task}
+ */
+export const nominatimReverseGeocodeCityResultTask = ({lat, lon}) => {
+  return mapMDeep(2,
+    location => R.pick(['country', 'state', 'city', 'suburb'], location),
+    nominatimQueryResultTask(
+      'reverse',
+      {lat, lon}
+    )
   );
+};
+
+export const nominatimReverseGeocodeResultTask = ({lat, lon}) => {
+  return nominatimQueryResultTask(
+    'reverse',
+    {lat, lon}
+  );
+};
+
+/**
+ * Queryie nominatim for a place or lat/lon
+ * @param method
+ * @param queryArgs
+ * @returns {Task}
+ */
+export const nominatimQueryResultTask = (method, queryArgs) => {
+  const host = 'nominatim.openstreetmap.org';
+  log.debug(`Nominatim query: http://${host}/${method}?${queryArgs}&addressDetails=1&format=json&limit=1000`);
+  const geocoder = new Nominatim({
+      secure: true, // enables ssl
+      host
+    },
+    {
+      // No effective limit
+      limit: 1000
+    }
+  );
+  return taskToResultTask(promiseToTask(geocoder[method](queryArgs)));
 };
 
 /***

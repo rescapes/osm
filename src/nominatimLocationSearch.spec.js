@@ -8,7 +8,12 @@
  *
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import {nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
+import {
+  nominatimResultTask,
+  mapboxGeocodeTask,
+  nominatimReverseGeocodeResultTask,
+  nominatimReverseGeocodeCityResultTask
+} from './nominatimLocationSearch';
 import {defaultRunConfig, defaultRunToResultConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import * as R from 'ramda';
 import {rejected} from 'folktale/concurrency/task';
@@ -38,7 +43,13 @@ describe('search', () => {
 
   test('nominatimResultTaskBlockname', done => {
     const errors = [];
-    nominatimResultTask({country: 'USA', state: 'New York', city: 'New York City', neighborhood: 'Battery Park City', blockname: '1st Place'}).orElse(reason => {
+    nominatimResultTask({
+      country: 'USA',
+      state: 'New York',
+      city: 'New York City',
+      neighborhood: 'Battery Park City',
+      blockname: '1st Place'
+    }).orElse(reason => {
       // Our task reject handler takes the reason and pushes it too, then rejects again
       errors.push(reason);
       // This reason is the error that goes to defaultOnRejected
@@ -77,6 +88,48 @@ describe('search', () => {
           })
       }, errors, done)
     );
+  }, 100000);
+
+  test('reverseGeocode', done => {
+    expect.assertions(1);
+    const errors = [];
+    nominatimReverseGeocodeResultTask({lon: -74.010865, lat: 40.7071407}).orElse(reason => {
+      // Our task reject handler takes the reason and pushes it too, then rejects again
+      errors.push(reason);
+      // This reason is the error that goes to defaultOnRejected
+      return rejected(reason);
+    }).run().listen(defaultRunToResultConfig({
+        onResolved: obj => {
+          expect(obj.placeId).toEqual(140177219);
+        },
+        onRejected: obj => {
+          expect(true).toEqual(false)
+        }
+      },
+      errors,
+      done
+    ));
+  }, 100000);
+
+  test('reverseGeocodeCity', done => {
+    expect.assertions(1);
+    const errors = [];
+    nominatimReverseGeocodeCityResultTask({lat: 49.465806, lon: -114.192326}).orElse(reason => {
+      // Our task reject handler takes the reason and pushes it too, then rejects again
+      errors.push(reason);
+      // This reason is the error that goes to defaultOnRejected
+      return rejected(reason);
+    }).run().listen(defaultRunToResultConfig({
+        onResolved: obj => {
+          expect(obj.placeId).toEqual(140177219);
+        },
+        onRejected: obj => {
+          expect(true).toEqual(false)
+        }
+      },
+      errors,
+      done
+    ));
   }, 100000);
 
   test('mapboxGeocodeTask', done => {

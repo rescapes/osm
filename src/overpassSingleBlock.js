@@ -293,7 +293,6 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
         return R.ifElse(
           location => R.length(strPathOr([], 'locationPoints', location)),
           location => {
-
             return R.map(
               result => result.mapError(
                 ({location: failedLocation, errors: newErrors}) => Result.Error({
@@ -305,7 +304,7 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
             );
           },
           // We can't do anything more
-          location => of(Result.Errror({errors, location}))
+          location => of(Result.Error({errors, location}))
         )(location);
       }
     }),
@@ -340,6 +339,7 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
 
 /**
  * Queries for a single block using a bounds query. The bounds are the box around the two location.locationPoints
+ * with a buffer to make sure the street in question and it's neighbors are queried
  * @param osmConfig
  * @param location
  * @private
@@ -362,12 +362,12 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
   // Try to query by bounds, if we fail accumulate errors
 
   return R.composeK(
-    matchingLocationsWithResults => of(_locationToOsmSingleBlockBoundsResolve(matchingLocationsWithResults)),
+    matchingLocationsWithResults => of(_locationToOsmSingleBlockBoundsResolve(location, matchingLocationsWithResults)),
     location => locationToOsmAllBlocksQueryResultsTask(osmConfig, location)
   )(locationWithGeojsonBounds);
 };
 
-const _locationToOsmSingleBlockBoundsResolve = ({Ok: locationsWithResults, Errors: errors}) => {
+const _locationToOsmSingleBlockBoundsResolve = (location, {Ok: locationsWithResults, Errors: errors}) => {
   // Debug
   _blocksToGeojson(R.map(R.prop('results'), locationsWithResults));
   // Find the block that has nodes within an acceptable tolerance of location.locationPoints to be
@@ -387,7 +387,7 @@ const _locationToOsmSingleBlockBoundsResolve = ({Ok: locationsWithResults, Error
           },
           reqStrPathThrowing('locationPoints', location)
         );
-        // If both nodes are withing the tolerance distance of the locationPoints, accept the block, else null it
+        // If both nodes are within the tolerance distance of the locationPoints, accept the block, else null it
         return R.ifElse(
           () => R.all(nodeDistance => R.gt(AROUND_LAT_LON_TOLERANCE, nodeDistance.distance), nodeDistances),
           R.identity,
@@ -398,7 +398,7 @@ const _locationToOsmSingleBlockBoundsResolve = ({Ok: locationsWithResults, Error
     )
   );
   return R.ifElse(
-    matchingLocationsWithResults => R.compose(R.lt(1), R.length)(matchingLocationsWithResults),
+    matchingLocationsWithResults => R.compose(R.lt(0), R.length)(matchingLocationsWithResults),
     matchingLocationsWithResults => Result.Ok(R.head(matchingLocationsWithResults)),
     () => Result.Error({
       location,

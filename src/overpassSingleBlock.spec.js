@@ -2,10 +2,10 @@ import {
   _locationToOsmSingleBlockBoundsQueryResultTask,
   queryLocationForOsmSingleBlockResultTask
 } from './overpassSingleBlock';
-import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing, pickDeepPaths} from 'rescape-ramda';
 import * as R from 'ramda';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassBlocks';
-import {_blocksToGeojson} from './overpassBlockHelpers';
+import {_blocksToGeojson, _blockToGeojson} from './overpassBlockHelpers';
 import {locationWithLocationPoints} from './locationHelpers';
 
 /**
@@ -81,7 +81,7 @@ describe('overpassSingleBlock', () => {
     const errors = [];
     expect.assertions(3);
     // includePedestrianArea isn't currently default functionality
-    const osmConfig = {includePedestrianArea:true};
+    const osmConfig = {includePedestrianArea: true};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
       intersections: ['59.952305, 11.047053', '59.952248, 11.045588']
     }).run().listen(defaultRunToResultConfig(
@@ -178,33 +178,59 @@ describe('overpassSingleBlock', () => {
   // to resolve the block
   test('testUseBoundsQueryForFailingSingleLocationQuery', done => {
     const errors = [];
-    expect.assertions(4);
+    expect.assertions(1);
     const osmConfig = {};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
-      intersections: ['47.547286, 7.584755', '47.545305, 7.59128']
+      intersections: ['47.5473, 7.5847', '47.5458, 7.5897']
     }).run().listen(defaultRunToResultConfig(
       {
-        onResolved: ({results, location}) => {
-
+        onResolved: ({result, location}) => {
+          _blockToGeojson(result);
+          const {ways, nodes} = result;
+          expect({ways: R.map(R.pick(['id']), ways), nodes: R.map(R.pick(['id']), nodes)}).toEqual({
+            nodes: [
+              {id: "node/1506798015"},
+              {id: "node/3972984803"}
+            ],
+            ways: [
+              {id: "way/109731333"},
+              {id: "way/321723178"},
+              {id: "way/706164905"},
+              {id: "way/423408062"}
+            ]
+          });
         }
       }, errors, done));
-  }, 200000);
+  }, 2000000);
 
   // If the single location query fails the codee should perform a bounds query based on the two locationPoints
   // to resolve the block
   test('testUseBoundsQueryForSingleLocationQuery', done => {
     const errors = [];
-    expect.assertions(4);
+    expect.assertions(1);
     const osmConfig = {};
     _locationToOsmSingleBlockBoundsQueryResultTask(osmConfig, locationWithLocationPoints({
-      intersections: ['47.547286, 7.584755', '47.545305, 7.59128']
+      intersections: ['47.5473, 7.5847', '47.5458, 7.5897']
     })).run().listen(defaultRunToResultConfig(
       {
-        onResolved: ({results}) => {
-          _blocksToGeojson(results)
-          expect(results).toEqual(results)
+        onResolved: ({result}) => {
+          _blockToGeojson(result);
+          const {ways, nodes} = result;
+          expect({ways: R.map(R.pick(['id']), ways), nodes: R.map(R.pick(['id']), nodes)}).toEqual({
+            nodes: [
+              {id: "node/1506798015"},
+              {id: "node/3972984803"}
+            ],
+            ways: [
+              {id: "way/109731333"},
+              {id: "way/321723178"},
+              {id: "way/706164905"},
+              {id: "way/423408062"}
+            ]
+          });
         }
       }, errors, done));
   }, 2000000);
+
 });
 

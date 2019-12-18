@@ -222,6 +222,17 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
 ) {
   const {nodes, ways} = block;
   return R.composeK(
+    // The last step is to remove intermediate fake intersection nodes that we marked __FAKE_INTERSECTION__
+    result => {
+      return resultToTaskNeedingResult(
+        obj => of(R.over(
+          R.lensPath(['block', 'nodes']),
+          // Filter out nodes with __FAKE_INTERSECTION__
+          nodes => R.filter(R.complement(R.propOr)(false, '__FAKE_INTERSECTION__'), nodes),
+          obj
+        ))
+      )(result);
+    },
     nodeAndTrimmedWayResult => resultToTaskWithResult(
       ({block, remainingPartialBlocks}) => {
         // If the block is complete because there are two nodes now, or failing that we didn't find a joining way,
@@ -346,7 +357,9 @@ export function _choicePointProcessPartialBlockResultTask(
             _extendBlockToFakeIntersectionPartialBlock(
               {hashToPartialBlocks},
               partialBlocks,
-              firstFoundNodeOfFinalWay,
+              // Mark the node as a fake intersection so we can remove it from the final block when we are done
+              // constructing the block
+              R.merge({__FAKE_INTERSECTION__: true}, firstFoundNodeOfFinalWay),
               {nodes, ways}
             )
           )
@@ -413,13 +426,8 @@ export function _extendBlockToFakeIntersectionPartialBlock(
 
   return {
     block: {
-      // Add firstFoundNodeOfFinalWay if it isn't already there
-      // TODO firstFoundNodeOfFinalWay has already been added if we are being
-      // called after extending a 'dead-end' way. This might be ok or might be the result of bad logic
-      nodes: R.compose(
-        R.uniqBy(R.prop('id')),
-        R.concat(nodes)
-      )([firstFoundNodeOfFinalWay]),
+      // Add firstFoundNodeOfFinalWay
+      nodes: R.concat(nodes, [firstFoundNodeOfFinalWay]),
       // Add the partialBlockOfNode ways if there is a partialBlockOfNode
       ways: R.concat(ways, strPathOr([], 'ways', partialBlockOfNode))
     },
@@ -588,6 +596,8 @@ export function _completeDeadEndNodeOrQueryForFakeIntersectionNodeResultTask(osm
             // It's not a real intersection.
             // Add the fake node intersection and new way, possibly reversing the way to match the flow.
             // This block will get further processing since it's not complete.
+            // Also mark the fake intersection node as __FAKE_INTERSECTION__: true so we can remove it after
+            // we finish constructing the block
             () => {
               // Get the next way R.differenceWith will always be 1 new way, because unreal intersection
               // connects our existing way with 1 other way (if there were more ways it would be a real intersection)
@@ -607,7 +617,8 @@ export function _completeDeadEndNodeOrQueryForFakeIntersectionNodeResultTask(osm
 
               // Add the new way. This will force the block to keep processing since there is no final node
               return of(Result.Ok({
-                nodes,
+                // Merge in __FAKE_INTERSECTION__: true to the fake intersection node so we can remove it later
+                nodes: R.over(R.lensIndex(-1), R.merge({__FAKE_INTERSECTION__: true}), nodes),
                 ways: R.concat(
                   ways,
                   [nextWay]

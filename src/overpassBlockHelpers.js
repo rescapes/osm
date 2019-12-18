@@ -10,6 +10,8 @@
  */
 
 import * as R from 'ramda';
+import {scaleOrdinal} from 'd3-scale';
+import {schemeCategory10} from 'd3-scale-chromatic';
 import {
   cleanGeojson,
   _intersectionStreetNamesFromWaysAndNodes, _linkedFeatures,
@@ -762,14 +764,16 @@ export const reverseFirstWayFeatureAndTag = wayFeatures => R.compose(
  * @returns {string} The complete geojson. View it at http://geojson.io/
  * @private
  */
-export const _blockToGeojson = ({nodes, ways}) => JSON.stringify({
-    "type": "FeatureCollection",
-    "generator": "overpass-ide",
-    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
-    "timestamp": "",
-    "features": R.concat(nodes || [], ways || [])
-  }, null, '\t'
-);
+export const _blockToGeojson = ({nodes, ways}) => {
+  return JSON.stringify({
+      "type": "FeatureCollection",
+      "generator": "overpass-ide",
+      "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
+      "timestamp": "",
+      "features": R.concat(nodes || [], ways || [])
+    }, null, '\t'
+  );
+};
 
 /**
  * Same as _blockToGeojson, but with lists of blocks
@@ -778,6 +782,48 @@ export const _blockToGeojson = ({nodes, ways}) => JSON.stringify({
  * @private
  */
 export const _blocksToGeojson = blocks => {
+  const color = scaleOrdinal(schemeCategory10);
+  // Color blocks randomly to make it clear what is what
+  // This is used by http://geojson.io/ and could be used in Mapbox or similar as well
+  const styledBlocks = R.addIndex(R.map)(
+    (block, index) => {
+      // Pass the id to get a randomish color
+      const colour = color(index);
+      return R.compose(
+        ...R.map(type => {
+            return block => R.over(
+              R.lensProp(type),
+              things => R.map(
+                thing => R.over(
+                  R.lensProp('properties'),
+                  t => R.merge(
+                    R.ifElse(
+                      R.equals('nodes'),
+                      () => ({
+                        'marker-color': colour
+                      }),
+                      () => ({
+                        stroke: colour,
+                        'stroke-width': 2,
+                        'stroke-opacity': 1
+                      })
+                    )(type),
+                    t
+                  ),
+                  thing
+                ),
+                things
+              ),
+              block
+            );
+          },
+          ['ways', 'nodes']
+        )
+      )(block);
+    },
+    blocks
+  );
+
   return JSON.stringify({
       "type": "FeatureCollection",
       "generator": "overpass-ide",
@@ -788,7 +834,7 @@ export const _blocksToGeojson = blocks => {
           return R.concat(acc, R.concat(ways, nodes));
         },
         [],
-        blocks
+        styledBlocks
       )
     }, null, '\t'
   );
@@ -972,9 +1018,9 @@ const _wayToPartialBlocks = ({wayIdToWayPoints, nodeIdToNodePoint}, nodes, way) 
               R.compose(
                 // Finally combine relevant node to form the partial block
                 way => {
-                  const block = ({ways: [way], nodes: [node]})
-                  _blockToGeojson(block)
-                  return block
+                  const block = ({ways: [way], nodes: [node]});
+                  _blockToGeojson(block);
+                  return block;
                 },
                 // Create a new version of the way with these points
                 partialWayPoints => R.set(
@@ -997,7 +1043,7 @@ const _wayToPartialBlocks = ({wayIdToWayPoints, nodeIdToNodePoint}, nodes, way) 
                       otherWayPointIndices => R.filter(R.lt(wayPointIndex), otherWayPointIndices)
                     )(otherWayPointIndices);
                     // Slice the full way from the wayPointIndex to the closest nodeIndex (or way end) inclusive
-                    return R.slice(wayPointIndex, R.ifElse(R.identity, R.add(1), ()=>Infinity)(nodeIndex), wayPoints)
+                    return R.slice(wayPointIndex, R.ifElse(R.identity, R.add(1), () => Infinity)(nodeIndex), wayPoints);
                   },
                   // Reverse the wayPoints
                   partialWayPoints => {
@@ -1009,7 +1055,7 @@ const _wayToPartialBlocks = ({wayIdToWayPoints, nodeIdToNodePoint}, nodes, way) 
                     )(otherWayPointIndices);
                     // Slice the full way from the closest nodeIndex (or way start) inclusive to the wayPointIndex inclusive
                     // Reverse so we flow from the wayPointIndex node
-                    return R.reverse(R.slice(nodeIndex || 0, wayPointIndex+1, wayPoints))
+                    return R.reverse(R.slice(nodeIndex || 0, wayPointIndex + 1, wayPoints));
                   }
                 )(partialWayPoints)
               ),
@@ -1028,7 +1074,10 @@ const _wayToPartialBlocks = ({wayIdToWayPoints, nodeIdToNodePoint}, nodes, way) 
     toNamedResponseAndInputs('nodeAndIndices',
       // Get the index of the nodes in the way's points
       ({wayPoints}) => R.map(
-        node => ({node, wayPointIndex: R.indexOf(reqStrPathThrowing(R.prop('id', node), nodeIdToNodePoint), wayPoints)}),
+        node => ({
+          node,
+          wayPointIndex: R.indexOf(reqStrPathThrowing(R.prop('id', node), nodeIdToNodePoint), wayPoints)
+        }),
         nodes
       )
     ),

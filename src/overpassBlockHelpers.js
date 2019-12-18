@@ -955,7 +955,6 @@ export const _buildPartialBlocks = ({wayIdToWayPoints, nodeIdToWays, nodeIdToNod
  * @private
  */
 const _wayToPartialBlocks = ({wayIdToWayPoints, nodeIdToNodePoint}, nodes, way) => {
-  _blockToGeojson({nodes, ways: [way]});
   return R.compose(
     ({way, wayPoints, nodeAndIndices}) => {
       const wayPointIndices = R.map(R.prop('wayPointIndex'), nodeAndIndices);

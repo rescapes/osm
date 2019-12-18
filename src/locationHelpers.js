@@ -450,13 +450,17 @@ export const geojsonFeaturesHaveShape = geojson => R.and(
  * @param {Object} geojson Geojson featurecollection or similar
  * @returns {boolean} True if all features have a properties.radius amount, otherwise false
  */
-export const geojsonFeaturesHaveRadii = geojson => R.and(
-  R.compose(R.length, strPathOr([], 'features'))(geojson),
-  R.all(
-    feature => strPathOr(false, 'properties.radius', feature)
-  ),
-  strPathOr([], 'features', geojson)
-);
+export const geojsonFeaturesHaveRadii = geojson => {
+  return R.both(
+    features => R.length(features),
+    features => R.all(
+      feature => strPathOr(false, 'properties.radius', feature),
+      features
+    )
+  )(
+    strPathOr([], 'features', geojson)
+  );
+}
 
 
 /**

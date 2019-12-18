@@ -156,4 +156,38 @@ describe('overpassAllBlocks', () => {
       }, errors, done)
     );
   }, 2000000);
+
+  test('Test PointBuffer locations', done => {
+    expect.assertions(1);
+    const errors = [];
+    const location = {
+      geojson: {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              radius: 100
+            },
+            geometry: {
+              type: "Point",
+              coordinates: [
+                -80.18231999999999,
+                26.098829
+              ]
+            }
+          }
+        ]
+      }
+    };
+    locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
+      {
+        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+          // Paste the results of this into a geojson viewer for debugging
+          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          expect(R.length(locationsAndOsmResults)).toEqual(9);
+        }
+      }, errors, done)
+    );
+  }, 1000000)
 });

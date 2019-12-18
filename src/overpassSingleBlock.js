@@ -31,7 +31,7 @@ import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {
   _filterForIntersectionNodesAroundPoint,
-  AROUND_LAT_LON_TOLERANCE, configuredHighwayWayFilters, highwayNodeFilters,
+  AROUND_LAT_LON_TOLERANCE, aroundPointDeclaration, configuredHighwayWayFilters, highwayNodeFilters,
   osmEquals, osmIdEquals, osmIdToAreaId
 } from './overpassHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
@@ -109,11 +109,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
     // Task (Result.Ok Object | Result.Error) -> Task Result.Ok Object | Task Result.Error
     locationResult => {
       return resultToTaskWithResult(
-        location => mapMDeep(2,
-          // Map the value within the Task and Result.Ok
-          results => ({location, results}),
-          _locationToOsmSingleBlockQueryResultTask(osmConfig, location)
-        ),
+        location => _locationToOsmSingleBlockQueryResultTask(osmConfig, location),
         locationResult
       );
     },
@@ -711,6 +707,7 @@ export const _extractOrderedStreetsFromIntersections = intersections => {
   }
 };
 
+
 const _createIntersectionQueryNodesDeclarations = function (osmConfig, nodes, explicitExtraNodeIds, orderedBlocks, geojsonPoints, intersections) {
 
   // If geojsonPoints are given we can use them to constrain the 2 nodes
@@ -720,8 +717,7 @@ const _createIntersectionQueryNodesDeclarations = function (osmConfig, nodes, ex
       // The 5 indicates 5 meters from the point. I'm assuming that Google and OSM are within AROUND_LAT_LON_TOLERANCE meters
       // otherwise we can't trust they are the same intersection
       // Extracts the coordinates from the geojson point. Reverse since lat, lng is expected
-      geojsonPoint => `
-      (around: ${AROUND_LAT_LON_TOLERANCE}, ${R.join(', ', R.reverse(reqStrPathThrowing('geometry.coordinates', geojsonPoint)))})`,
+      geojsonPoint => aroundPointDeclaration(AROUND_LAT_LON_TOLERANCE, geojsonPoint),
       geojsonPoints
     ),
     R.always(['', ''])

@@ -16,11 +16,13 @@ import {
   taskToResultTask,
   traverseReduceWhile
 } from 'rescape-ramda';
+import {turfBboxToOsmBbox} from 'rescape-helpers';
 import os from 'os';
 import 'regenerator-runtime';
 import {loggers} from 'rescape-log';
 import * as Result from 'folktale/result';
 import {isLatLng} from './locationHelpers';
+import bbox from '@turf/bbox';
 
 const log = loggers.get('rescapeDefault');
 
@@ -134,7 +136,7 @@ export const osmTCondition = (operator, prop, value) => `t["${prop}"] ${operator
 export const filtersForType = R.curry((conditions, type) => `${type}${R.join('', conditions)};`);
 
 /**
- * Given an array of bounds lat, lon, lat, lon, return themn as a string for osm
+ * Given an array of bounds lat, lon, lat, lon, return them as a string for osm
  * @param {[Number]} bounds
  * @return {*}
  */
@@ -166,6 +168,16 @@ export const osmAnd = expressions => R.join(' && ', expressions);
  */
 export const osmOr = expressions => R.join(' || ', expressions);
 
+
+/**
+ * Creates a query buffer filter around a point (around: radius, lat, lon)
+ * @param radius
+ * @param point
+ * @returns {string}
+ */
+export const aroundPointDeclaration = (radius, point) => {
+  return `(around: ${radius}, ${R.join(', ', R.reverse(reqStrPathThrowing('geometry.coordinates', point)))})`;
+};
 
 const highwayWayFilters = [
   osmAlways('highway'),

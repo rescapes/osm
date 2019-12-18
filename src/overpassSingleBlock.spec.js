@@ -184,7 +184,7 @@ describe('overpassSingleBlock', () => {
       intersections: ['47.5473, 7.5847', '47.5458, 7.5897']
     }).run().listen(defaultRunToResultConfig(
       {
-        onResolved: ({result, location}) => {
+        onResolved: ({result}) => {
           _blockToGeojson(result);
           const {ways, nodes} = result;
           expect({ways: R.map(R.pick(['id']), ways), nodes: R.map(R.pick(['id']), nodes)}).toEqual({

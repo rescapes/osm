@@ -13,6 +13,8 @@ import bbox from '@turf/bbox';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import {
+  AROUND_LAT_LON_TOLERANCE, aroundBoundsDeclaration,
+  aroundPointDeclaration,
   configuredHighwayWayFilters,
   highwayNodeFilters,
   osmIdToAreaId
@@ -549,14 +551,18 @@ function _constructHighwayQueriesForType(osmConfig, {type}, {osmId, geojson}) {
     ],
     // If feature properties have radii split them up into features but leave them alone. Each feature
     // has a properties.radius that instructs OSM what around:radius value to use
-    [({geojson}) => geojsonFeaturesHaveRadii(geojson),
-      ({areaId, geojson}) => R.map(
-        feature => ({areaId, geojson: {features: [feature]}}),
-        geojson.features
-      )
+    [({geojson}) => {
+      return geojsonFeaturesHaveRadii(geojson);
+    },
+      ({areaId, geojson}) => {
+        return R.map(
+          feature => ({areaId, geojson: {features: [feature]}}),
+          geojson.features
+        );
+      }
     ],
     // Just put the location in an array since we'll search for it by areaId
-    [R.prop('areaId'), Array.of],
+    [({areaId}) => areaId, Array.of],
     // This should never happen
     [R.T, () => {
       throw new Error('Cannot query for a location that lacks both an areaId and geojson features with shapes or radii');
@@ -599,7 +605,7 @@ function _constructHighwayQueriesForType(osmConfig, {type}, {osmId, geojson}) {
 const _createQueryWaysDeclarations = v((osmConfig, {areaId, geojson}) => {
   return R.cond([
     [
-      ({geojson}) => geojsonFeaturesHaveShapeOrRadii(geojson),
+      ({geojson}) => geojsonFeaturesHaveShape(geojson),
       ({geojson}) => {
         return R.map(
           feature => {
@@ -611,6 +617,30 @@ const _createQueryWaysDeclarations = v((osmConfig, {areaId, geojson}) => {
             )(areaId || '');
             // Filter by the bounds and optionally by the areaId
             const wayQuery = `way(${bounds})${areaFilterStr}${configuredHighwayWayFilters(osmConfig)}`;
+            return `${wayQuery}->.ways;`;
+          },
+          strPathOr([], 'features', geojson)
+        );
+      }
+    ],
+    [
+      ({geojson}) => geojsonFeaturesHaveRadii(geojson),
+      ({geojson}) => {
+        return R.map(
+          feature => {
+            const around = R.cond([
+              [
+                feature => R.propEq('type', 'Point', reqStrPathThrowing('geometry', feature)),
+                feature => aroundPointDeclaration(reqStrPathThrowing('properties.radius', feature), feature)
+              ],
+              [R.T,
+                feature => {
+                  throw new Error(`Feature type must be a Point to do radius query: ${JSON.stringify(feature)}`);
+                }
+              ]
+            ])(feature);
+            // Filter by radius
+            const wayQuery = `way${around}${configuredHighwayWayFilters(osmConfig)}`;
             return `${wayQuery}->.ways;`;
           },
           strPathOr([], 'features', geojson)

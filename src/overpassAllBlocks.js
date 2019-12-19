@@ -6,9 +6,16 @@ import {
   mapToNamedResponseAndInputs,
   strPathOr,
   mapMDeep,
-  traverseReduceWhile
+  toArrayIfNot,
+  traverseReduceWhile,
+  traverseReduceDeep,
+  resultToTaskNeedingResult
 } from 'rescape-ramda';
+import {
+  turfPointToLocation
+} from 'rescape-helpers';
 import {turfBboxToOsmBbox, extractSquareGridFeatureCollectionFromGeojson} from 'rescape-helpers';
+import center from '@turf/center';
 import bbox from '@turf/bbox';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
@@ -30,7 +37,7 @@ import {
   waysByNodeIdTask, _blocksToGeojson
 } from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
-import {nominatimLocationResultTask} from './nominatimLocationSearch';
+import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch';
 import {
   _intersectionStreetNamesFromWaysAndNodes,
   hashNodeFeature,
@@ -39,7 +46,10 @@ import {
 import {
   geojsonFeaturesHaveShapeOrRadii,
   isNominatimEligible,
-  geojsonFeaturesHaveShape, geojsonFeaturesHaveRadii, wayFeatureNameOrDefault
+  geojsonFeaturesHaveShape,
+  geojsonFeaturesHaveRadii,
+  wayFeatureNameOrDefault,
+  locationAndOsmResultsToLocationWithGeojson
 } from './locationHelpers';
 import {length} from '@turf/turf';
 import {v} from 'rescape-validate';
@@ -78,7 +88,7 @@ import {
  * Where each location represents a block and the results are the OSM geojson data
  * The results contain nodes and ways and intersections (the street intersections of each node)
  * Error contains Result.Errors in the form {errors: {errors, location}, location} where the internal
- * location are varieties of the original with an osm area id added. Result.Error is only returned
+ * location are varieties of the original with an osm area id added. result.Error is only returned
  * if no variation of the location succeeds in returning a result
  */
 export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) => {
@@ -88,15 +98,69 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
     result => {
       return of(result.matchWith({
         Ok: ({value}) => ({
-          Ok: R.unless(Array.isArray, Array.of)(value),
+          Ok: toArrayIfNot(value),
           Error: []
         }),
         Error: ({value}) => ({
-          Error: R.unless(Array.isArray, Array.of)(value),
+          Error: toArrayIfNot(value),
           Ok: []
         })
       }));
     },
+    // The last step is to assign each location jurisdiction information if it doesn't already have it
+    // We check country and (city or county) of the location and only query for jurisdiction data if it lacks these fields
+    result => resultToTaskWithResult(
+      // Process Result Tasks locations, merging in jurisdiction data when needed
+      // Task Result [Location] -> Task Result [Location]
+      resultsAndLocations => {
+        return traverseReduceDeep(2,
+          (locations, location) => R.concat(locations, [location]),
+          of(Result.Ok([])),
+          R.map(
+            ({results, location}) => {
+              return R.ifElse(
+                ({location}) => R.both(
+                  R.propOr(null, 'country'),
+                  R.any(prop => R.propOr(null, prop, location), ['city', 'country'])
+                )(location),
+                // Already has jurisdiction data. Just rewrap in Result.Ok and task
+                obj => R.compose(of, Result.Ok)(obj),
+                // Reverse geocode and combine results, favoring keys already in location
+                ({results, location}) => mapMDeep(2,
+                  l => {
+                    // Merge the results of the reverse goecoding. We'll keep our geojson since it represents
+                    // the block and the reverse geocode just represents the center point
+                    return {results, location: R.merge(l, location)};
+                  },
+                  // Reverse geocode the center of the block to get missing jurisdiction data
+                  nominatimReverseGeocodeToLocationResultTask(
+                    // Convert the geojson line into a {lat, lon} center point
+                    R.compose(
+                      latLon => R.fromPairs(R.zip(['lat', 'lon'], latLon)),
+                      point => turfPointToLocation(point),
+                      geojson => center(geojson),
+                      location => R.prop('geojson', location)
+                    )(location)
+                  )
+                )
+              )({results, location});
+            },
+            resultsAndLocations
+          )
+        );
+      }
+    )(result),
+    // Use the results to create geojson for the location
+    // Task Result [<results, location>] -> Task Result [<results, location>]
+    result => of(mapMDeep(2,
+      ({results, location}) => {
+        return R.over(
+          R.lensProp('location'),
+          ({results, location}) => locationAndOsmResultsToLocationWithGeojson(location, results),
+          {results, location}
+        );
+      }
+    )(result)),
     resultToTaskWithResult(
       locationVariationsWithOsm => R.cond([
         [R.length,
@@ -220,6 +284,7 @@ export const _queryOverpassForAllBlocksResultsTask = (osmConfig, {location, way:
   return R.composeK(
     // Take the Result.Ok with responses and organize the features into blocks
     // Or put them in an Error array
+    // Task Result [<way, node>] -> Task <Ok: [Location], Error: [<way, node>]>
     result => result.matchWith({
       Ok: ({value: {way, node}}) => R.composeK(
         ({way, node, waysByNodeId}) => organizeResponseFeaturesResultsTask(osmConfig, location, {
@@ -255,7 +320,7 @@ export const _queryOverpassForAllBlocksResultsTask = (osmConfig, {location, way:
  * @param result {way, node, referenceNodeIdToWays} with each containing response.features and the original query.
  * referenceNodeIdToWays is optional here. It is only needed for narrow queries on a street so we know which of the returned
  * nodes are real intersections and which are just points where the way changes along the street. It is keyed by node id and valued by ways
- * @returns {Task<Ok:[], Error:[]>}
+ * @returns {Task<Ok:[block], Error:[]>} where block is an object with {ways, nodes}
  */
 export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, node, referenceNodeIdToWays}) => {
   // Finally get the features from the response

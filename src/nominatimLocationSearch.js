@@ -12,12 +12,23 @@
 import xhr from 'xhr';
 import {task, waitAll, of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
-import {compactEmpty, promiseToTask, traverseReduceDeepResults, taskToResultTask, mapMDeep} from 'rescape-ramda';
+import {
+  camelCase,
+  compactEmpty,
+  promiseToTask,
+  traverseReduceDeepResults,
+  taskToResultTask,
+  mapMDeep,
+  renameKey,
+  duplicateKey,
+  transformKeys
+} from 'rescape-ramda';
+import {locationToTurfPoint} from 'rescape-helpers';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
 import {loggers} from 'rescape-log';
-import {addressString} from './locationHelpers';
+import {addressString, stateCodeLookup} from './locationHelpers';
 import {mapObjToValues} from 'rescape-ramda';
 
 const log = loggers.get('rescapeDefault');
@@ -107,8 +118,8 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
             return R.merge(location, {
               // We're not using the bbox, but note it anyway
               bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], value.boundingbox)),
-              osmId: value.osm_id,
-              placeId: value.place_id
+              osmId: R.propOr(null, 'osm_id', value),
+              placeId: R.propOr(null, 'placie_id', value)
             });
           }).mapError(value => {
             // If no results are found, just return null. Hopefully the other nominatin query will return something
@@ -201,14 +212,53 @@ export const nominatimResultTask = location => {
 };
 
 /**
- * Reverse geocode and return the city, (state), country
+ * Reverse geocode and flatten the address segment to match our location format.
+ * This function is designed to resolve to the granularity of a single block, not a single point
+ * TODO if we want this information fro point-based reverse geocoding, we should have another function
+ * TODO The OSM format is better than our location format because it separates address, so we should copy
+ * the OSM format and get rid of our flat address format
  * @param lat
  * @param lon
- * @returns {Task}
+ * @returns {Task<Result<Object>>} locatoin with the osm top level keys and address object flattened. We change
+ * the name of road to blockname to match our format
  */
-export const nominatimReverseGeocodeCityResultTask = ({lat, lon}) => {
+export const nominatimReverseGeocodeToLocationResultTask = ({lat, lon}) => {
   return mapMDeep(2,
-    location => R.pick(['country', 'state', 'city', 'suburb'], location),
+    location => {
+      // Merge the address object with the top-level object
+      return R.merge(
+        // Compose changes to the top-level object
+        R.compose(
+          // Remove point specific data that we don't care about
+          obj => R.omit(['boundingbox', 'displayName', 'osmType', 'licence', 'placeId'], obj),
+          // Convert underscore keys to camel case
+          obj => transformKeys(key => camelCase(key), obj),
+          // Convert the lat lon to a geojson property
+          obj => R.omit(['lat', 'lon'], obj),
+          obj => R.set(R.lensProp('geojson'), locationToTurfPoint(R.props(['lat', 'lon'], obj)), obj),
+          R.omit(['address'])
+        )(location),
+        // Compose changes to the address object
+        R.compose(
+          // Remove point specific data that we don't care about
+          obj => R.omit(['houseNumber'], obj),
+          // Convert underscore keys to camel case
+          obj => transformKeys(key => camelCase(key), obj),
+          // Remove failed state code lookups
+          compactEmpty,
+          // TODO We should use the long name for state and state_code for the code
+          R.over(
+            R.lensProp('state'),
+            // Returns null if there isn't a code
+            state => stateCodeLookup(state)
+          ),
+          duplicateKey(R.lensPath([]), 'state', 'state_long'),
+          // TODO we should use road not blockname
+          renameKey(R.lensPath([]), 'road', 'blockname'),
+          R.prop('address')
+        )(location)
+      );
+    },
     nominatimQueryResultTask(
       'reverse',
       {lat, lon}
@@ -231,7 +281,7 @@ export const nominatimReverseGeocodeResultTask = ({lat, lon}) => {
  */
 export const nominatimQueryResultTask = (method, queryArgs) => {
   const host = 'nominatim.openstreetmap.org';
-  log.debug(`Nominatim query: http://${host}/${method}?${queryArgs}&addressDetails=1&format=json&limit=1000`);
+  log.debug(`Nominatim query: http://${host}/${method}?${JSON.stringify(queryArgs)}&addressDetails=1&format=json&limit=1000`);
   const geocoder = new Nominatim({
       secure: true, // enables ssl
       host

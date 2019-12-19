@@ -12,7 +12,7 @@ import {
   nominatimResultTask,
   mapboxGeocodeTask,
   nominatimReverseGeocodeResultTask,
-  nominatimReverseGeocodeCityResultTask
+  nominatimReverseGeocodeToLocationResultTask
 } from './nominatimLocationSearch';
 import {defaultRunConfig, defaultRunToResultConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import * as R from 'ramda';
@@ -101,9 +101,6 @@ describe('search', () => {
     }).run().listen(defaultRunToResultConfig({
         onResolved: obj => {
           expect(obj.placeId).toEqual(140177219);
-        },
-        onRejected: obj => {
-          expect(true).toEqual(false)
         }
       },
       errors,
@@ -114,17 +111,14 @@ describe('search', () => {
   test('reverseGeocodeCity', done => {
     expect.assertions(1);
     const errors = [];
-    nominatimReverseGeocodeCityResultTask({lat: 49.465806, lon: -114.192326}).orElse(reason => {
+    nominatimReverseGeocodeToLocationResultTask({lat: 49.465806, lon: -114.192326}).orElse(reason => {
       // Our task reject handler takes the reason and pushes it too, then rejects again
       errors.push(reason);
       // This reason is the error that goes to defaultOnRejected
       return rejected(reason);
     }).run().listen(defaultRunToResultConfig({
         onResolved: obj => {
-          expect(obj.placeId).toEqual(140177219);
-        },
-        onRejected: obj => {
-          expect(true).toEqual(false)
+          expect(obj.placeId).toEqual(141621428);
         }
       },
       errors,
@@ -132,7 +126,8 @@ describe('search', () => {
     ));
   }, 100000);
 
-  test('mapboxGeocodeTask', done => {
+  test('mapboxGeocodeTask', () => {
+    const errors = []
     expect.assertions(1);
     const mapboxApiKey = 'pk.eyJ1IjoiY2Fsb2NhbiIsImEiOiJjaXl1aXkxZjkwMG15MndxbmkxMHczNG50In0.07Zu3XXYijL6GJMuxFtvQg';
 
@@ -150,7 +145,7 @@ describe('search', () => {
             );
             done();
           }
-      })
+      }, errors, done)
     );
   });
 });

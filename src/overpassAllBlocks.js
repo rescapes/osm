@@ -154,11 +154,10 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
     // Task Result [<results, location>] -> Task Result [<results, location>]
     result => of(mapMDeep(2,
       ({results, location}) => {
-        return R.over(
-          R.lensProp('location'),
-          ({results, location}) => locationAndOsmResultsToLocationWithGeojson(location, results),
-          {results, location}
-        );
+        return {
+          results,
+          location: locationAndOsmResultsToLocationWithGeojson(location, results)
+        };
       }
     )(result)),
     resultToTaskWithResult(

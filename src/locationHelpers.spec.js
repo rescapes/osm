@@ -3,7 +3,11 @@ import {
   addressPair,
   addressStrings,
   intersectionsByNodeIdToSortedIntersections,
-  fixWordsThatTripUpGoogle, aggregateLocation, locationWithIntersectionInBothOrders, isResolvableAllBlocksLocation
+  fixWordsThatTripUpGoogle,
+  aggregateLocation,
+  locationWithIntersectionInBothOrders,
+  isResolvableAllBlocksLocation,
+  normalizedIntersectionNames
 } from './locationHelpers';
 
 describe('LocationSelector', () => {
@@ -402,4 +406,12 @@ describe('LocationSelector', () => {
       }
     )).toEqual(true);
   });
+
+  test('normalizedIntersectionNames', () => {
+    expect(normalizedIntersectionNames(
+      ['Northwest Mammoth Avenue', 'Southwest Penguin Plaza'],
+    )).toEqual(
+      ['NW Mammoth Ave', 'SW Penguin Plaza']
+    )
+  })
 });

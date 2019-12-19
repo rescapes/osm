@@ -28,13 +28,13 @@ import {
 } from './overpassHelpers';
 import * as Result from 'folktale/result';
 import {
-  _blockToGeojson,
+  blockToGeojson,
   _buildPartialBlocks,
   _sortOppositeBlocksByNodeOrdering,
   _hashBlock,
   _queryLocationVariationsUntilFoundResultTask,
   _wayEndPointToDirectionalWays,
-  waysByNodeIdTask, _blocksToGeojson
+  waysByNodeIdTask, blocksToGeojson
 } from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch';

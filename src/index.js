@@ -10,6 +10,7 @@
  */
 
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
+import {normalizedIntersectionNames} from './locationHelpers';
 
 export {
   calculateRouteTask,
@@ -40,12 +41,29 @@ export {
   locationHasLocationPoints,
   wayFeatureName,
   wayFeatureNameOrDefault,
-  locationAndOsmResultsToLocationWithGeojson
+  locationAndOsmResultsToLocationWithGeojson,
+  normalizedIntersectionNames
 } from './locationHelpers';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';
 export {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 export {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
-export {queryLocationForOsmBlockOrAllResultsTask, osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks'
-export {queryOverpassWithLocationForStreetResultTask} from './overpassStreet'
-export {cleanGeojson, hashWayFeatureExtents, hashWayFeature, hashNodeFeature, hashPoint, findMatchingNodes, hashPointsToWayCoordinates, nodeMatchesWayEnd} from './overpassFeatureHelpers'
+export {
+  queryLocationForOsmBlockOrAllResultsTask,
+  osmLocationToLocationWithGeojsonResultTask,
+  osmRelationshipGeojsonResultTask
+} from './overpassBlocks';
+export {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
+export {
+  cleanGeojson,
+  hashWayFeatureExtents,
+  hashWayFeature,
+  hashNodeFeature,
+  hashPoint,
+  findMatchingNodes,
+  hashPointsToWayCoordinates,
+  nodeMatchesWayEnd
+} from './overpassFeatureHelpers';
+export {
+  blockToGeojson, blocksToGeojson, blocksWithLengths, lengthOfBlocks, locationsToGeojson
+} from './overpassBlockHelpers'

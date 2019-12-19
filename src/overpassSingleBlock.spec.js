@@ -5,7 +5,7 @@ import {
 import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing, pickDeepPaths} from 'rescape-ramda';
 import * as R from 'ramda';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassBlocks';
-import {_blocksToGeojson, _blockToGeojson} from './overpassBlockHelpers';
+import {blocksToGeojson, blockToGeojson} from './overpassBlockHelpers';
 import {locationWithLocationPoints} from './locationHelpers';
 
 /**
@@ -167,7 +167,7 @@ describe('overpassSingleBlock', () => {
       {
         onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
-          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
           expect(R.length(locationsAndOsmResults)).toEqual(1);
         }
       }, errors, done)
@@ -185,7 +185,7 @@ describe('overpassSingleBlock', () => {
     }).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({result}) => {
-          _blockToGeojson(result);
+          blockToGeojson(result);
           const {ways, nodes} = result;
           expect({ways: R.map(R.pick(['id']), ways), nodes: R.map(R.pick(['id']), nodes)}).toEqual({
             nodes: [
@@ -214,7 +214,7 @@ describe('overpassSingleBlock', () => {
     })).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({result}) => {
-          _blockToGeojson(result);
+          blockToGeojson(result);
           const {ways, nodes} = result;
           expect({ways: R.map(R.pick(['id']), ways), nodes: R.map(R.pick(['id']), nodes)}).toEqual({
             nodes: [

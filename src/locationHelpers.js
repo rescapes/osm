@@ -87,6 +87,21 @@ export const fixWordsThatTripUpGoogle = streetName => {
 };
 
 /**
+ * Converts the street names of an intersection to Google compatible names using GOOGLE_STREET_REPLACEMENTS
+ * @param {[String]} intersection Streets of an intersection
+ * @returns {[String]} the same streets with problematic words changed
+ */
+export const normalizedIntersectionNames = intersection => {
+  return R.unless(
+    intersection => R.either(
+      R.isNil,
+      R.compose(R.equals(0), R.length)
+    )(intersection),
+    intersection => R.map(fixWordsThatTripUpGoogle, intersection)
+  )(intersection);
+};
+
+/**
  * Given a location with one intersection. Returns the location with the intersection in both directions because sometimes Google
  * give different results for each order.
  * Example: [[Main St, Chestnut St], [Chestnut St, Main St]]
@@ -168,14 +183,7 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
     return latLng;
   }
 
-  // Extract the one intersection pair with corrections for Google if it exists
-  const resolvedIntersectionPair = R.unless(
-    R.either(
-      R.isNil,
-      R.compose(R.equals(0), R.length)
-    ),
-    R.compose(R.map(fixWordsThatTripUpGoogle), R.head)
-  )(intersections);
+  const resolvedIntersectionPair = normalizedIntersectionNames(R.head(intersections));
 
   return R.compose(
     R.join(', '),
@@ -664,5 +672,5 @@ const stateToStateCode = {
  * @returns {String} The code or null if it doesn't have one
  */
 export const stateCodeLookup = state => {
-  return R.propOr(null, state, stateToStateCode)
+  return R.propOr(null, state, stateToStateCode);
 };

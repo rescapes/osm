@@ -764,7 +764,7 @@ export const reverseFirstWayFeatureAndTag = wayFeatures => R.compose(
  * @returns {string} The complete geojson. View it at http://geojson.io/
  * @private
  */
-export const _blockToGeojson = ({nodes, ways}) => {
+export const blockToGeojson = ({nodes, ways}) => {
   return JSON.stringify({
       "type": "FeatureCollection",
       "generator": "overpass-ide",
@@ -776,12 +776,42 @@ export const _blockToGeojson = ({nodes, ways}) => {
 };
 
 /**
- * Same as _blockToGeojson, but with lists of blocks
- * @param blocks
+ * Dumps location features to geojson for debgging
+ * @param locations
+ * @returns {f1}
+ */
+export const locationsToGeojson = locations => {
+  return R.compose(
+    blocks => blocksToGeojson(blocks),
+    locations => R.map(
+      R.compose(
+        // Index each feature by way or node
+        features => R.reduceBy(
+          R.flip(R.append),
+          [],
+          // Get this type and key it to nodes or ways
+          feature => R.compose(
+            type => R.concat(type, 's'),
+            R.head,
+            R.split('/'),
+            R.prop('id')
+          )(feature),
+          features
+        ),
+        location => strPathOr([], 'geojson.features', location)
+      ),
+      locations
+    )
+  )(locations);
+};
+
+/**
+ * Same as blockToGeojson, but with lists of blocks
+ * @param blocks Blocks in the form
  * @returns {string}
  * @private
  */
-export const _blocksToGeojson = blocks => {
+export const blocksToGeojson = blocks => {
   const color = scaleOrdinal(schemeCategory10);
   // Color blocks randomly to make it clear what is what
   // This is used by http://geojson.io/ and could be used in Mapbox or similar as well
@@ -846,7 +876,7 @@ export const _blocksToGeojson = blocks => {
  * @returns {*}
  * @private
  */
-export const _blocksWithLengths = blocks => {
+export const blocksWithLengths = blocks => {
   return R.map(
     // add up the ways
     block => ({
@@ -864,14 +894,14 @@ export const _blocksWithLengths = blocks => {
  * @param blocks
  * @private
  */
-export const _lengthOfBlocks = blocks => {
+export const lengthOfBlocks = blocks => {
   return R.compose(
     blocksWithLengths => R.reduce(
       (accum, block) => R.add(accum, block.length),
       0,
       blocksWithLengths
     ),
-    blocks => _blocksWithLengths(blocks)
+    blocks => blocksWithLengths(blocks)
   )(blocks);
 };
 
@@ -1019,7 +1049,7 @@ const _wayToPartialBlocks = ({wayIdToWayPoints, nodeIdToNodePoint}, nodes, way) 
                 // Finally combine relevant node to form the partial block
                 way => {
                   const block = ({ways: [way], nodes: [node]});
-                  _blockToGeojson(block);
+                  blockToGeojson(block);
                   return block;
                 },
                 // Create a new version of the way with these points

@@ -3,7 +3,7 @@ import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing} from 're
 import {
   locationToOsmAllBlocksQueryResultsTask
 } from './overpassAllBlocks';
-import {_blocksToGeojson, _blocksWithLengths, _lengthOfBlocks} from './overpassBlockHelpers';
+import {blocksToGeojson, blocksWithLengths, lengthOfBlocks} from './overpassBlockHelpers';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassBlocks';
 import {length} from '@turf/turf';
 
@@ -34,7 +34,7 @@ describe('overpassAllBlocks', () => {
       {
         onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
-          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
           expect(R.length(locationsAndOsmResults)).toEqual(1030);
         }
       }, errors, done)
@@ -97,7 +97,7 @@ describe('overpassAllBlocks', () => {
       {
         onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
-          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
           expect(R.length(locationsAndOsmResults)).toEqual(131);
         }
       }, errors, done)
@@ -149,8 +149,8 @@ describe('overpassAllBlocks', () => {
       {
         onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
-          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          _blocksWithLengths(R.map(R.prop('results'), locationsAndOsmResults))
+          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          blocksWithLengths(R.map(R.prop('results'), locationsAndOsmResults))
           expect(R.length(locationsAndOsmResults)).toEqual(16);
         }
       }, errors, done)
@@ -184,7 +184,7 @@ describe('overpassAllBlocks', () => {
       {
         onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
-          _blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
           expect(R.length(locationsAndOsmResults)).toEqual(9);
         }
       }, errors, done)

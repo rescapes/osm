@@ -39,7 +39,7 @@ import {locationHasLocationPoints, locationWithLocationPoints} from './locationH
 import {_googleResolveJurisdictionResultTask, googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
 import {
-  _blocksToGeojson,
+  blocksToGeojson,
   _queryLocationVariationsUntilFoundResultTask,
   createSingleBlockFeatures,
   mapToCleanedFeatures, mapWaysByNodeIdToCleanedFeatures,
@@ -365,7 +365,7 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
 
 const _locationToOsmSingleBlockBoundsResolve = (location, {Ok: locationsWithResults, Errors: errors}) => {
   // Debug
-  _blocksToGeojson(R.map(R.prop('results'), locationsWithResults));
+  blocksToGeojson(R.map(R.prop('results'), locationsWithResults));
   // Find the block that has nodes within an acceptable tolerance of location.locationPoints to be
   // considered the correct block
   const matchingLocationsWithResults = compact(

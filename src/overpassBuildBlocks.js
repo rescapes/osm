@@ -1,6 +1,6 @@
 import {
-  _blocksToGeojson,
-  _blockToGeojson,
+  blocksToGeojson,
+  blockToGeojson,
   _hashBlock,
   nodesAndIntersectionNodesByWayIdResultTask, orderWayFeaturesOfBlock,
   removeReverseTagsOfOrderWayFeaturesOfBlock, waysOfNodeQuery
@@ -73,8 +73,8 @@ export function _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask(
   const matchingPartialBlocks = _matchingPartialBlocks(hashToPartialBlocks, partialBlock);
   const remainingPartialBlocks = R.without(matchingPartialBlocks, partialBlocks);
   const {nodes, ways} = partialBlock;
-  _blockToGeojson({nodes, ways});
-  _blocksToGeojson(remainingPartialBlocks);
+  blockToGeojson({nodes, ways});
+  blocksToGeojson(remainingPartialBlocks);
   // Get the current final way of the partial block. This is the way we will process
   const way = R.last(ways);
   // Get the remaining way points, excluding the first point that the node is on

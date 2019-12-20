@@ -257,7 +257,7 @@ export const nominatimReverseGeocodeToLocationResultTask = ({lat, lon}) => {
           // TODO we should use road not blockname
           renameKey(R.lensPath([]), 'road', 'blockname'),
           // Remove address* keys
-          obj => filterWithKeys((value, key) => R.startsWith('address', key), obj),
+          obj => filterWithKeys((value, key) => R.complement(R.startsWith)('address', key), obj),
           R.prop('address')
         )(location)
       );

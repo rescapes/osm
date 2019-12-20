@@ -13,6 +13,7 @@ import xhr from 'xhr';
 import {task, waitAll, of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
 import {
+  mapObjToValues,
   camelCase,
   compactEmpty,
   promiseToTask,
@@ -21,7 +22,8 @@ import {
   mapMDeep,
   renameKey,
   duplicateKey,
-  transformKeys
+  transformKeys,
+  filterWithKeys
 } from 'rescape-ramda';
 import {locationToTurfPoint} from 'rescape-helpers';
 import Nominatim from 'nominatim-geocoder';
@@ -29,7 +31,6 @@ import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
 import {loggers} from 'rescape-log';
 import {addressString, stateCodeLookup} from './locationHelpers';
-import {mapObjToValues} from 'rescape-ramda';
 
 const log = loggers.get('rescapeDefault');
 
@@ -230,7 +231,7 @@ export const nominatimReverseGeocodeToLocationResultTask = ({lat, lon}) => {
         // Compose changes to the top-level object
         R.compose(
           // Remove point specific data that we don't care about
-          obj => R.omit(['boundingbox', 'displayName', 'osmType', 'licence', 'placeId'], obj),
+          obj => R.omit(['boundingbox', 'displayName', 'osmType', 'licence', 'fastFood'], obj),
           // Convert underscore keys to camel case
           obj => transformKeys(key => camelCase(key), obj),
           // Convert the lat lon to a geojson property
@@ -241,7 +242,7 @@ export const nominatimReverseGeocodeToLocationResultTask = ({lat, lon}) => {
         // Compose changes to the address object
         R.compose(
           // Remove point specific data that we don't care about
-          obj => R.omit(['houseNumber'], obj),
+          obj => R.omit(['houseNumber', 'building', 'fastFood'], obj),
           // Convert underscore keys to camel case
           obj => transformKeys(key => camelCase(key), obj),
           // Remove failed state code lookups
@@ -255,6 +256,8 @@ export const nominatimReverseGeocodeToLocationResultTask = ({lat, lon}) => {
           duplicateKey(R.lensPath([]), 'state', 'state_long'),
           // TODO we should use road not blockname
           renameKey(R.lensPath([]), 'road', 'blockname'),
+          // Remove address* keys
+          obj => filterWithKeys((value, key) => R.startsWith('address', key), obj),
           R.prop('address')
         )(location)
       );
@@ -274,6 +277,21 @@ export const nominatimReverseGeocodeResultTask = ({lat, lon}) => {
 };
 
 /**
+ * Converts flat json to url params a=b&d=e ...
+ * @param {Object} json single level json
+ * @return {String} the url params
+ */
+export const jsonToUrlParams = json => {
+  return R.join(
+    '&',
+    mapObjToValues(
+      (value, key) => R.join('=', [key, value]),
+      json
+    )
+  );
+};
+
+/**
  * Queryie nominatim for a place or lat/lon
  * @param method
  * @param queryArgs
@@ -281,7 +299,9 @@ export const nominatimReverseGeocodeResultTask = ({lat, lon}) => {
  */
 export const nominatimQueryResultTask = (method, queryArgs) => {
   const host = 'nominatim.openstreetmap.org';
-  log.debug(`Nominatim query: http://${host}/${method}?${JSON.stringify(queryArgs)}&addressDetails=1&format=json&limit=1000`);
+  log.debug(`Nominatim query: http://${host}/${method}?${
+      jsonToUrlParams(queryArgs)
+  }&addressDetails=1&format=json&limit=1000`);
   const geocoder = new Nominatim({
       secure: true, // enables ssl
       host

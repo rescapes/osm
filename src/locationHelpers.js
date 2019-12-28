@@ -462,7 +462,11 @@ export const geojsonFeaturesHaveRadii = geojson => {
   return R.both(
     features => R.length(features),
     features => R.all(
-      feature => strPathOr(false, 'properties.radius', feature),
+      feature => R.both(
+        feature => strPathOr(false, 'properties.radius', feature),
+        // THere must be a point defined
+        feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Point']),
+      )(feature),
       features
     )
   )(

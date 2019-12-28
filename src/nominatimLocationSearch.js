@@ -13,6 +13,7 @@ import xhr from 'xhr';
 import {task, waitAll, of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
 import {
+  composeWithMapExceptChainDeepestMDeep,
   mapObjToValues,
   camelCase,
   compactEmpty,
@@ -23,7 +24,8 @@ import {
   renameKey,
   duplicateKey,
   transformKeys,
-  filterWithKeys
+  filterWithKeys,
+  mapToNamedResponseAndInputs
 } from 'rescape-ramda';
 import {locationToTurfPoint} from 'rescape-helpers';
 import Nominatim from 'nominatim-geocoder';
@@ -60,7 +62,7 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
 };
 
 /**
- * Uses the nomitatim service to find a relation representing the given location.
+ * Uses the nominatim service to find a relation representing the given location.
  * Currently this supports neighborhoods and cities. If a neighborhood is specified in the location and that
  * query fails, the city without the neighborhood is queried. So this query is as precise as possible but
  * will not give up until it fails at the city-wide level. TODO in the future we can support other jurisdictions
@@ -81,83 +83,110 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
  * and placeId (unused). If it doesn't a Result.Ok([]) is returned for further processing. If there's a problem
  * connecting to the server a Result.Error returns
  */
-export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallbackToCity}, location) => R.composeK(
-  // Convert the list of good results to a Result.Ok and discard the Errors
-  results => of(R.ifElse(
-    () => listSuccessfulResult,
-    results => Result.Ok(results.Ok),
-    // By default, the first Ok result or last Error
-    R.ifElse(
-      r => R.length(R.prop('Ok', r)),
-      r => Result.Ok(R.head(R.prop('Ok', r))),
-      r => Result.Error(R.prop('Error', r))
-    )
-  )(results)),
+export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallbackToCity}, location) => {
+  return R.composeK(
+    // Convert the list of good results to a Result.Ok and discard the Errors
+    results => of(R.ifElse(
+      () => listSuccessfulResult,
+      results => Result.Ok(results.Ok),
+      // By default, the first Ok result or last Error
+      R.ifElse(
+        r => R.length(R.prop('Ok', r)),
+        r => Result.Ok(R.head(R.prop('Ok', r))),
+        r => Result.Error(R.prop('Error', r))
+      )
+    )(results)),
 
-  results => of(traverseReduceDeepResults(1,
-    // The accumulator
-    (res, okObj) => R.concat(
-      res,
-      [okObj]
-    ),
-    // The accumulator of errors
-    (res, errorObj) => R.concat(
-      res,
-      [errorObj]
-    ),
-    // Our initial value is a Task with an object can contain Result.Ok and Result.Error results
-    {Ok: [], Error: []},
-    results
-  )),
-  location => waitAll(R.map(
-    keys => {
-      const locationProps = R.pick(keys, location);
-      log.debug(`Nomanatim query for the following values ${JSON.stringify(R.map(location => addressString(location), locationProps))}`);
-      return nominatimResultTask(locationProps)
-        .map(responseResult => responseResult.map(value => {
-            // bounding box comes as two lats, then two lon, so fix
-            return R.merge(location, {
-              // We're not using the bbox, but note it anyway
-              bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], value.boundingbox)),
-              osmId: R.propOr(null, 'osm_id', value),
-              placeId: R.propOr(null, 'placie_id', value)
-            });
-          }).mapError(value => {
-            // If no results are found, just return null. Hopefully the other nominatin query will return something
-            log.debug(`For Nominatim query ${addressString(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
-            return value;
-          })
-        ).mapRejected(
-          // If the query fails to excute
-          errorResult => errorResult.map(error => {
-            log.warn(`Giving up. Nominatim query failed with error message: ${error}`);
-            return error;
-          })
+    results => of(traverseReduceDeepResults(1,
+      // The accumulator
+      (res, okObj) => R.concat(
+        res,
+        [okObj]
+      ),
+      // The accumulator of errors
+      (res, errorObj) => R.concat(
+        res,
+        [errorObj]
+      ),
+      // Our initial value is a Task with an object can contain Result.Ok and Result.Error results
+      {Ok: [], Error: []},
+      results
+    )),
+    location => waitAll(R.map(
+      keys => {
+        const locationProps = R.pick(keys, location);
+        log.debug(
+          `Nomanatim query for the following values ${
+            JSON.stringify(locationProps)
+          }`
         );
-    },
-    compactEmpty(R.concat(
-      // Query with neighborhood (if given)
-      // We'll only actually use the first one that resolves
-      R.ifElse(
-        R.prop('neighborhood'),
-        R.always([['country', 'state', 'city', 'neighborhood']]),
-        R.always([])
-      )(location),
-      // This will either have country, state, city or country, city or nothing if it's a location
-      // with just a lot/long
-      // If we have don't have a neighbhorhood or have one and allow fallback to city, this
-      // gives us a query for the country, state, and, city
-      R.ifElse(
-        location => R.either(R.complement(R.prop)('neighborhood'), () => R.defaultTo(true, allowFallbackToCity))(location),
-        location => [
-          R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city', 'blockname'])
-        ],
-        // Otherwise no query
-        () => []
-      )(location)
+        return nominatimResultTask(locationProps)
+          .map(responseResult => responseResult.map(value => {
+              // bounding box comes as two lats, then two lon, so fix
+              return R.merge(
+                // Create a geojson center point feature for the location if it has
+                // features with properties but no geometry
+                // TODO this is a special case of filling in empty features that might be replaced in the future
+                R.over(
+                  R.lensPath(['geojson', 'features']),
+                  features => R.map(
+                    feature => {
+                      return R.when(
+                        // If there is no feature.geometry
+                        f => R.complement(R.propOr)(false, 'geometry', f),
+                        f => R.merge(f, {
+                          // Set the geometry to the lat, lon
+                          geometry: locationToTurfPoint(R.props(['lat', 'lon'], value)).geometry
+                        })
+                      )(feature)
+                    },
+                    features
+                  ),
+                  location
+                ),
+                {
+                // We're not using the bbox, but note it anyway
+                bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], value.boundingbox)),
+                osmId: R.propOr(null, 'osm_id', value),
+                placeId: R.propOr(null, 'placie_id', value)
+              });
+            }).mapError(value => {
+              // If no results are found, just return null. Hopefully the other nominatin query will return something
+              log.debug(`For Nominatim query ${addressString(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
+              return value;
+            })
+          ).mapRejected(
+            // If the query fails to excute
+            errorResult => errorResult.map(error => {
+              log.warn(`Giving up. Nominatim query failed with error message: ${error}`);
+              return error;
+            })
+          );
+      },
+      compactEmpty(R.concat(
+        // Query with neighborhood (if given)
+        // We'll only actually use the first one that resolves
+        R.ifElse(
+          R.prop('neighborhood'),
+          R.always([['country', 'state', 'city', 'neighborhood']]),
+          R.always([])
+        )(location),
+        // This will either have country, state, city or country, city or nothing if it's a location
+        // with just a lot/long
+        // If we have don't have a neighbhorhood or have one and allow fallback to city, this
+        // gives us a query for the country, state, and, city
+        R.ifElse(
+          location => R.either(R.complement(R.prop)('neighborhood'), () => R.defaultTo(true, allowFallbackToCity))(location),
+          location => [
+            R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city', 'blockname'])
+          ],
+          // Otherwise no query
+          () => []
+        )(location)
+      ))
     ))
-  ))
-)(location);
+  )(location);
+};
 
 /***
  * Resolves a city or neighborhood OSM boundary relation
@@ -186,30 +215,51 @@ export const nominatimResultTask = location => {
     R.props(['blockname', 'neighborhood', 'city', 'state', 'country'])
   )(location);
 
-  const task = nominatimQueryResultTask('search', {q: query, addressDetails: 1});
-  return task.map(
-    results => {
+  // Task Result
+  return composeWithMapExceptChainDeepestMDeep(2, [
+    // Object -> Task Result [Object]
+    responses => {
       const filter = R.ifElse(
         R.prop('blockname'),
         // If we have a blockname lookup for ways,
-        () => R.propEq('osm_type', 'way'),
-        // If we have a country, state, city, neighborhood, we must find a relation, not a node
-        () => R.propEq('osm_type', 'relation')
+        () => value => {
+          return R.propEq('osm_type', 'way', value);
+        },
+        // If we have a country, state, city, neighborhood, accept a relation or a city/town point
+        () => value => {
+          return R.both(
+            value => R.compose(
+              value => R.contains(value, ['village', 'suburb', 'town', 'city']),
+              value => R.propOr(null, 'type', value)
+            )(value),
+            // The boundary or center point,
+            // The boundary will be preferred over the center point.
+            value => R.compose(
+              value => R.contains(value, ['relation', 'node']),
+              value => R.propOr(null, 'osm_type', value)
+            )(value)
+          )(value);
+        }
       )(location);
       const matches = R.filter(
         filter,
-        results
+        responses
       );
       if (R.length(matches)) {
         log.debug(`Nominatim query response ${JSON.stringify(matches)}`);
-        // Assume the first match is the best since results are ordered by importance
+        // Assume the first match is the best since responses are ordered by importance
         return (Result.Ok(R.head(matches)));
       } else {
-        log.debug(`Nominatim no matches for query ${queryArgs}`);
-        return (Result.Error({error: "No qualifying results", results, query: queryArgs}));
+        log.debug(`Nominatim no matches for query ${query}`);
+        return (Result.Error({error: "No qualifying respones", results: responses, query}));
       }
+    },
+    // Query nominatim, this us a Result.Ok with responses or a Result.Error if the query failes
+    // Object -> Task (Result.Ok [Object]) | Result.Error
+    query => {
+      return nominatimQueryResultTask('search', {q: query, addressDetails: 1});
     }
-  ).orElse(error => Result.Error({error}));
+  ])(query);
 };
 
 /**
@@ -295,12 +345,13 @@ export const jsonToUrlParams = json => {
  * Queryie nominatim for a place or lat/lon
  * @param method
  * @param queryArgs
- * @returns {Task}
+ * @returns {Task<Result<[Object]>>} A task that resolves to a Result.Ok containing response values or
+ * Result.Error if the query fails
  */
 export const nominatimQueryResultTask = (method, queryArgs) => {
   const host = 'nominatim.openstreetmap.org';
   log.debug(`Nominatim query: http://${host}/${method}?${
-      jsonToUrlParams(queryArgs)
+    jsonToUrlParams(queryArgs)
   }&addressDetails=1&format=json&limit=1000`);
   const geocoder = new Nominatim({
       secure: true, // enables ssl

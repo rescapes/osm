@@ -119,10 +119,15 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
           R.map(
             ({results, location}) => {
               return R.ifElse(
-                ({location}) => R.both(
-                  R.propOr(null, 'country'),
-                  R.any(prop => R.propOr(null, prop, location), ['city', 'country'])
-                )(location),
+                ({location}) => {
+                  return R.both(
+                    location => R.propOr(null, 'country', location),
+                    location => R.any(
+                      prop => R.propOr(null, prop, location),
+                      ['city', 'country']
+                    )
+                  )(location);
+                },
                 // Already has jurisdiction data. Just rewrap in Result.Ok and task
                 obj => R.compose(of, Result.Ok)(obj),
                 // Reverse geocode and combine results, favoring keys already in location
@@ -249,7 +254,7 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (osmConfig, locationWi
             osmConfig,
             {type},
             // These are the only properties we might need from the location
-            pickDeepPaths(['intersections', 'osmId', 'geojson'], locationWithOsm)
+            pickDeepPaths(['osmId', 'osmType', 'geojson'], locationWithOsm)
           )
         ],
         ['way', 'node']
@@ -585,14 +590,22 @@ const _createPartialBlocks = ({ways, nodes, location}) => {
  * @param {Object} osmConfig
  * @param {String} type 'way' or 'node' We have to do the queries separately because overpass combines the geojson
  * results in buggy ways
- * @param {String} [osmId] OSM id to be used to constrain the area of the query. This id corresponds
- * to a neighborhood or city. It can only be left undefined if geojsonBounds is defined
- * @param {Object} data Location data optionally containing OSM overrides
- * @param {Object} [data.osmOverrides] Optional overrides
- * @param {[Object]} [geojsonBounds] Optional. Bounds to use instead of the area of the osmId
- * @returns {string} The complete Overpass query string
+ * @param {Object} location Location data optionally containing OSM overrides
+ * @param {String} [location.osmId] OSM id to be used to constrain the area of the query. This id corresponds
+ * to a neighborhood or city's boundaries or a center point.
+ * @param {String} [location.osmType] Either 'relation' for a boundary or 'point' for a jurisdiction's center point.
+ * If center point is specified there must be a feature present in the location.geojson.features that defines
+ * a radius to search
+ * It can only be left undefined if geojson features are defined
+ * @param {Object} [location.geojson] The location geojson features to query individually if the query is not based on jurisdiction
+ * @param {Object} [location.osmOverrides] Optional overrides to force certain OSM way and node ids
+ * @param {Object} [location.country] For radius queries based on jurisdiction
+ * @returns {[string]} The queries for each feature of the location, or possibly more if the location features
+ * are broken up into smaller bounding boxes
  */
-function _constructHighwayQueriesForType(osmConfig, {type}, {osmId, geojson}) {
+function _constructHighwayQueriesForType(osmConfig, {type}, location ) {
+
+  const {osmId, geojson} = location;
 
   if (R.not(R.or(osmId, geojson))) {
     throw Error("Improper configuration. osmId or geojsonBounds must be non-nil");
@@ -607,14 +620,14 @@ function _constructHighwayQueriesForType(osmConfig, {type}, {osmId, geojson}) {
   const locationWithSingleFeatures = R.cond([
     [
       ({geojson}) => geojsonFeaturesHaveShape(geojson),
-      ({areaId, geojson}) => R.map(
-        feature => ({areaId, geojson: {features: [feature]}}),
+      ({areaId, geojson}) => of(R.map(
+        feature => Result.Ok({areaId, geojson: {features: [feature]}}),
         // Get 1km squares of the area
         extractSquareGridFeatureCollectionFromGeojson({cellSize: 1, units: 'kilometers'}, geojson).features
-      )
+      ))
     ],
-    // If feature properties have radii split them up into features but leave them alone. Each feature
-    // has a properties.radius that instructs OSM what around:radius value to use
+    // If feature properties have radii split them up into features.
+    // The properties.radius instructs OSM what around:radius value to use
     [({geojson}) => {
       return geojsonFeaturesHaveRadii(geojson);
     },

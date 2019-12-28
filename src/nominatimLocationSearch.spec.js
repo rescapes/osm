@@ -19,8 +19,7 @@ import * as R from 'ramda';
 import {rejected} from 'folktale/concurrency/task';
 
 describe('search', () => {
-  expect.assertions(1);
-  test('nominatimResultTask', done => {
+  test('nominatimResultTaskRelation', done => {
     const errors = [];
     nominatimResultTask({country: 'USA', state: 'New York', city: 'New York City'}).orElse(reason => {
       // Our task reject handler takes the reason and pushes it too, then rejects again
@@ -67,6 +66,22 @@ describe('search', () => {
       }, errors, done)
     );
   }, 100000);
+
+  test('nominatimResultTaskPoint', done => {
+    const errors = [];
+    nominatimResultTask({country: 'Canada', state: 'Alberta', city: 'Cowley'}).run().listen(defaultRunToResultConfig(
+      {
+        onResolved:
+          value => {
+            expect(
+              R.props(['osm_id', 'osm_type'], value)
+            ).toEqual(
+              [51971222, 'noder']
+            );
+          }
+      }, errors, done)
+    );
+  }, 100000);expect.assertions(1);
 
   test('nominatimTaskNoState', done => {
     expect.assertions(1);

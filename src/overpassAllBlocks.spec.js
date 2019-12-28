@@ -190,4 +190,65 @@ describe('overpassAllBlocks', () => {
       }, errors, done)
     );
   }, 1000000)
+
+  test('Test Jurisdiction Point Buffer locations', done => {
+    expect.assertions(1);
+    const errors = [];
+    const location = {
+      country: 'USA',
+      state: 'NV',
+      city: 'Winnemucca',
+      geojson: {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              radius: 100,
+              jurisdictionCenterPoint: true
+            },
+          }
+        ]
+      }
+    };
+    locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
+      {
+        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+          // Paste the results of this into a geojson viewer for debugging
+          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          expect(R.length(locationsAndOsmResults)).toEqual(9);
+        }
+      }, errors, done)
+    );
+  }, 1000000)
+
+  test('Test Jurisdiction Point Buffer locations Alexandria', done => {
+    expect.assertions(1);
+    const errors = [];
+    const location = {
+      country: 'Egypt',
+      city: 'Alexandria',
+      geojson: {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              radius: 100,
+              jurisdictionCenterPoint: true
+            },
+          }
+        ]
+      }
+    };
+    locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
+      {
+        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+          // Paste the results of this into a geojson viewer for debugging
+          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
+          expect(R.length(locationsAndOsmResults)).toEqual(9);
+        }
+      }, errors, done)
+    );
+  }, 1000000)
 });

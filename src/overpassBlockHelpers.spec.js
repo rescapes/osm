@@ -9,12 +9,13 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+import moment from 'moment'
 import {reqStrPathThrowing, defaultRunToResultConfig, omitDeep, chainObjToValues} from 'rescape-ramda';
 import * as R from 'ramda';
 import {
   blocksToGeojson,
   getFeaturesOfBlock,
-  locationsToGeojson,
+  locationsToGeojson, locationsToGeojsonFile,
   nodesAndIntersectionNodesByWayIdResultTask
 } from './overpassBlockHelpers';
 
@@ -3827,5 +3828,20 @@ describe('overpassBlockHelpers', () => {
       blocks
     );
     expect(locationsToGeojson(locations)).toBeTruthy();
+  });
+
+  test('locationsToGeojsonFile', () => {
+    const locations = R.map(
+      block => {
+        return {
+          geojson: {
+            "type": "FeatureCollection",
+            "features": chainObjToValues((feature, type) => feature, R.pick(['ways', 'nodes'], block))
+          }
+        };
+      },
+      blocks
+    );
+    expect(locationsToGeojsonFile('/tmp', `test_${moment().format('YYYY-MM-DD-HH-mm-SS')}`, locations)).toBeTruthy();
   });
 });

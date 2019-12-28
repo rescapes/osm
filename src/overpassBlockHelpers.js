@@ -9,6 +9,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+import fs from 'fs';
 import * as R from 'ramda';
 import {scaleOrdinal} from 'd3-scale';
 import {schemeCategory10} from 'd3-scale-chromatic';
@@ -773,6 +774,32 @@ export const blockToGeojson = ({nodes, ways}) => {
       "features": R.concat(nodes || [], ways || [])
     }, null, '\t'
   );
+};
+
+const generateFile = (filePath, body) => {
+  const stream = fs.createWriteStream(filePath, {encoding: 'utf-8'});
+
+  stream.once('open', function (fd) {
+    stream.end(body);
+  });
+};
+
+/**
+ * locationsToGeojson dumped to a file with the given directory and name, with the extension .json
+ * @param dir
+ * @param filename
+ * @param locations
+ * @return {{geojson: f1, file: string}}
+ */
+export const locationsToGeojsonFile = (dir, filename, locations) => {
+  const geojson = locationsToGeojson(locations);
+  const file = `${dir}/${filename}.json`;
+  // Write an html file to review the results
+  generateFile(
+    file,
+    geojson
+  );
+  return {geojson, file};
 };
 
 /**

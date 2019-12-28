@@ -183,7 +183,10 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
     return latLng;
   }
 
-  const resolvedIntersectionPair = normalizedIntersectionNames(R.head(intersections));
+  const resolvedIntersectionPair = R.when(
+    R.length,
+    intersections => normalizedIntersectionNames(R.head(intersections))
+  )(intersections);
 
   return R.compose(
     R.join(', '),

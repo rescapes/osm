@@ -7,7 +7,7 @@ import {
   aggregateLocation,
   locationWithIntersectionInBothOrders,
   isResolvableAllBlocksLocation,
-  normalizedIntersectionNames
+  normalizedIntersectionNames, addressStringForBlock
 } from './locationHelpers';
 
 describe('LocationSelector', () => {
@@ -63,6 +63,17 @@ describe('LocationSelector', () => {
     })).toEqual(
       ['Monroe St & 13th NE, Washington, DC, USA',
         'Political St & Correctness St, Washington, DC, USA']
+    )
+  );
+
+  test('addressStringForBlock', () =>
+    expect(addressStringForBlock({
+      country: 'USA',
+      state: 'DC',
+      city: 'Washington',
+      intersections: [['Monroe St', '13th NE'], ['Political St', 'Correctness St']]
+    })).toEqual(
+      'Monroe St & 13th NE to Political St & Correctness St, Washington, DC, USA',
     )
   );
 

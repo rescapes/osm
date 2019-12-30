@@ -128,26 +128,29 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                     )
                   )(location);
                 },
-                // Already has jurisdiction data. Just rewrap in Result.Ok and task
+                // If we had a country or city, we already have jurisdiction data. Just rewrap in Result.Ok and task
                 obj => R.compose(of, Result.Ok)(obj),
                 // Reverse geocode and combine results, favoring keys already in location
-                ({results, location}) => mapMDeep(2,
-                  l => {
-                    // Merge the results of the reverse goecoding. We'll keep our geojson since it represents
-                    // the block and the reverse geocode just represents the center point
-                    return {results, location: R.merge(l, location)};
-                  },
-                  // Reverse geocode the center of the block to get missing jurisdiction data
-                  nominatimReverseGeocodeToLocationResultTask(
-                    // Convert the geojson line into a {lat, lon} center point
-                    R.compose(
-                      latLon => R.fromPairs(R.zip(['lat', 'lon'], latLon)),
-                      point => turfPointToLocation(point),
-                      geojson => center(geojson),
-                      location => R.prop('geojson', location)
-                    )(location)
-                  )
-                )
+                ({results, location}) => {
+                  // Task Result Object -> Task Result Object
+                  return mapMDeep(2,
+                    l => {
+                      // Merge the results of the reverse goecoding. We'll keep our geojson since it represents
+                      // the block and the reverse geocode just represents the center point
+                      return {results, location: R.merge(l, location)};
+                    },
+                    // Reverse geocode the center of the block to get missing jurisdiction data
+                    nominatimReverseGeocodeToLocationResultTask(
+                      // Convert the geojson line into a {lat, lon} center point
+                      R.compose(
+                        latLon => R.fromPairs(R.zip(['lat', 'lon'], latLon)),
+                        point => turfPointToLocation(point),
+                        geojson => center(geojson),
+                        location => R.prop('geojson', location)
+                      )(location)
+                    )
+                  );
+                }
               )({results, location});
             },
             resultsAndLocations
@@ -603,7 +606,7 @@ const _createPartialBlocks = ({ways, nodes, location}) => {
  * @returns {[string]} The queries for each feature of the location, or possibly more if the location features
  * are broken up into smaller bounding boxes
  */
-function _constructHighwayQueriesForType(osmConfig, {type}, location ) {
+function _constructHighwayQueriesForType(osmConfig, {type}, location) {
 
   const {osmId, geojson} = location;
 

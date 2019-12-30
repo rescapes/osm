@@ -49,6 +49,9 @@ import {isLatLng, wayFeatureNameOrDefault} from './locationHelpers';
 import {length} from '@turf/turf';
 import {v} from 'rescape-validate';
 import PropTypes from 'prop-types';
+import {loggers} from 'rescape-log';
+
+const log = loggers.get('rescapeDefault');
 
 
 /**
@@ -95,7 +98,8 @@ const nodesOfWayQuery = (osmConfig, wayId) => {
     R.last,
     R.split('/')
   )(wayId);
-  return `${
+  return `// nodesOfWayQuery 
+   ${
     // Include way areas if includePedestrianArea is specified
     R.ifElse(
       osmConfig => R.propOr(false, 'includePedestrianArea', osmConfig),
@@ -778,11 +782,12 @@ export const blockToGeojson = ({nodes, ways}) => {
 
 const generateFile = (filePath, body) => {
   const stream = fs.createWriteStream(filePath, {encoding: 'utf-8'});
-
-  stream.once('open', function (fd) {
-    stream.end(body);
+  stream.write(body);
+  stream.on('finish', () => {
+    log.debug(`Finished writing to ${filePath}`);
   });
 };
+
 
 /**
  * locationsToGeojson dumped to a file with the given directory and name, with the extension .json

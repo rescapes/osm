@@ -222,19 +222,19 @@ describe('overpassAllBlocks', () => {
     );
   }, 1000000)
 
-  test('Test Jurisdiction Point Buffer locations Alexandria', done => {
+  test('Test Jurisdiction Point Buffer locations Nairobi', done => {
     expect.assertions(1);
     const errors = [];
     const location = {
-      country: 'Egypt',
-      city: 'Alexandria',
+      country: 'Kenya',
+      city: 'Nairobi',
       geojson: {
         type: 'FeatureCollection',
         features: [
           {
             type: "Feature",
             properties: {
-              radius: 100,
+              radius: 200,
               jurisdictionCenterPoint: true
             },
           }

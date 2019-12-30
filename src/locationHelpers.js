@@ -208,6 +208,58 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
 };
 
 /**
+ * Creates an address string for a street block
+ * @param {String} country The country
+ * @param {String} state Optional state or province
+ * @param {String} city The city
+ * @param {String} blockname Optional specify if there is a blockname but not intersections yet known
+ * @param {[[String]]} intersections Array of two pairs of street names.
+ * If intersections are specified neighborhood is omitted from the search, since the former is more precise
+ * @returns {String} The address string with neighborhood and state optional
+ * Example: Main St & Chestnut St to Main St & Elm St, Anytown, Anystate, USA which will resolve to an intersection
+ */
+export const addressStringForBlock = ({country, state, city, neighborhood, blockname, intersections}) => {
+
+  // If it's a lat/lon return it
+  // We take the first intersection of intersections because we're only resolving single point address here.
+  // If the intersections are 2 intersections, representing a street block, we ignore the second value
+  const resolvedIntersectionPairs = R.map(intersection => {
+      const latLng = locationIntersectionAsLatLng(R.defaultTo([], intersection));
+      if (latLng) {
+        return latLng;
+      }
+
+      return R.when(
+        R.length,
+        intersection => normalizedIntersectionNames(intersection)
+      )(intersection);
+    },
+    intersections
+  );
+
+  return R.compose(
+    R.join(', '),
+    // Remove nulls and empty strings
+    compactEmpty
+  )([
+    R.join(' <-> ', R.map(resolvedIntersectionPair => {
+        return R.ifElse(
+          // Check if the intersection pair exists and has length
+          intersectionPair => R.length(intersectionPair || []),
+          // If so we can put it between &, like 'Maple St & Chestnut St'
+          R.join(' & '),
+          // Otherwise put the blockname and/or neighborhood. If this is null it's filtered out
+          R.always(blockname ? `${blockname}, ${neighborhood}` : neighborhood)
+        )(resolvedIntersectionPair);
+      }, resolvedIntersectionPairs)
+    ),
+    city,
+    state,
+    country]
+  );
+};
+
+/**
  * Given a location with 2 pairs of intersections, returns the address string for each intersection
  * @param {Object} location The location
  * @param {[[String]]} location.intersections Two pairs of intersection names
@@ -468,7 +520,7 @@ export const geojsonFeaturesHaveRadii = geojson => {
       feature => R.both(
         feature => strPathOr(false, 'properties.radius', feature),
         // THere must be a point defined
-        feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Point']),
+        feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Point'])
       )(feature),
       features
     )
@@ -486,17 +538,19 @@ export const geojsonFeaturesHaveRadii = geojson => {
  * @param {[Object]} nodes List of node features
  * @returns {f2|f1}
  */
-export const locationAndOsmResultsToLocationWithGeojson = (location, {ways, nodes, relations}) => R.set(
-  R.lensProp('geojson'),
-  {
-    // Default geojson properties since we are combining multiple geojson results
-    type: 'FeatureCollection',
-    generator: 'overpass-turbo',
-    copyright: 'The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.',
-    features: R.chain(R.defaultTo([]), [ways, nodes, relations])
-  },
-  location
-);
+export const locationAndOsmResultsToLocationWithGeojson = (location, {ways, nodes, relations}) => {
+  return R.set(
+    R.lensProp('geojson'),
+    {
+      // Default geojson properties since we are combining multiple geojson results
+      type: 'FeatureCollection',
+      generator: 'overpass-turbo',
+      copyright: 'The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.',
+      features: R.chain(R.defaultTo([]), [ways, nodes, relations])
+    },
+    location
+  );
+};
 
 /**
  * Given a location and componentLocations that are locations geospatially within location, create a single

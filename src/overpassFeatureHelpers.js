@@ -73,8 +73,8 @@ export const hashWayFeatureExtents = wayFeature => {
  * @returns {f1}
  */
 export const extents = list => {
-  return R.map(extreme => R[extreme](list), ['head', 'last'])
-}
+  return R.map(extreme => R[extreme](list), ['head', 'last']);
+};
 
 /**
  * Returns true if the nodeFeature is at either end of the given wayFeature.
@@ -181,7 +181,7 @@ const _lineStringFeatureEndNodeMatches = R.curry((nodePointHashes, lineStringFea
  * @private
  */
 const _updateNodeMatches = R.curry((nodeFeatures, nodeMatches, feature) => {
-  const nodePointHashes = hashNodeFeatures(nodeFeatures)
+  const nodePointHashes = hashNodeFeatures(nodeFeatures);
   // We only test the nodes at the extremes, assuming the nodes our ordered. There are only more than
   // two nodes when a way is crossing a divided highway or similar
   const testNodePointHashes = R.map(f => f(nodePointHashes), [R.head, R.last]);
@@ -230,7 +230,7 @@ export const _linkedFeatures = (lookup, nodeFeatures) => {
           const newResults = R.concat(results, compact([shortenedWayFeature]));
           const reduction = {results: newResults, nodeMatches: newNodeMatches, nodeFeatures: newNodeFeatures};
           if (R.prop('last', newNodeMatches))
-          // Quit after this if we intersected the last intersection node. We ignore any way after
+            // Quit after this if we intersected the last intersection node. We ignore any way after
             return R.reduced(reduction);
           else
             return reduction;
@@ -238,10 +238,14 @@ export const _linkedFeatures = (lookup, nodeFeatures) => {
         // nodeMatches tracks when we have matched at the starting point and ending point of a LineString Feature.
         // We can't allow Features to stop the reduction until one first matches at its head (first) point
         // As soon as one matches at its end point we are done matching features, and any remaining are disgarded
-        {results: [], nodeMatches: {head: false, last: false}, nodeFeatures: R.prop('nodeFeatures', orderedWaysAndNodeFeatureSet)},
+        {
+          results: [],
+          nodeMatches: {head: false, last: false},
+          nodeFeatures: R.prop('nodeFeatures', orderedWaysAndNodeFeatureSet)
+        },
         R.prop('wayFeatures', orderedWaysAndNodeFeatureSet)
       );
-      return results
+      return results;
     },
     orderedWaysAndNodeFeatureSets
   );
@@ -433,7 +437,7 @@ const _reverseNodesAndWayIfNeeded = (nodeMatches, nodeFeatures, wayFeature) => {
 const someAllOrNoneOfWay = (nodeMatches, nodeFeatures, wayFeature) => {
   // We only test with the extreme nodes, assuming they are ordered. We usually have only 2 nodes but
   // can have more if the way crosses a divided road.
-  const testNodeFeatures = R.map(f => f(nodeFeatures), [R.head, R.last])
+  const testNodeFeatures = R.map(f => f(nodeFeatures), [R.head, R.last]);
   if (R.prop('head', nodeMatches)) {
     // Mark that we've intersected one of the nodes
     // The head point of this feature must match, so shorten its end if it overlaps the last node
@@ -529,7 +533,9 @@ export const cleanGeojson = feature => {
 /**
  * Given the way features of a single block and a lookup that maps intersection node ids to the way features
  * that intersect the node (including but not limited to the wayFeatures ways), resolves the names of the
- * intersections of the wayFeatures (normally 2 intersections but possibly 1 for dead ends).
+ * intersections of the wayFeatures. If street names can't be resolved because a nodeFeature is a dead end,
+ * we use the street name and the dead-end node id. This way we always have two names at each end of the way.
+ * It's possible that have more that two street names for an intersection where more than two street names meet
  * @param {[Object]} nodeFeatures The 2 node features of the single block. This might include a dead end node
  * @param {[Object]} wayFeatures The way features of a single block. This could be one or more ways:
  * If the way splits half way through the block or if it's a boulevard, highway, etc with a divided roads
@@ -574,7 +580,13 @@ export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeFeatur
     waysOfNodeFeatures => {
       return R.compose(
         // Take the name
-        R.map(R.prop('name')),
+        features => R.map(R.prop('name'), features),
+        // Error terminally if we didn't generate two features. This should never happen
+        features => {
+          return R.when(R.compose(R.gt(2), R.length), features => {
+            throw new Error(`Feature ${JSON.stringify(features)} generated fewer than 2 intersection names. This should never happen`)
+          })(features)
+        },
         // Sort by first matching a way and second alphabetically
         uniqueFeatures => R.sortWith(
           [
@@ -585,11 +597,24 @@ export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeFeatur
           ],
           uniqueFeatures
         ),
-        // Get uniquely named features
-        featuresWithNames => R.uniqBy(
-          R.prop('name'),
-          featuresWithNames
-        ),
+        // If we have more than 2 features, get uniquely named features. If we have at least two unique street names
+        // where the 2 have the same name, we only need to store the name once.
+        // If we only have 2 features with the same name, keep both. This is for cases where two intersecting
+        // streets have the same name.
+        featuresWithNames => {
+          return R.when(
+            featuresWithNames => R.compose(
+              R.lt(2),
+              R.length,
+              R.uniq,
+              R.map(R.prop('name'))
+            )(featuresWithNames),
+            featuresWithNames => R.uniqBy(
+              R.prop('name'),
+              featuresWithNames
+            )
+          )(featuresWithNames);
+        },
         // Name features by the name tag or failing that the way id
         features => R.map(
           feature => ({feature, name: nameOrIdOfFeature(feature)}),

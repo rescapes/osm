@@ -3830,7 +3830,7 @@ describe('overpassBlockHelpers', () => {
     expect(locationsToGeojson(locations)).toBeTruthy();
   });
 
-  test('locationsToGeojsonFile', () => {
+  test('locationsToGeojsonFile', done => {
     const locations = R.map(
       block => {
         return {

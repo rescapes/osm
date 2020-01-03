@@ -270,11 +270,13 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
 
     // Use the context and blockContext to resolve the next part of the block. This might involve
     // going to the server for more data to resolve dead ends
+    // TODO We no longer use waysAtEndOfFinalWay. I don't think we ever need it. We just want to add
+    // firstFoundNodeOfFinalWay to the block or query Overpass if it doesn't exist
     ({osmConfig, firstFoundNodeOfFinalWay, waysAtEndOfFinalWay, partialBlocks, hashToPartialBlocks, nodes, ways}) => {
       return _choicePointProcessPartialBlockResultTask(
         osmConfig,
         {nodeIdToWays, hashToPartialBlocks},
-        {firstFoundNodeOfFinalWay, waysAtEndOfFinalWay, partialBlocks},
+        {firstFoundNodeOfFinalWay, partialBlocks},
         {nodes, ways}
       );
     }
@@ -305,7 +307,6 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
  * @param {Object} context.hashToPartialBlocks
  * @param {Object} blockContext
  * @param {Object} blockContext.firstFoundNodeOfFinalWay
- * @param {Object} blockContext.waysAtEndOfFinalWay
  * @param {[Object]} blockContext.partialBlocks
  * @param {Object} block
  * @param {[Object]} block.nodes
@@ -318,19 +319,14 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
 export function _choicePointProcessPartialBlockResultTask(
   osmConfig,
   {nodeIdToWays, hashToPartialBlocks},
-  {firstFoundNodeOfFinalWay, waysAtEndOfFinalWay, partialBlocks},
+  {firstFoundNodeOfFinalWay, partialBlocks},
   block
 ) {
   const {nodes, ways} = block;
   return R.cond([
     [
-      // If we didn't get either or firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, we have a dead end or need a node outside our search results
-      // and need to query overpass for the missing intersection node or for a dead end the node at the end of the trimmedWays
-      ({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay}) => R.and(
-        R.isNil(firstFoundNodeOfFinalWay),
-        // TODO I don't think we ever have this case. Consider removing
-        R.isEmpty(waysAtEndOfFinalWay)
-      ),
+      // If we didn't get firstFoundNodeOfFinalWay
+      ({firstFoundNodeOfFinalWay}) => R.isNil(firstFoundNodeOfFinalWay),
       // Find the dead-end node or intersection node outside the query results
       () => _deadEndNodeAndTrimmedWayOfWayResultTask(osmConfig, partialBlocks, {nodes, ways})
     ],
@@ -366,7 +362,7 @@ export function _choicePointProcessPartialBlockResultTask(
         );
       }
     ],
-    // We have a firstFoundNodeOfFinalWay or waysAtEndOfFinalWay, pass the node (which might be null) (TODO how can it be null?)
+    // We have a firstFoundNodeOfFinalWay, add it
     [
       R.T,
       () => of(Result.Ok({
@@ -376,13 +372,13 @@ export function _choicePointProcessPartialBlockResultTask(
             R.uniqBy(R.prop('id')),
             R.concat(nodes)
           )([firstFoundNodeOfFinalWay]),
-          ways: R.concat(ways, waysAtEndOfFinalWay)
+          ways
         },
         remainingPartialBlocks: partialBlocks
       }))
     ]
-  ])({firstFoundNodeOfFinalWay, waysAtEndOfFinalWay});
-};
+  ])({firstFoundNodeOfFinalWay});
+}
 
 /**
  * Extends a block to the other way of a fake intersection node.

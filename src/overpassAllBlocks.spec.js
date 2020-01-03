@@ -4,7 +4,7 @@ import {
   locationToOsmAllBlocksQueryResultsTask
 } from './overpassAllBlocks';
 import {blocksToGeojson, blocksWithLengths, lengthOfBlocks} from './overpassBlockHelpers';
-import {queryLocationForOsmBlockOrAllResultsTask} from './overpassBlocks';
+import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
 import {length} from '@turf/turf';
 
 /**
@@ -222,33 +222,4 @@ describe('overpassAllBlocks', () => {
     );
   }, 1000000)
 
-  test('Test Jurisdiction Point Buffer locations Nairobi', done => {
-    expect.assertions(1);
-    const errors = [];
-    const location = {
-      country: 'Kenya',
-      city: 'Nairobi',
-      geojson: {
-        type: 'FeatureCollection',
-        features: [
-          {
-            type: "Feature",
-            properties: {
-              radius: 200,
-              jurisdictionCenterPoint: true
-            },
-          }
-        ]
-      }
-    };
-    locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
-      {
-        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
-          // Paste the results of this into a geojson viewer for debugging
-          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(9);
-        }
-      }, errors, done)
-    );
-  }, 1000000)
 });

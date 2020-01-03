@@ -383,12 +383,19 @@ export const wayFeatureNameOrDefault = (defaultTo, wayFeature) => strPathOr(defa
  * @private
  */
 export const intersectionsByNodeIdToSortedIntersections = (location, nodesToIntersectingStreets) => {
-  let streetIntersectionSets = R.values(nodesToIntersectingStreets);
+  const originalStreetIntersectionSets = R.values(nodesToIntersectingStreets);
+  // If we only have one originalStreetIntersectionSets, we probably have a loop, so double it
+  // TODO do more verification that this is a loop
+  // TODO we should never get nodesToIntersectingStreets missing an intersections. Do this earlier
+  const modifiedStreetIntersectionSets = R.when(
+    R.compose(R.equals(1), R.length),
+    originalStreetIntersectionSets => R.concat(originalStreetIntersectionSets, originalStreetIntersectionSets),
+  )(originalStreetIntersectionSets);
 
-  const blockname = commonStreetOfLocation(location, streetIntersectionSets);
+  const blockname = commonStreetOfLocation(location, modifiedStreetIntersectionSets);
 
   // If we only have one node in streetIntersectionSets then we need to add the dead-end
-  streetIntersectionSets = R.when(
+  const streetIntersectionSets = R.when(
     R.compose(R.equals(1), R.length),
     streetIntersectionSets => R.append(
       // Find the location geojson feature node that doesn't occur in nodesToIntersectingStreets.
@@ -409,7 +416,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
       ],
       streetIntersectionSets
     )
-  )(streetIntersectionSets);
+  )(modifiedStreetIntersectionSets);
 
   const ascends = R.compose(
     // Map that something to R.ascend for each index of the intersections

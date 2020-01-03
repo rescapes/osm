@@ -73,7 +73,7 @@ describe('LocationSelector', () => {
       city: 'Washington',
       intersections: [['Monroe St', '13th NE'], ['Political St', 'Correctness St']]
     })).toEqual(
-      'Monroe St & 13th NE to Political St & Correctness St, Washington, DC, USA',
+      'Monroe St & 13th NE to Political St & Correctness St, Washington, DC, USA'
     )
   );
 
@@ -420,9 +420,52 @@ describe('LocationSelector', () => {
 
   test('normalizedIntersectionNames', () => {
     expect(normalizedIntersectionNames(
-      ['Northwest Mammoth Avenue', 'Southwest Penguin Plaza'],
+      ['Northwest Mammoth Avenue', 'Southwest Penguin Plaza']
     )).toEqual(
       ['NW Mammoth Ave', 'SW Penguin Plaza']
-    )
-  })
+    );
+  });
+
+  test('TestLoopHandlingInintersectionsByNodeIdToSortedIntersections', () => {
+    const nodesToIntersectingStreetsWithNull = {
+      "node/4437341913": [
+        "way/665350226",
+        "Victoria Avenue",
+        "way/446472694"
+      ]
+    };
+    const location = {
+      country: 'Kenya',
+      city: 'Nairobi',
+      geojson: {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              radius: 200,
+              jurisdictionCenterPoint: true
+            }
+          }
+        ]
+      }
+    };
+    expect(intersectionsByNodeIdToSortedIntersections(location, nodesToIntersectingStreetsWithNull)).toEqual(
+      [["way/665350226", "Victoria Avenue", "way/446472694"], ["way/665350226", "Victoria Avenue", "way/446472694"]]
+    );
+    const normalNodesToIntersectingStreets = {
+      "node/4437341913": [
+        "way/665350226",
+        "Victoria Avenue",
+        "way/446472694"
+      ],
+      "node/4437341413": [
+        "way/665350226",
+        "Jasper St"
+      ]
+    };
+    expect(intersectionsByNodeIdToSortedIntersections(location, normalNodesToIntersectingStreets)).toEqual(
+      [["way/665350226", "Jasper St"], ["way/665350226", "Victoria Avenue", "way/446472694"]]
+    );
+  });
 });

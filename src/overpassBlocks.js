@@ -20,9 +20,7 @@ import {
   isResolvableAllBlocksLocation,
   isResolvableSingleBlockLocation, wayFeatureNameOrDefault
 } from './locationHelpers';
-import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 import {fetchOsmRawTask, osmResultTask} from './overpassHelpers';
-import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 import {
   resultToTaskNeedingResult,
   resultToTaskWithResult,
@@ -221,52 +219,6 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
     )
   )(filterLocation);
 };
-
-
-/**
- * Queries locationToOsmAllBlocksQueryResultsTask or queryLocationForOsmSingleBlockResultTask
- * @param {Object} osmConfig
- * @param {Object} osmConfig.forceOsmQuery
- * @param {Object} location A location that must be resolvable to a block or city/neighborhood area
- * @returns {Task<{Ok: Result.Ok, Error: Result.Error}>} Successful values in the Ok: [] array and errors in the Error: [] array.
- * Single block query will only have one result. The result value is {location, results} where location
- * is the location block object (either from the single block query or each block of multiple results) and
- * results are the OSM results {way: way features, node: node features, intersections: {keyed by node id valued by street names of the intersection}}
- */
-export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) => {
-  return R.cond([
-    [
-      location => isResolvableSingleBlockLocation(location),
-      location => {
-        log.debug(`queryLocationForOsmBlockOrAllResultsTask: Found single block location: ${addressString(location)}`);
-        return R.map(
-          result => {
-            // Match the format of locationToOsmAllBlocksQueryResultsTask
-            return result.matchWith({
-              Ok: ({value}) => ({Ok: R.unless(Array.isArray, Array.of)(value)}),
-              Error: ({value}) => ({Error: R.unless(Array.isArray, Array.of)(value)})
-            });
-          },
-          queryLocationForOsmSingleBlockResultTask(osmConfig, location)
-        );
-      }
-    ],
-    [
-      location => isResolvableAllBlocksLocation(location),
-      location => {
-        log.debug(`queryLocationForOsmBlockOrAllResultsTask: Found resolvable all blocks location: ${addressString(location)}`);
-        return locationToOsmAllBlocksQueryResultsTask(osmConfig, location);
-      }
-    ],
-    [
-      R.T,
-      () => {
-        throw new Error(`Location ${JSON.stringify(location)} is neither resolvable as a block nor city/neighborhood area`);
-      }
-    ]
-  ])(location);
-};
-
 
 /**
  * Creates data structures that relate the nodes and ways

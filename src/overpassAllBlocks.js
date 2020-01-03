@@ -48,13 +48,12 @@ import {
   isNominatimEligible,
   geojsonFeaturesHaveShape,
   geojsonFeaturesHaveRadii,
-  wayFeatureNameOrDefault,
   locationAndOsmResultsToLocationWithGeojson
 } from './locationHelpers';
 import {length} from '@turf/turf';
 import {v} from 'rescape-validate';
 import PropTypes from 'prop-types';
-import {_calculateNodeAndWayRelationships, isRealIntersection, trimWayToNodeObj} from './overpassBlocks';
+import {_calculateNodeAndWayRelationships} from './overpassBlocks';
 import {
   _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask
 } from './overpassBuildBlocks';

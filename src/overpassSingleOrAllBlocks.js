@@ -9,14 +9,21 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {addressString, isResolvableAllBlocksLocation, isResolvableSingleBlockLocation} from './locationHelpers';
+import {
+  addressString,
+  isResolvableAllBlocksLocation,
+  isResolvableSingleBlockLocation,
+  locationAndOsmResultsToLocationWithGeojson
+} from './locationHelpers';
 import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 import 'regenerator-runtime';
 import {loggers} from 'rescape-log';
 import * as R from 'ramda';
 import * as Result from 'folktale/result';
+
 const log = loggers.get('rescapeDefault');
+import {toArrayIfNot} from 'rescape-ramda';
 
 
 /**
@@ -39,8 +46,26 @@ export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) =>
           result => {
             // Match the format of locationToOsmAllBlocksQueryResultsTask
             return result.matchWith({
-              Ok: ({value}) => ({Ok: R.unless(Array.isArray, Array.of)(value)}),
-              Error: ({value}) => ({Error: R.unless(Array.isArray, Array.of)(value)})
+              Ok: ({value}) => ({
+                Ok: R.map(
+                  value => {
+                    // Create the geojson fro the location
+                    const {ways, nodes, nodesToIntersectingStreets} = value;
+                    return {
+                      results: {nodesToIntersectingStreets},
+                      location: locationAndOsmResultsToLocationWithGeojson(location, {ways, nodes})
+                    };
+                  },
+                  toArrayIfNot(value))
+              }),
+              Error: ({value}) => ({
+                Error: R.map(
+                  value => ({
+                    result: value,
+                    location
+                  }),
+                  toArrayIfNot(value))
+              })
             });
           },
           queryLocationForOsmSingleBlockResultTask(osmConfig, location)

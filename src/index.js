@@ -17,7 +17,7 @@ export {
   calculateOpposingRoutesTask,
   createOpposingRoutesFromOriginAndDestination,
   findClosest,
-  geocodeAddressTask,
+  geocodeAddressResultTask,
   geocodeBlockAddressesResultTask,
   geocodeAddressWithBothIntersectionOrdersTask,
   geojsonCenterOfBlockAddress,
@@ -33,7 +33,7 @@ export {
   addressString,
   addressPair,
   addressStrings,
-  streetAddressString,
+  jurisdictionString,
   removeStateFromSomeCountriesForSearch,
   intersectionsByNodeIdToSortedIntersections,
   isResolvableSingleBlockLocation,
@@ -50,10 +50,12 @@ export {fetchTransitOsm} from './overpassTransit';
 export {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 export {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 export {
-  queryLocationForOsmBlockOrAllResultsTask,
   osmLocationToLocationWithGeojsonResultTask,
   osmRelationshipGeojsonResultTask
 } from './overpassBlocks';
+export {
+  queryLocationForOsmBlockOrAllResultsTask
+} from './overpassSingleOrAllBlocks';
 export {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
 export {
   cleanGeojson,
@@ -67,4 +69,4 @@ export {
 } from './overpassFeatureHelpers';
 export {
   blockToGeojson, blocksToGeojson, blocksWithLengths, lengthOfBlocks, locationsToGeojson, locationsToGeojsonFile
-} from './overpassBlockHelpers'
+} from './overpassBlockHelpers';

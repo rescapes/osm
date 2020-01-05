@@ -195,9 +195,9 @@ describe('overpassAllBlocks', () => {
     expect.assertions(1);
     const errors = [];
     const location = {
-      country: 'USA',
-      state: 'NV',
-      city: 'Winnemucca',
+      country: 'Canada',
+      state: 'Quebec',
+      city: 'Montreal',
       geojson: {
         type: 'FeatureCollection',
         features: [

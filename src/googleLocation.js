@@ -36,7 +36,7 @@ import {
   addressStrings,
   isLatLng, locationIntersectionAsLatLng, locationWithLocationPoints,
   oneLocationIntersectionsFromLocation,
-  removeStateFromSomeCountriesForSearch
+  removeStateFromSomeCountriesForSearch, jurisdictionString
 } from './locationHelpers';
 import * as Result from 'folktale/result';
 import {lineString} from '@turf/helpers';
@@ -61,6 +61,58 @@ const addGeojsonToGoogleResult = result => {
     result
   );
 };
+
+/**
+ * Resolves the lat/lon from the given jurisdiction
+ * @param {Object} location Location object gives us context about the jurisdiction. At minimum we need a country
+ * @return {Task<Result<Object>} resolves with response in a Result if the status is OK,
+ * else an Error with the error. Failed geocoding should be expected and handled. The Result
+ * contains a geojson that is a Turf Point. Other info from Google like formatted_address is returned
+ * if the request goes through Google. If the address is already a lat,lon Google isn't used
+ */
+export const geocodeJursidictionResultTask = location => {
+  const jurisdictionalString = jurisdictionString(location);
+
+  return task(resolver => {
+    let promise = null;
+    promise = googleMaps.geocode({
+      address: jurisdictionalString
+    }).asPromise();
+    promise.then(
+      // Only accept exact results, not approximate, if the location search involves intersections
+      response => {
+        const results = response.json.results;
+        if (R.compose(R.equals(1), R.length)(results)) {
+          const result = R.head(results);
+          // Result to indicate success
+          log.debug(`Successfully geocoded location ${jurisdictionalString} to Google address ${result.formatted_address}`);
+          // If an error occurs here Google swallows it, so catch it
+          resolver.resolve(
+            Result.of(addGeojsonToGoogleResult(result))
+          );
+        } else {
+          // Ambiguous or no results. We can potentially resolve ambiguous ones
+          log.warn(`Failed to find exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${jurisdictionalString}. ${R.length(results)} results`);
+          resolver.resolve(Result.Error({
+            error: 'Did not receive exactly one location',
+            results: R.map(
+              result => addGeojsonToGoogleResult(result),
+              results
+            ),
+            response
+          }));
+        }
+      },
+      err => {
+        // Handle error
+        // Error to give up
+        log.warn(`Failed to geocode ${R.propOr('(no id given)', 'id', location)}, ${jurisdictionalString}. Error ${strPathOr('Unknown', 'json.error_message', err)}`);
+        resolver.resolve(Result.Error({error: JSON.stringify(err), response: err}));
+      }
+    );
+  });
+};
+
 /**
  * Resolves the lat/lon from the given location
  * @param {Object} location Location object gives us context about the address. In the future we might just
@@ -72,7 +124,7 @@ const addGeojsonToGoogleResult = result => {
  * contains a geojson that is a Turf Point. Other info from Google like formatted_address is returned
  * if the request goes through Google. If the address is already a lat,lon Google isn't used
  */
-export const geocodeAddressTask = location => {
+export const geocodeAddressResultTask = location => {
   // If the location intersections[0] is a lat/lon  don't bother to call Google's geocoder
   // Sometimes we have data where one of the intersection street names is the lat/lon of the intersection.
   // In this case just use that lat/lon for the intersection
@@ -269,7 +321,7 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
       R.map(
         // Seek the geocode of each intersection ordering if we have named intersections
         // Since this creates 2 tasks we only run as many as are needed to get a definitive answer from Google
-        locationWithOneIntersectionOrdering => geocodeAddressTask(locationWithOneIntersectionOrdering),
+        locationWithOneIntersectionOrdering => geocodeAddressResultTask(locationWithOneIntersectionOrdering),
         locationWithBothIntersectionOrderings
       )
     ),
@@ -511,7 +563,7 @@ export const resolveGeoLocationTask = location => {
   if (R.all(R.is(Number), latLng)) {
     return of(Result.Ok(latLng));
   }
-  // If we have both intersection pairs, resolve the center point between them.
+    // If we have both intersection pairs, resolve the center point between them.
   // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
   else if (R.equals(2, R.length(location.intersections))) {
     // Task Result -> Task Result
@@ -544,7 +596,7 @@ export const resolveGeoLocationTask = location => {
           // by trying names in both orders until one resolves. E.g. it tries Main St and Elm St and then Elm St and Main St
           // if the former fails
           ({location}) => geocodeAddressWithBothIntersectionOrdersTask(location),
-          ({location}) => geocodeAddressTask(location)
+          ({location}) => geocodeAddressResultTask(location)
         )({location});
       },
       // Remove states from some countries like Switzerland that mess up the search

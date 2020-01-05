@@ -11,7 +11,7 @@
 import {
   initDirectionsService,
   createOpposingRoutesFromOriginAndDestination,
-  geocodeAddressTask,
+  geocodeAddressResultTask,
   geojsonCenterOfBlockAddress, googleIntersectionTask, resolveGeojsonTask, resolveGeoLocationTask,
   geocodeBlockAddressesResultTask, createRouteFromOriginDestinationGeocodes, calculateRouteTask,
   geocodeAddressWithBothIntersectionOrdersTask
@@ -26,7 +26,7 @@ const austinIntersections = [['Salina St', 'E 21st St'], ['Leona St and E 21st S
 describe('googleLocation', () => {
   test('geocodeAddressTaskPartialMatchShouldFaile', done => {
       const errors = [];
-      geocodeAddressTask({
+      geocodeAddressResultTask({
         country: 'USA',
         state: 'DC',
         city: 'Washington',
@@ -54,7 +54,7 @@ describe('googleLocation', () => {
   // This request is returning 2 results in production. Seems fine here
   test('geocode2Results', done => {
     const errors = [];
-    geocodeAddressTask({
+    geocodeAddressResultTask({
       country: 'USA',
       state: 'GA',
       city: 'Atlanta',
@@ -84,7 +84,7 @@ describe('googleLocation', () => {
       const errors = [];
       // This request for a city returns an approximate location, which is ok. It's not okay for intersections
       // to be approximate
-      geocodeAddressTask({
+      geocodeAddressResultTask({
         country: 'USA',
         state: 'CA',
         city: 'Irvine',
@@ -110,7 +110,7 @@ describe('googleLocation', () => {
 
   test('geocodeIntersectionWithWordNorthInName', done => {
       const errors = [];
-      geocodeAddressTask({
+      geocodeAddressResultTask({
         country: 'USA',
         state: 'IL',
         city: 'Peoria',
@@ -337,7 +337,7 @@ describe('googleLocation', () => {
       const errors = [];
       // Leave the location blank since we don't need it when we use a lat/lng
       const latLon = '60.004471, -44.663669';
-      geocodeAddressTask({intersections: [latLon]}).run().listen(
+      geocodeAddressResultTask({intersections: [latLon]}).run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(
@@ -367,7 +367,7 @@ describe('googleLocation', () => {
     5000);
 
 
-  test('Resolve correct geocodeAddressTask with two results', done => {
+  test('Resolve correct geocodeAddressResultTask with two results', done => {
     const errors = [];
     const ambiguousIntersections = [
       ['Monroe', '13th'],

@@ -282,14 +282,14 @@ export const oneLocationIntersectionsFromLocation = location => {
 };
 
 /**
- * Just returns the street "address" e.g. Perkins Ave, Oakland, CA, USA
+ * Returns the jurisdiction with optional blockname e.g. Perkins Ave, Oakland, CA, USA
  * @param {String} country Required, the country
  * @param {String} state Optional depending on the country
  * @param {String} city Required
  * @param {String} blockname Required, the street to create the address for
  * @return {String} blockname, city, [state], country
  */
-export const streetAddressString = ({country, state, city, blockname}) => {
+export const jurisdictionString = ({country, state, city, blockname}) => {
   return R.compose(
     R.join(', '),
     // Remove nulls and empty strings
@@ -510,6 +510,20 @@ export const geojsonFeaturesHaveShape = geojson => R.and(
   R.compose(R.length, strPathOr([], 'features'))(geojson),
   R.all(
     feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Polygon', 'Multipolygon']),
+    strPathOr([], 'features', geojson)
+  )
+);
+
+/**
+ * Returns true if the given geojson's features all have a point.
+ * There must be at least one feature or false is returned
+ * @param {Object} geojson FeatureCollection or similar
+ * @returns {Boolean} True if all features have a point and there is at least one feature, otherwise false
+ */
+export const geojsonFeaturesIsPoint = geojson => R.and(
+  R.compose(R.length, strPathOr([], 'features'))(geojson),
+  R.all(
+    feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Point']),
     strPathOr([], 'features', geojson)
   )
 );

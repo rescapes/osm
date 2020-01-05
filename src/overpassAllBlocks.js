@@ -7,10 +7,12 @@ import {
   strPathOr,
   mapMDeep,
   toArrayIfNot,
+  composeWithChainMDeep,
   traverseReduceWhile,
   traverseReduceDeep,
-  resultToTaskNeedingResult
+  mapToNamedResponseAndInputsMDeep
 } from 'rescape-ramda';
+import distance from '@turf/distance';
 import {
   turfPointToLocation
 } from 'rescape-helpers';
@@ -48,7 +50,7 @@ import {
   isNominatimEligible,
   geojsonFeaturesHaveShape,
   geojsonFeaturesHaveRadii,
-  locationAndOsmResultsToLocationWithGeojson
+  locationAndOsmResultsToLocationWithGeojson, geojsonFeaturesIsPoint
 } from './locationHelpers';
 import {length} from '@turf/turf';
 import {v} from 'rescape-validate';
@@ -57,6 +59,7 @@ import {_calculateNodeAndWayRelationships} from './overpassBlocks';
 import {
   _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask
 } from './overpassBuildBlocks';
+import {geocodeJursidictionResultTask} from './googleLocation';
 
 /**
  * Created by Andy Likuski on 2019.07.26
@@ -209,10 +212,61 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
       // If it's got jurisdiction info, query nominatim to resolve the area
       [
         location => isNominatimEligible(location),
-        location => nominatimLocationResultTask({
-          listSuccessfulResult: true,
-          allowFallbackToCity: R.propOr(false, 'allowFallbackToCity', osmConfig)
-        }, location)
+        location => composeWithChainMDeep(2, [
+          ({nominatimLocations, googleLocation}) => {
+            // If we get a googleLocation that is more than 100 meters from the nominatim point,
+            // use the Google center point for the geojson
+            const nominatimLocation = R.head(nominatimLocations || []);
+            const resolvedLocations = R.ifElse(
+              ({nominatimLocation, googleLocation}) => R.allPass(
+                [
+                  ({nominatimLocation}) => nominatimLocation,
+                  ({googleLocation}) => googleLocation,
+                  ({nominatimLocation, googleLocation}) => {
+                    return R.lt(100, distance(
+                      nominatimLocation,
+                      googleLocation,
+                      {units: 'meters'})
+                    );
+                  }
+                ])({
+                nominatimLocation: strPathOr(null, 'geojson.features.0', nominatimLocation),
+                googleLocation: googleLocation.geojson
+              }),
+              ({nominatimLocation, googleLocation}) => [R.set(
+                R.lensPath(['geojson', 'features', 0]),
+                // Replaces the single feature
+                R.prop('geojson', googleLocation),
+                nominatimLocation
+              )],
+              ({nominatimLocations}) => nominatimLocations
+            )({nominatimLocation, googleLocation});
+            log.info(`Resolved the following jurisdiction locations ${JSON.stringify(resolvedLocations)}`);
+            return of(Result.Ok(resolvedLocations));
+          },
+          // If nominatimLocationResultTask gives us a center point back, ask Google for it's center point
+          // for the Jurisdiction. If Google's is really different, use Google's which usually has better
+          // center points in terms of what is the activity center of the city
+          mapToNamedResponseAndInputsMDeep(2, 'googleLocation',
+            ({nominatimLocations}) => {
+              return R.ifElse(
+                nominatimLocations => R.both(
+                  R.length,
+                  nominatimLocations => geojsonFeaturesIsPoint(R.head(nominatimLocations).geojson)
+                )(nominatimLocations),
+                () => geocodeJursidictionResultTask(location),
+                () => null
+              )(nominatimLocations);
+            }
+          ),
+          mapToNamedResponseAndInputsMDeep(2, 'nominatimLocations',
+            ({location}) => {
+              return nominatimLocationResultTask({
+                listSuccessfulResult: true,
+                allowFallbackToCity: R.propOr(false, 'allowFallbackToCity', osmConfig)
+              }, location);
+            })
+        ])({location})
       ],
       [R.T, location => of(Result.Error({
         error: 'Location not eligible for nominatim query and does not have a geojson shape or radius',
@@ -622,11 +676,13 @@ function _constructHighwayQueriesForType(osmConfig, {type}, location) {
   const locationWithSingleFeatures = R.cond([
     [
       ({geojson}) => geojsonFeaturesHaveShape(geojson),
-      ({areaId, geojson}) => of(R.map(
-        feature => Result.Ok({areaId, geojson: {features: [feature]}}),
+      ({areaId, geojson}) => R.map(
+        feature => {
+          return {areaId, geojson: {features: [feature]}};
+        },
         // Get 1km squares of the area
         extractSquareGridFeatureCollectionFromGeojson({cellSize: 1, units: 'kilometers'}, geojson).features
-      ))
+      )
     ],
     // If feature properties have radii split them up into features.
     // The properties.radius instructs OSM what around:radius value to use

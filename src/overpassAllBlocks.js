@@ -250,7 +250,7 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                   nominatimLocation
                 ));
               },
-              ({nominatimLocations}) => nominatimLocations
+              () => nominatimLocations
             )({nominatimLocation, googleLocation});
             log.info(`Resolved the following jurisdiction locations ${JSON.stringify(resolvedLocations)}`);
             return of(Result.Ok(resolvedLocations));

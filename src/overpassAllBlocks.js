@@ -400,28 +400,28 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
   // Finally get the features from the response
   const [ways, nodes] = R.map(reqStrPathThrowing('response.features'), [way, node]);
   return R.composeK(
-    blocks => of({
-      Ok: blocks.value,
-      Error: [] // TODO any blocks that don't process
+    blockResults => of({
+      Ok: R.map(Result.Ok.hasInstance, blockResults),
+      Error:  R.map(Result.Error.hasInstance, blockResults)
     }),
     ({blocks, nodeIdToWays}) => of(R.map(
       block => {
-        const nodesToIntersectingStreets = _intersectionStreetNamesFromWaysAndNodesResult(
+        const nodesToIntersectingStreetsResult = _intersectionStreetNamesFromWaysAndNodesResult(
           reqStrPathThrowing('ways', block),
           reqStrPathThrowing('nodes', block),
           nodeIdToWays
         );
-        return ({
+        return R.map(nodesToIntersectingStreets => ({
           // Put the OSM results together
           results: R.merge(block, {nodesToIntersectingStreets}),
           // Add the intersections to the location and return it
           location: R.merge(
             location,
             {
-              intersections: R.values(nodesToIntersectingStreets)
+              intersections: R.values(nodesToIntersectingStreetsResult)
             }
           )
-        });
+        }), nodesToIntersectingStreetsResult);
       },
       blocks
     )),

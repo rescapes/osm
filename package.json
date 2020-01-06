@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.1.181",
+  "version": "0.1.182",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "repository": {
     "type": "git",
@@ -40,6 +40,7 @@
     "@turf/bbox": "^6.0.1",
     "@turf/bbox-polygon": "^6.0.1",
     "@turf/center": "^6.0.1",
+    "@turf/distance": "^6.0.1",
     "@turf/helpers": "^6.1.4",
     "@turf/rhumb-distance": "^6.0.1",
     "@turf/square-grid": "^6.0.2",

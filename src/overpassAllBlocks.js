@@ -401,7 +401,7 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
   const [ways, nodes] = R.map(reqStrPathThrowing('response.features'), [way, node]);
   return R.composeK(
     blocks => of({
-      Ok: blocks,
+      Ok: blocks.value,
       Error: [] // TODO any blocks that don't process
     }),
     ({blocks, nodeIdToWays}) => of(R.map(

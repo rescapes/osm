@@ -10,15 +10,16 @@
  */
 import * as R from 'ramda';
 import {
+  composeWithMapMDeep,
   compact,
   findOneThrowing,
   mapKeys,
   reqStrPathThrowing,
-  strPathOr,
   mapMDeep,
   chainObjToValues,
+  traverseReduce,
+  objOfMLevelDeepMonadsToListWithPairs,
   filterWithKeys,
-  traverseReduceDeep,
   composeWithChainMDeep
 } from 'rescape-ramda';
 import * as Result from 'folktale/result';
@@ -593,7 +594,7 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (wayFeatures, node
         // Error terminally if we didn't generate two features. This should never happen
         features => {
           return R.ifElse(
-            R.compose(R.gt(2), R.length),
+            features => R.compose(R.gt(2), R.length)(features),
             features => {
               const error = `Feature ${JSON.stringify(features)} generated fewer than 2 intersection names. This should never happen`;
               log.warning(error);
@@ -619,7 +620,7 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (wayFeatures, node
         featuresWithNames => {
           return Result.Ok(R.when(
             featuresWithNames => R.compose(
-              R.lt(2),
+              R.lte(2),
               R.length,
               R.uniq,
               R.map(R.prop('name'))
@@ -640,25 +641,27 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (wayFeatures, node
     limitedNodeIdToWayFeatures
   );
   // Return a Result.Error unless all results are Ok
-  R.ifElse(
-    R.compose(
-      R.all(Result.instanceOf),
+  return R.ifElse(
+    nodeIdToResult => R.compose(
+      results => R.all(
+        Result.Ok.hasInstance,
+        results
+      ),
       R.values
-    ),
+    )(nodeIdToResult),
     // Put the object in a Result.Ok without the internal Result.Oks
     nodeIdToResult => {
-      return R.compose(
-        R.toPairs,
-        traverseReduceDeep(
-          1,
-          (accum, obj) => R.concat(accc, [obj]),
-          Result.Ok([])
+      return composeWithMapMDeep(1, [
+        pairs => R.fromPairs(pairs),
+        nodeIdToResult => traverseReduce(
+          (accum, pair) => R.concat(accum, [pair]),
+          Result.Ok([]),
+          objOfMLevelDeepMonadsToListWithPairs(1, Result.Ok, nodeIdToResult)
         ),
-        R.toPairs
-      )(nodeIdToResult);
+      ])(nodeIdToResult);
     },
     // Errors in at least one value. Wrap in an Error to abandon
-    nodeIdToResult => Result.Error(nodeIdToResult)
+    nodeIdToResult => Result.Error({error: nodeIdToResult})
   )(nodeIdToResult);
 };
 

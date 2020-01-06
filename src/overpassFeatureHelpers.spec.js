@@ -153,7 +153,7 @@ describe('overpassFeatureHelpers', () => {
         ]
       };
       expect(
-        _intersectionStreetNamesFromWaysAndNodesResult(wayFeatures, nodeFeatures, nodeIdToWaysOfNodeFeatures)
+        _intersectionStreetNamesFromWaysAndNodesResult(wayFeatures, nodeFeatures, nodeIdToWaysOfNodeFeatures).value
       ).toEqual(
         {"node/42875319": ["134th Street", "South Conduit Avenue"], "node/42901997": ["134th Street", "149th Avenue"]}
       );

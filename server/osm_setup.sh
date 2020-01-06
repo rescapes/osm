@@ -18,7 +18,7 @@
 # (accept the defaults)
 # copy the text from the console
 # local~$ cat ~/.ssh/id_rsa.pub
-# log into the server
+# og into the server
 # local~$ ssh -i ~/.ssh/SoP_osm.pem $server
 # remote~$ vi ~/.ssh/authorized_keys (paste the public key in here)
 
@@ -55,11 +55,13 @@ export DB_DIR="$EXEC_DIR/db"
 
 export REPLICATE_DIR="$EXEC_DIR/replications"
 
+source ~/.bashrc
+
 mkdir ~/src
 
 mv osm-3s_v[0.7.55]/ src
 
-cd $EXEC_DIR
+cd src/osm-3s_v[0.7.55]/ src
 
 ./configure --prefix="`pwd`"
 
@@ -87,7 +89,7 @@ nohup $EXEC_DIR/bin/dispatcher --osm-base --meta --db-dir=$DB_DIR &
 
 # If you have problems because of a previous run, delete the following marker files
 # rm -f /dev/shm/osm3s_v0.7.55_osm_base
-# rm -f $DB_DATA/osm3s_v0.7.55_osm_base
+# rm -f $DB_DIR/osm3s_v0.7.55_osm_base
 
 nohup $EXEC_DIR/bin/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" &
 
@@ -191,14 +193,15 @@ sudo /usr/local/bin/certbot-auto --cert-name osm.rescapes.net
 
 # To start all the scripts at once
 nohup $EXEC_DIR/bin/dispatcher --osm-base --meta --db-dir=$DB_DIR &
+nohup $EXEC_DIR/bin/dispatcher --areas --db-dir=$DB_DIR &
 nohup $EXEC_DIR/bin/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" &
 nohup $EXEC_DIR/bin/apply_osc_to_db.sh "diffs/" auto --meta=yes &
-nohup $EXEC_DIR/bin/dispatcher --areas --db-dir=$DB_DIR &
 nohup $EXEC_DIR/bin/rules_loop.sh $DB_DIR &
 
 # To kill the dispatchers
-$EXEC_DIR/bin/dispatcher --osm_base --terminate
+$EXEC_DIR/bin/dispatcher --osm-base --terminate
 $EXEC_DIR/bin/dispatcher --areas --terminate
+
 
 # If you need to increase the size of the volume on EC2:
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/recognize-expanded-volume-linux.html

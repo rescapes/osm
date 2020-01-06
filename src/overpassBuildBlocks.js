@@ -20,6 +20,9 @@ import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {_calculateNodeAndWayRelationships, isRealIntersection, trimWayToNode, trimWayToNodeObj} from './overpassBlocks';
+import {loggers} from 'rescape-log';
+
+const log = loggers.get('rescapeDefault');
 
 /**
  * Given a partial block, meaning a block with one node and one or more connected directional ways, recursively
@@ -508,12 +511,20 @@ export function _deadEndNodeAndTrimmedWayOfWayResultTask(osmConfig, partialBlock
     // Find the node at the end of the way, whether or not it's an intersection node or not
     // Produce an extended block with the previous ways and nodes and the new trimmed way and end node
     mapToNamedResponseAndInputs('endedBlockResult',
-      ({previousWays, way, nodesAndIntersectionNodesByWayIdResult}) => resultToTaskNeedingResult(
+      ({previousWays, way, nodes, nodesAndIntersectionNodesByWayIdResult}) => resultToTaskNeedingResult(
         ({intersectionNodesByWayId, nodesByWayId}) => {
           const endBlockNode = _resolveEndBlockNode(
             way,
             {intersectionNodesByWayId, nodesByWayId}
           );
+          if (!endBlockNode) {
+            const error = `Something is wrong with this partially build block ${blockToGeojson({
+              ways: [way],
+              nodes
+            })}. Cannot find an endBlockNode. Giving up on it`;
+            log.warning(error);
+            return of(Result.Error(error));
+          }
           return of({
             // trim the way to the node
             ways: R.concat(

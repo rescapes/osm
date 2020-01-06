@@ -31,9 +31,9 @@ import {locationToTurfPoint} from 'rescape-helpers';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
-import {loggers} from 'rescape-log';
 import {addressString, stateCodeLookup} from './locationHelpers';
 
+import {loggers} from 'rescape-log';
 const log = loggers.get('rescapeDefault');
 
 /**

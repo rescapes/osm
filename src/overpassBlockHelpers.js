@@ -16,7 +16,7 @@ import {schemeCategory10} from 'd3-scale-chromatic';
 import {
   cleanGeojson,
   _intersectionStreetNamesFromWaysAndNodes, _linkedFeatures,
-  _reduceFeaturesByHeadAndLast, hashNodeFeature, hashPoint, hashPointsToWayCoordinates, hashWayFeature
+  _reduceFeaturesByHeadAndLast, hashPoint, hashPointsToWayCoordinates, hashWayFeature
 } from './overpassFeatureHelpers';
 import {of} from 'folktale/concurrency/task';
 import {
@@ -38,7 +38,6 @@ import {
   splitAtInclusive,
   toNamedResponseAndInputs,
   traverseReduceResultError,
-  sequenceBucketed,
   waitAllBucketed,
   mapToNamedResponseAndInputs,
   resultToTaskNeedingResult
@@ -98,15 +97,10 @@ const nodesOfWayQuery = (osmConfig, wayId) => {
     R.last,
     R.split('/')
   )(wayId);
-  return `// nodesOfWayQuery 
-   ${
-    // Include way areas if includePedestrianArea is specified
-    R.ifElse(
-      osmConfig => R.propOr(false, 'includePedestrianArea', osmConfig),
-      () => `way(id:${id})[area = "yes"]->.matchingAreaWay;`,
-      () => ''
-    )(osmConfig)
-  }
+  return `
+// nodesOfWayQuery 
+    // Always include area way queries in case a way's end is node is part of an area
+    way(id:${id})[area = "yes"]->.matchingAreaWay;
     way(id:${id})[area != "yes"]->.matchingWay;
     // Find nodes within 10 meters of the node for ways with area=="yes" and ways containing the node otherwise
     (

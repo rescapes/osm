@@ -1,3 +1,6 @@
+import {loggers} from 'rescape-log';
+
+const log = loggers.get('rescapeDefault');
 import {
   reqStrPathThrowing,
   pickDeepPaths,
@@ -22,7 +25,6 @@ import bbox from '@turf/bbox';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import {
-  AROUND_LAT_LON_TOLERANCE, aroundBoundsDeclaration,
   aroundPointDeclaration,
   configuredHighwayWayFilters,
   highwayNodeFilters,
@@ -30,20 +32,16 @@ import {
 } from './overpassHelpers';
 import * as Result from 'folktale/result';
 import {
-  blockToGeojson,
   _buildPartialBlocks,
   _sortOppositeBlocksByNodeOrdering,
   _hashBlock,
   _queryLocationVariationsUntilFoundResultTask,
-  _wayEndPointToDirectionalWays,
-  waysByNodeIdTask, blocksToGeojson
+  waysByNodeIdTask
 } from './overpassBlockHelpers';
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch';
 import {
-  _intersectionStreetNamesFromWaysAndNodes,
-  hashNodeFeature,
-  hashWayFeature, nodeMatchesWayEnd
+  _intersectionStreetNamesFromWaysAndNodes
 } from './overpassFeatureHelpers';
 import {
   geojsonFeaturesHaveShapeOrRadii,
@@ -217,28 +215,41 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
             // If we get a googleLocation that is more than 100 meters from the nominatim point,
             // use the Google center point for the geojson
             const nominatimLocation = R.head(nominatimLocations || []);
+            const dist = (nominatimLocationGeojson, googleLocationGeojson) => distance(
+              nominatimLocationGeojson,
+              googleLocationGeojson,
+              {units: 'meters'}
+            );
             const resolvedLocations = R.ifElse(
               ({nominatimLocation, googleLocation}) => R.allPass(
                 [
                   ({nominatimLocation}) => nominatimLocation,
                   ({googleLocation}) => googleLocation,
                   ({nominatimLocation, googleLocation}) => {
-                    return R.lt(100, distance(
+                    return R.lt(100, dist(
                       nominatimLocation,
-                      googleLocation,
-                      {units: 'meters'})
+                      googleLocation)
                     );
                   }
                 ])({
                 nominatimLocation: strPathOr(null, 'geojson.features.0', nominatimLocation),
-                googleLocation: googleLocation.geojson
+                googleLocation: strPathOr(null, 'geojson', googleLocation)
               }),
-              ({nominatimLocation, googleLocation}) => [R.set(
-                R.lensPath(['geojson', 'features', 0]),
-                // Replaces the single feature
-                R.prop('geojson', googleLocation),
-                nominatimLocation
-              )],
+              ({nominatimLocation, googleLocation}) => {
+                log.debug(`Preferring Google's jurisdiction center point over OSM's. They are ${
+                  dist(
+                    strPathOr(null, 'geojson.features.0', nominatimLocation),
+                    strPathOr(null, 'geojson', googleLocation)
+                  )
+                } meters apart`);
+                return Array.of(R.set(
+                  // Replace just the geometry of the only feature. We don't want to replace proprties like radius
+                  R.lensPath(['geojson', 'features', 0, 'geometry']),
+                  // Replaces the single feature
+                  reqStrPathThrowing('geojson.geometry', googleLocation),
+                  nominatimLocation
+                ));
+              },
               ({nominatimLocations}) => nominatimLocations
             )({nominatimLocation, googleLocation});
             log.info(`Resolved the following jurisdiction locations ${JSON.stringify(resolvedLocations)}`);
@@ -250,12 +261,15 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
           mapToNamedResponseAndInputsMDeep(2, 'googleLocation',
             ({nominatimLocations}) => {
               return R.ifElse(
-                nominatimLocations => R.both(
+                nominatimLocations => R.allPass([
                   R.length,
-                  nominatimLocations => geojsonFeaturesIsPoint(R.head(nominatimLocations).geojson)
-                )(nominatimLocations),
+                  strPathOr(false, '0.geojson.features'),
+                  nominatimLocations => {
+                    return geojsonFeaturesIsPoint(reqStrPathThrowing('geojson', R.head(nominatimLocations)));
+                  }
+                ])(nominatimLocations),
                 () => geocodeJursidictionResultTask(location),
-                () => null
+                () => of(Result.Ok(null))
               )(nominatimLocations);
             }
           ),

@@ -345,14 +345,19 @@ export const osmResultTask = ({tries, name, testMockJsonToKey}, taskFunc) => {
 export const taskQuery = (options, query) => {
   // Wrap overpass helper's execution and callback in a Task
   return task(resolver => {
-    log.debug(`\n\nRequesting OSM query:\n${query}\n\n`);
-    queryOverpass(query, (error, data) => {
-      if (!error) {
-        resolver.resolve(data);
-      } else {
-        resolver.reject(error);
-      }
-    }, options);
+    // Possibly delay each call to query_overpass to avoid request rate threshold
+    // Since we are executing calls sequentially, this will pause sleepBetweenCalls before each call
+    setTimeout(() => {
+        log.debug(`\n\nRequesting OSM query:\n${query}\n\n`);
+        queryOverpass(query, (error, data) => {
+          if (!error) {
+            resolver.resolve(data);
+          } else {
+            resolver.reject(error);
+          }
+        }, options);
+      },
+      options.sleepBetweenCalls || 0);
   });
 };
 

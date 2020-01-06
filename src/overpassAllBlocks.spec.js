@@ -1,11 +1,10 @@
 import * as R from 'ramda';
-import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {defaultRunConfig} from 'rescape-ramda';
 import {
   locationToOsmAllBlocksQueryResultsTask
 } from './overpassAllBlocks';
-import {blocksToGeojson, blocksWithLengths, lengthOfBlocks} from './overpassBlockHelpers';
+import {blocksToGeojson, blocksWithLengths} from './overpassBlockHelpers';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
-import {length} from '@turf/turf';
 
 /**
  * Created by Andy Likuski on 2019.06.14

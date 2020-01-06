@@ -16,7 +16,6 @@ import {
 import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import * as R from 'ramda';
 import {loggers} from 'rescape-log';
-
 const log = loggers.get('rescapeDefault');
 
 // Integration testing. Unmocked tests

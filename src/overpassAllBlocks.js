@@ -41,7 +41,7 @@ import {
 import {parallelWayNodeQueriesResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch';
 import {
-  _intersectionStreetNamesFromWaysAndNodes
+  _intersectionStreetNamesFromWaysAndNodesResult
 } from './overpassFeatureHelpers';
 import {
   geojsonFeaturesHaveShapeOrRadii,
@@ -406,7 +406,7 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
     }),
     ({blocks, nodeIdToWays}) => of(R.map(
       block => {
-        const nodesToIntersectingStreets = _intersectionStreetNamesFromWaysAndNodes(
+        const nodesToIntersectingStreets = _intersectionStreetNamesFromWaysAndNodesResult(
           reqStrPathThrowing('ways', block),
           reqStrPathThrowing('nodes', block),
           nodeIdToWays
@@ -497,7 +497,7 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
         return of(R.map(
           // Add intersections to the blocks based on the ways and nodes' properties
           block => R.merge(block, {
-              nodesToIntersectingStreets: _intersectionStreetNamesFromWaysAndNodes(
+              nodesToIntersectingStreets: _intersectionStreetNamesFromWaysAndNodesResult(
                 reqStrPathThrowing('ways', block),
                 reqStrPathThrowing('nodes', block),
                 nodeIdToWays

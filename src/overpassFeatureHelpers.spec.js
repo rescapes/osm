@@ -10,7 +10,7 @@
  */
 
 import {
-  cleanGeojson, _intersectionStreetNamesFromWaysAndNodes, _linkedFeatures
+  cleanGeojson, _intersectionStreetNamesFromWaysAndNodesResult, _linkedFeatures
 } from './overpassFeatureHelpers';
 import * as R from 'ramda';
 
@@ -58,7 +58,7 @@ describe('overpassFeatureHelpers', () => {
     );
   });
 
-  test('_intersectionStreetNamesFromWaysAndNodes', () => {
+  test('_intersectionStreetNamesFromWaysAndNodesResult', () => {
       const wayFeatures = [
         {
           "type": "Feature",
@@ -153,7 +153,7 @@ describe('overpassFeatureHelpers', () => {
         ]
       };
       expect(
-        _intersectionStreetNamesFromWaysAndNodes(wayFeatures, nodeFeatures, nodeIdToWaysOfNodeFeatures)
+        _intersectionStreetNamesFromWaysAndNodesResult(wayFeatures, nodeFeatures, nodeIdToWaysOfNodeFeatures)
       ).toEqual(
         {"node/42875319": ["134th Street", "South Conduit Avenue"], "node/42901997": ["134th Street", "149th Avenue"]}
       );

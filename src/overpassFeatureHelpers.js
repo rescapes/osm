@@ -17,8 +17,11 @@ import {
   strPathOr,
   mapMDeep,
   chainObjToValues,
-  filterWithKeys
+  filterWithKeys,
+  traverseReduceDeep,
+  composeWithChainMDeep
 } from 'rescape-ramda';
+import * as Result from 'folktale/result';
 import 'regenerator-runtime';
 import {wayFeatureNameOrDefault} from './locationHelpers';
 
@@ -544,31 +547,35 @@ export const cleanGeojson = feature => {
  * than just the needed nodes if you are calling this function multiple times on many blocks and have a comprehensive
  * list of lookups. This lookup lacks matches for dead-end nodes since they are not intersections. We handle
  * this case
- * @returns {Object} An object keyed by the same node ids but valued by a list of street names of the
+ * @returns {Result<Object>} An object keyed by the same node ids but valued by a list of street names of the
  * ways that intersect the node. The street names list first the street matching one of the wayFeatures
  * (i.e. the block name) and the remaining are alphabetical. If a way has no name the way's id string is used
  * (e.g. 'way/12345').
  * TODO for future wayfinding visualizations it might be better to return these keyed by degrees from the block,
  * such as {0: blockname, 24: street name 24 degrees clockwise or counterclockwise from block, 180:..., etc }
+ * Returns Result.Error if anything goes wrong
  * @private
  */
-export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeFeatures, nodeIdToWayFeatures) => {
+export const _intersectionStreetNamesFromWaysAndNodesResult = (wayFeatures, nodeFeatures, nodeIdToWayFeatures) => {
   // Get the node id to way features matching our node features
-  const limitedNodeIdToWayFeatures = R.fromPairs(R.map(nodeFeature => {
-    const nodeId = R.prop('id', nodeFeature);
-    return [
-      nodeId,
-      R.when(R.isNil, () => {
-        // If we can't find the wayFeatures it's because we have a non-intersection dead-end node
-        // That means the only way of the node is the last of wayFeatures, because our ways always flow from
-        // an intersection the dead end can only be at the end of an intersection (unless we have have an
-        // isolated way, which isn't handled anywhere in the code yet)
-        // We put the nodeFeature as the second feature to represent the cross-street, since there is no cross street
-        // This can be removed in the future when we don't need a cross street
-        return [R.last(wayFeatures), nodeFeature];
-      })(R.propOr(null, nodeId, nodeIdToWayFeatures))
-    ];
-  }, nodeFeatures));
+  const limitedNodeIdToWayFeatures = R.fromPairs(
+    R.map(
+      nodeFeature => {
+        const nodeId = R.prop('id', nodeFeature);
+        return [
+          nodeId,
+          R.when(R.isNil, () => {
+            // If we can't find the wayFeatures it's because we have a non-intersection dead-end node
+            // That means the only way of the node is the last of wayFeatures, because our ways always flow from
+            // an intersection the dead end can only be at the end of an intersection (unless we have have an
+            // isolated way, which isn't handled anywhere in the code yet)
+            // We put the nodeFeature as the second feature to represent the cross-street, since there is no cross street
+            // This can be removed in the future when we don't need a cross street
+            return [R.last(wayFeatures), nodeFeature];
+          })(R.propOr(null, nodeId, nodeIdToWayFeatures))
+        ];
+      }, nodeFeatures)
+  );
   const nameOrIdOfFeature = feature => wayFeatureNameOrDefault(reqStrPathThrowing('id', feature), feature);
   const wayNames = R.map(nameOrIdOfFeature, wayFeatures);
   const wayIds = R.map(R.prop('id'), wayFeatures);
@@ -576,19 +583,27 @@ export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeFeatur
   // Scores a featureName 100 if it matches a way name or id, else 0
   const wayMatchWeight = R.ifElse(feature => R.contains(R.prop('name', feature), wayMatches), R.always(1), R.always(0));
 
-  return R.map(
+  const nodeIdToResult = R.map(
     waysOfNodeFeatures => {
-      return R.compose(
+      return composeWithChainMDeep(1, [
         // Take the name
-        features => R.map(R.prop('name'), features),
+        features => {
+          return Result.Ok(R.map(R.prop('name'), features));
+        },
         // Error terminally if we didn't generate two features. This should never happen
         features => {
-          return R.when(R.compose(R.gt(2), R.length), features => {
-            throw new Error(`Feature ${JSON.stringify(features)} generated fewer than 2 intersection names. This should never happen`)
-          })(features)
+          return R.ifElse(
+            R.compose(R.gt(2), R.length),
+            features => {
+              const error = `Feature ${JSON.stringify(features)} generated fewer than 2 intersection names. This should never happen`;
+              log.warning(error);
+              return Result.Error({error});
+            },
+            features => Result.Ok(features)
+          )(features);
         },
         // Sort by first matching a way and second alphabetically
-        uniqueFeatures => R.sortWith(
+        uniqueFeatures => Result.Ok(R.sortWith(
           [
             // Most points for matching the way
             R.descend(wayMatchWeight),
@@ -596,13 +611,13 @@ export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeFeatur
             R.ascend(R.prop('name'))
           ],
           uniqueFeatures
-        ),
+        )),
         // If we have more than 2 features, get uniquely named features. If we have at least two unique street names
         // where the 2 have the same name, we only need to store the name once.
         // If we only have 2 features with the same name, keep both. This is for cases where two intersecting
         // streets have the same name.
         featuresWithNames => {
-          return R.when(
+          return Result.Ok(R.when(
             featuresWithNames => R.compose(
               R.lt(2),
               R.length,
@@ -613,17 +628,38 @@ export const _intersectionStreetNamesFromWaysAndNodes = (wayFeatures, nodeFeatur
               R.prop('name'),
               featuresWithNames
             )
-          )(featuresWithNames);
+          )(featuresWithNames));
         },
         // Name features by the name tag or failing that the way id
-        features => R.map(
+        features => Result.Ok(R.map(
           feature => ({feature, name: nameOrIdOfFeature(feature)}),
           features
-        )
-      )(waysOfNodeFeatures);
+        ))
+      ])(waysOfNodeFeatures);
     },
     limitedNodeIdToWayFeatures
   );
+  // Return a Result.Error unless all results are Ok
+  R.ifElse(
+    R.compose(
+      R.all(Result.instanceOf),
+      R.values
+    ),
+    // Put the object in a Result.Ok without the internal Result.Oks
+    nodeIdToResult => {
+      return R.compose(
+        R.toPairs,
+        traverseReduceDeep(
+          1,
+          (accum, obj) => R.concat(accc, [obj]),
+          Result.Ok([])
+        ),
+        R.toPairs
+      )(nodeIdToResult);
+    },
+    // Errors in at least one value. Wrap in an Error to abandon
+    nodeIdToResult => Result.Error(nodeIdToResult)
+  )(nodeIdToResult);
 };
 
 /**

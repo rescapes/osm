@@ -23,6 +23,7 @@ import {loggers} from 'rescape-log';
 import * as Result from 'folktale/result';
 import {isLatLng} from './locationHelpers';
 import bbox from '@turf/bbox';
+import {nominatimLocationResultTask} from './nominatimLocationSearch';
 
 const log = loggers.get('rescapeDefault');
 
@@ -37,9 +38,9 @@ export const AREA_MAGIC_NUMBER = 3600000000;
 export const osmIdToAreaId = osmId => (parseInt(osmId) + AREA_MAGIC_NUMBER).toString();
 
 // TODO make these accessible for external configuration
-const servers = R.split(/\s*[,;\s]\s*/, process.env.OSM_SERVERS || '');
+const overpassServers = R.split(/\s*[,;\s]\s*/, process.env.OSM_SERVERS || '');
 
-function* gen() {
+function* gen(servers) {
   if (!R.length(servers)) {
     throw new Error("No servers configured. Define environmental variable OSM_SERVERS with comma-separated server urls with their api path. E.g. https://lz4.overpass-api.de/api/interpreter");
   }
@@ -50,10 +51,17 @@ function* gen() {
   }
 }
 
-const genServer = gen();
+const genOverpassServer = gen(overpassServers);
 const roundRobinOsmServers = () => {
-  return genServer.next().value;
+  return genOverpassServer.next().value;
 };
+
+export const nominatimServers = ['nominatim.openstreetmap.org'];
+const genNominatimServer = gen(nominatimServers);
+export const roundRobinNoimnatimServers = () => {
+  return genNominatimServer.next().value;
+};
+
 
 
 /**
@@ -298,7 +306,7 @@ export const buildFilterQuery = R.curry((settings, conditions, types) => {
  * @returns {Task<Result<Object>>} The response in a Result.Ok or errors in Result.Error
  */
 export const osmResultTask = ({tries, name, testMockJsonToKey}, taskFunc) => {
-  const attempts = tries || R.length(servers);
+  const attempts = tries || R.length(overpassServers);
   return traverseReduceWhile(
     {
       // Fail the _predicate to stop searching when we have a Result.Ok
@@ -318,7 +326,7 @@ export const osmResultTask = ({tries, name, testMockJsonToKey}, taskFunc) => {
     }),
     // Starting condition is failure
     of(Result.Error([])),
-    // Create the task with each function. We'll only run as many as needed to get a resul
+    // Create the task with each function. We'll only run as many as needed to get a result
     R.times(attempt => {
       const server = roundRobinOsmServers();
       // Convert rejected tasks to Result.Error and resolved tasks to Result.Ok.

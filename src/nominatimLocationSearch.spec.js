@@ -9,16 +9,16 @@
  * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import {
-  nominatimResultTask,
   mapboxGeocodeTask,
+  nominatimResultTask,
   nominatimReverseGeocodeResultTask,
   nominatimReverseGeocodeToLocationResultTask
 } from './nominatimLocationSearch';
-import {defaultRunConfig, defaultRunToResultConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
+import {defaultRunConfig, defaultRunToResultConfig} from 'rescape-ramda';
 import * as R from 'ramda';
 import {rejected} from 'folktale/concurrency/task';
 
-describe('search', () => {
+describe('nominatimLocationSearch', () => {
   test('nominatimResultTaskRelation', done => {
     const errors = [];
     nominatimResultTask({country: 'USA', state: 'New York', city: 'New York City'}).orElse(reason => {
@@ -76,7 +76,7 @@ describe('search', () => {
             expect(
               R.props(['osm_id', 'osm_type'], value)
             ).toEqual(
-              [51971222, 'noder']
+              [51971222, 'node']
             );
           }
       }, errors, done)
@@ -115,12 +115,12 @@ describe('search', () => {
       return rejected(reason);
     }).run().listen(defaultRunToResultConfig({
         onResolved: obj => {
-          expect(obj.placeId).toEqual(140177219);
+          expect(obj.place_id).toEqual(34592896);
         }
       },
       errors,
       done
-    ));
+    ))
   }, 100000);
 
   test('reverseGeocodeCity', done => {
@@ -141,7 +141,7 @@ describe('search', () => {
     ));
   }, 100000);
 
-  test('mapboxGeocodeTask', () => {
+  test('mapboxGeocodeTask', done => {
     const errors = []
     expect.assertions(1);
     const mapboxApiKey = 'pk.eyJ1IjoiY2Fsb2NhbiIsImEiOiJjaXl1aXkxZjkwMG15MndxbmkxMHczNG50In0.07Zu3XXYijL6GJMuxFtvQg';

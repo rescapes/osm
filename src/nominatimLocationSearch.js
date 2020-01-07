@@ -34,6 +34,7 @@ import * as Result from 'folktale/result';
 import {addressString, stateCodeLookup} from './locationHelpers';
 
 import {loggers} from 'rescape-log';
+
 const log = loggers.get('rescapeDefault');
 
 /**
@@ -112,61 +113,8 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
       {Ok: [], Error: []},
       results
     )),
-    location => waitAll(R.map(
-      keys => {
-        const locationProps = R.pick(keys, location);
-        log.debug(
-          `Nomanatim query for the following values ${
-            JSON.stringify(locationProps)
-          }`
-        );
-        return nominatimResultTask(locationProps)
-          .map(responseResult => responseResult.map(value => {
-              // bounding box comes as two lats, then two lon, so fix
-              return R.merge(
-                // Create a geojson center point feature for the location if it has
-                // features with properties but no geometry
-                // TODO this is a special case of filling in empty features that might be replaced in the future
-                R.over(
-                  R.lensPath(['geojson', 'features']),
-                  features => R.when(
-                    R.identity,
-                    features => R.map(
-                      feature => {
-                        return R.when(
-                          // If there is no feature.geometry
-                          f => R.complement(R.propOr)(false, 'geometry', f),
-                          f => R.merge(f, {
-                            // Set the geometry to the lat, lon
-                            geometry: locationToTurfPoint(R.props(['lat', 'lon'], value)).geometry
-                          })
-                        )(feature);
-                      },
-                      features
-                    )
-                  )(features),
-                  location
-                ),
-                {
-                  // We're not using the bbox, but note it anyway
-                  bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], value.boundingbox)),
-                  osmId: R.propOr(null, 'osm_id', value),
-                  placeId: R.propOr(null, 'placie_id', value)
-                });
-            }).mapError(value => {
-              // If no results are found, just return null. Hopefully the other nominatin query will return something
-              log.debug(`For Nominatim query ${addressString(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
-              return value;
-            })
-          ).mapRejected(
-            // If the query fails to excute
-            errorResult => errorResult.map(error => {
-              log.warn(`Giving up. Nominatim query failed with error message: ${error}`);
-              return error;
-            })
-          );
-      },
-      compactEmpty(R.concat(
+    location => {
+      const keySets = compactEmpty(R.concat(
         // Query with neighborhood (if given)
         // We'll only actually use the first one that resolves
         R.ifElse(
@@ -186,8 +134,64 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
           // Otherwise no query
           () => []
         )(location)
-      ))
-    ))
+      ));
+      return waitAll(R.map(
+        keys => {
+          const locationProps = R.pick(keys, location);
+          log.debug(
+            `Nomanatim query for the following values ${
+              JSON.stringify(locationProps)
+            }`
+          );
+          return nominatimResultTask(locationProps)
+            .map(responseResult => responseResult.map(value => {
+                // bounding box comes as two lats, then two lon, so fix
+                return R.merge(
+                  // Create a geojson center point feature for the location if it has
+                  // features with properties but no geometry
+                  // TODO this is a special case of filling in empty features that might be replaced in the future
+                  R.over(
+                    R.lensPath(['geojson', 'features']),
+                    features => R.when(
+                      R.identity,
+                      features => R.map(
+                        feature => {
+                          return R.when(
+                            // If there is no feature.geometry
+                            f => R.complement(R.propOr)(false, 'geometry', f),
+                            f => R.merge(f, {
+                              // Set the geometry to the lat, lon
+                              geometry: locationToTurfPoint(R.props(['lat', 'lon'], value)).geometry
+                            })
+                          )(feature);
+                        },
+                        features
+                      )
+                    )(features),
+                    location
+                  ),
+                  {
+                    // We're not using the bbox, but note it anyway
+                    bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], value.boundingbox)),
+                    osmId: R.propOr(null, 'osm_id', value),
+                    placeId: R.propOr(null, 'placie_id', value)
+                  });
+              }).mapError(value => {
+                // If no results are found, just return null. Hopefully the other nominatin query will return something
+                log.debug(`For Nominatim query ${addressString(locationProps)}, no results found from OSM: ${JSON.stringify(value)}`);
+                return value;
+              })
+            ).mapRejected(
+              // If the query fails to excute
+              errorResult => errorResult.map(error => {
+                log.warn(`Giving up. Nominatim query failed with error message: ${error}`);
+                return error;
+              })
+            );
+        },
+        keySets
+      ));
+    }
   )(location);
 };
 

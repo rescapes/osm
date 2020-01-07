@@ -13,6 +13,7 @@ import {
   composeWithChainMDeep,
   traverseReduceWhile,
   traverseReduceDeep,
+  resultsToResultObj,
   mapToNamedResponseAndInputsMDeep
 } from 'rescape-ramda';
 import distance from '@turf/distance';
@@ -160,14 +161,14 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
     )(result),
     // Use the results to create geojson for the location
     // Task Result [<results, location>] -> Task Result [<results, location>]
-    result => of(mapMDeep(2,
+    locationBlocksResult => of(mapMDeep(2,
       ({results, location}) => {
         return {
           results,
           location: locationAndOsmResultsToLocationWithGeojson(location, results)
         };
       }
-    )(result)),
+    )(locationBlocksResult)),
     resultToTaskWithResult(
       locationVariationsWithOsm => R.cond([
         [R.length,
@@ -210,77 +211,7 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
       // If it's got jurisdiction info, query nominatim to resolve the area
       [
         location => isNominatimEligible(location),
-        location => composeWithChainMDeep(2, [
-          ({nominatimLocations, googleLocation}) => {
-            // If we get a googleLocation that is more than 100 meters from the nominatim point,
-            // use the Google center point for the geojson
-            const nominatimLocation = R.head(nominatimLocations || []);
-            const dist = (nominatimLocationGeojson, googleLocationGeojson) => distance(
-              nominatimLocationGeojson,
-              googleLocationGeojson,
-              {units: 'meters'}
-            );
-            const resolvedLocations = R.ifElse(
-              ({nominatimLocation, googleLocation}) => R.allPass(
-                [
-                  ({nominatimLocation}) => nominatimLocation,
-                  ({googleLocation}) => googleLocation,
-                  ({nominatimLocation, googleLocation}) => {
-                    return R.lt(100, dist(
-                      nominatimLocation,
-                      googleLocation)
-                    );
-                  }
-                ])({
-                nominatimLocation: strPathOr(null, 'geojson.features.0', nominatimLocation),
-                googleLocation: strPathOr(null, 'geojson', googleLocation)
-              }),
-              ({nominatimLocation, googleLocation}) => {
-                log.debug(`Preferring Google's jurisdiction center point over OSM's. They are ${
-                  dist(
-                    strPathOr(null, 'geojson.features.0', nominatimLocation),
-                    strPathOr(null, 'geojson', googleLocation)
-                  )
-                } meters apart`);
-                return Array.of(R.set(
-                  // Replace just the geometry of the only feature. We don't want to replace proprties like radius
-                  R.lensPath(['geojson', 'features', 0, 'geometry']),
-                  // Replaces the single feature
-                  reqStrPathThrowing('geojson.geometry', googleLocation),
-                  nominatimLocation
-                ));
-              },
-              () => nominatimLocations
-            )({nominatimLocation, googleLocation});
-            log.info(`Resolved the following jurisdiction locations ${JSON.stringify(resolvedLocations)}`);
-            return of(Result.Ok(resolvedLocations));
-          },
-          // If nominatimLocationResultTask gives us a center point back, ask Google for it's center point
-          // for the Jurisdiction. If Google's is really different, use Google's which usually has better
-          // center points in terms of what is the activity center of the city
-          mapToNamedResponseAndInputsMDeep(2, 'googleLocation',
-            ({nominatimLocations}) => {
-              return R.ifElse(
-                nominatimLocations => R.allPass([
-                  R.length,
-                  strPathOr(false, '0.geojson.features'),
-                  nominatimLocations => {
-                    return geojsonFeaturesIsPoint(reqStrPathThrowing('geojson', R.head(nominatimLocations)));
-                  }
-                ])(nominatimLocations),
-                () => geocodeJursidictionResultTask(location),
-                () => of(Result.Ok(null))
-              )(nominatimLocations);
-            }
-          ),
-          mapToNamedResponseAndInputsMDeep(2, 'nominatimLocations',
-            ({location}) => {
-              return nominatimLocationResultTask({
-                listSuccessfulResult: true,
-                allowFallbackToCity: R.propOr(false, 'allowFallbackToCity', osmConfig)
-              }, location);
-            })
-        ])({location})
+        location => _nominatimOrGoogleJurisdictionGeojsonResultTask(osmConfig, location)
       ],
       [R.T, location => of(Result.Error({
         error: 'Location not eligible for nominatim query and does not have a geojson shape or radius',
@@ -293,6 +224,109 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
   ['location', PropTypes.shape().isRequired]
 ], 'locationToOsmAllBlocksQueryResultsTask');
 
+/**
+ * Resolves the jurisdiction geojson of a location.geojson.features[0] where a jurisdication is not specified
+ * @param {Object} osmConfig
+ * @param {Object} location
+ * @return {Task<Result<Object>>} location with location.geojson.features[0] set to the nominatim or google geojson
+ */
+const _nominatimOrGoogleJurisdictionGeojsonResultTask = (osmConfig, location) => {
+  return composeWithChainMDeep(2, [
+    ({nominatimLocations, googleLocation}) => {
+      // If we get a googleLocation that is more than 100 meters from the nominatim point,
+      // use the Google center point for the geojson
+      const nominatimLocation = R.head(nominatimLocations || []);
+      const dist = (nominatimLocationGeojson, googleLocationGeojson) => distance(
+        nominatimLocationGeojson,
+        googleLocationGeojson,
+        {units: 'meters'}
+      );
+      const resolvedLocations = R.cond([
+        // nominatimLocation, googleLocation both exist and are far apart. Prefer google
+        [
+          ({nominatimLocation, googleLocation}) => R.allPass(
+            [
+              ({nominatimLocation}) => nominatimLocation,
+              ({googleLocation}) => googleLocation,
+              ({nominatimLocation, googleLocation}) => {
+                return R.lt(100, dist(
+                  nominatimLocation,
+                  googleLocation)
+                );
+              }
+            ])({
+            nominatimLocation: strPathOr(null, 'geojson.features.0', nominatimLocation),
+            googleLocation: strPathOr(null, 'geojson', googleLocation)
+          }),
+          ({nominatimLocation, googleLocation}) => {
+            log.debug(`Preferring Google's jurisdiction center point over OSM's. They are ${
+              dist(
+                strPathOr(null, 'geojson.features.0', nominatimLocation),
+                strPathOr(null, 'geojson', googleLocation)
+              )
+            } meters apart`);
+            return Array.of(R.set(
+              // Replace just the geometry of the only feature. We don't want to replace properties like radius
+              R.lensPath(['geojson', 'features', 0, 'geometry']),
+              // Replaces the single feature
+              reqStrPathThrowing('geojson.geometry', googleLocation),
+              nominatimLocation
+            ));
+          }
+        ],
+        // nominatimLocation doesn't exist but googleLocation does. Use Google to set the feature of the
+        // original location, since we don't have an nominatimLocation
+        [
+          ({nominatimLocation, googleLocation}) => R.and(R.not(nominatimLocation), googleLocation),
+          ({googleLocation}) => {
+            return R.set(
+              // Replace just the geometry of the only feature. We don't want to replace properties like radius
+              R.lensPath(['geojson', 'features', 0, 'geometry']),
+              // Replaces the single feature
+              reqStrPathThrowing('geojson.geometry', googleLocation),
+              location
+            );
+          }
+        ],
+        [R.T,
+          () => {
+            return nominatimLocations;
+          }
+        ]
+      ])({nominatimLocation, googleLocation});
+      log.info(`Resolved the following jurisdiction locations ${JSON.stringify(resolvedLocations)}`);
+      return of(Result.Ok(resolvedLocations));
+    },
+    // If nominatimLocationResultTask gives us a center point back or no result, ask Google for it's center point
+    // for the Jurisdiction. If Google's is really different, use Google's which usually has better
+    // center points in terms of what is the activity center of the city
+    mapToNamedResponseAndInputsMDeep(2, 'googleLocation',
+      ({nominatimLocations}) => {
+        return R.ifElse(
+          R.either(
+            R.complement(R.length),
+            nominatimLocations => R.allPass([
+              R.length,
+              strPathOr(false, '0.geojson.features'),
+              nominatimLocations => {
+                return geojsonFeaturesIsPoint(reqStrPathThrowing('geojson', R.head(nominatimLocations)));
+              }
+            ])(nominatimLocations)
+          ),
+          () => geocodeJursidictionResultTask(location),
+          () => of(Result.Ok(null))
+        )(nominatimLocations);
+      }
+    ),
+    mapToNamedResponseAndInputsMDeep(2, 'nominatimLocations',
+      ({location}) => {
+        return nominatimLocationResultTask({
+          listSuccessfulResult: true,
+          allowFallbackToCity: R.propOr(false, 'allowFallbackToCity', osmConfig)
+        }, location);
+      })
+  ])({location});
+};
 
 /**
  * Queries for all blocks matching the Osm area id in the given location
@@ -400,10 +434,9 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
   // Finally get the features from the response
   const [ways, nodes] = R.map(reqStrPathThrowing('response.features'), [way, node]);
   return R.composeK(
-    blockResults => of({
-      Ok: R.map(Result.Ok.hasInstance, blockResults),
-      Error:  R.map(Result.Error.hasInstance, blockResults)
-    }),
+    // Convert the results their values under Ok and Error
+    // [Result] -> {Ok: [Object], Error: [Object]}
+    blockResults => of(resultsToResultObj(blockResults)),
     ({blocks, nodeIdToWays}) => of(R.map(
       block => {
         const nodesToIntersectingStreetsResult = _intersectionStreetNamesFromWaysAndNodesResult(
@@ -411,17 +444,20 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
           reqStrPathThrowing('nodes', block),
           nodeIdToWays
         );
-        return R.map(nodesToIntersectingStreets => ({
-          // Put the OSM results together
-          results: R.merge(block, {nodesToIntersectingStreets}),
-          // Add the intersections to the location and return it
-          location: R.merge(
-            location,
-            {
-              intersections: R.values(nodesToIntersectingStreetsResult)
-            }
-          )
-        }), nodesToIntersectingStreetsResult);
+        return R.map(
+          nodesToIntersectingStreets => ({
+            // Put the OSM results together
+            results: R.merge(block, {nodesToIntersectingStreets}),
+            // Add the intersections to the location and return it
+            location: R.merge(
+              location,
+              {
+                intersections: R.values(nodesToIntersectingStreets)
+              }
+            )
+          }),
+          nodesToIntersectingStreetsResult
+        );
       },
       blocks
     )),

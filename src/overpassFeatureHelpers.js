@@ -597,7 +597,7 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (wayFeatures, node
             features => R.compose(R.gt(2), R.length)(features),
             features => {
               const error = `Feature ${JSON.stringify(features)} generated fewer than 2 intersection names. This should never happen`;
-              log.warning(error);
+              log.warn(error);
               return Result.Error({error});
             },
             features => Result.Ok(features)

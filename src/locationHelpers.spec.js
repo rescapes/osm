@@ -7,7 +7,7 @@ import {
   aggregateLocation,
   locationWithIntersectionInBothOrders,
   isResolvableAllBlocksLocation,
-  normalizedIntersectionNames, addressStringForBlock
+  normalizedIntersectionNames, addressStringForBlock, osmFeaturesOfLocationForType, locationWithLocationPoints
 } from './locationHelpers';
 
 describe('LocationSelector', () => {
@@ -467,5 +467,59 @@ describe('LocationSelector', () => {
     expect(intersectionsByNodeIdToSortedIntersections(location, normalNodesToIntersectingStreets)).toEqual(
       [["way/665350226", "Jasper St"], ["way/665350226", "Victoria Avenue", "way/446472694"]]
     );
+  });
+
+  test('osmFeaturesByType', () => {
+    const location = {
+      geojson: {
+        features: [
+          {
+            "type": "Feature",
+            "id": "node/4896277399"
+          },
+          {
+            "type": "Feature",
+            "id": "node/4896277397"
+          },
+          {
+            "type": "Feature",
+            "id": "way/498142936",
+            "properties": {
+              "type": "way",
+              "id": "way/498142936",
+              "name": 'Purpose St'
+            }
+          }
+        ]
+      }
+    };
+    expect(R.length(osmFeaturesOfLocationForType('node', location))).toEqual(2);
+  });
+
+  test('locationWithLocationPoints', () => {
+    const location = {
+      geojson: {
+        features: [
+          {
+            "type": "Feature",
+            "id": "node/4896277399"
+          },
+          {
+            "type": "Feature",
+            "id": "node/4896277397"
+          },
+          {
+            "type": "Feature",
+            "id": "way/498142936",
+            "properties": {
+              "type": "way",
+              "id": "way/498142936",
+              "name": 'Purpose St'
+            }
+          }
+        ]
+      }
+    };
+    expect(R.compose(R.length, R.prop('locationPoints'), locationWithLocationPoints)(location)).toEqual(2);
   });
 });

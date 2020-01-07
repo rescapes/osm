@@ -37,7 +37,7 @@ const log = loggers.get('rescapeDefault');
  * @param context.nodeIdToNodePoint
  * @param context.hashToPartialBlocks
  * @param {[Object]} partialBlocks Contains nodes and ways of the partial block {nodes, ways}
- * @returns {Object} task that resolves to A complete block that has {
+ * @returns {Object} task that resolves to A complete block atthat has {
  * nodes: [one or more nodes],
  * ways: [one or more ways],
  * }. Nodes is normally two unless the block is a dead end. Ways are 1 or more, depending how many ways are need to
@@ -428,7 +428,17 @@ export function _extendBlockToFakeIntersectionPartialBlock(
       // Add firstFoundNodeOfFinalWay
       nodes: R.concat(nodes, [firstFoundNodeOfFinalWay]),
       // Add the partialBlockOfNode ways if there is a partialBlockOfNode
-      ways: R.concat(ways, strPathOr([], 'ways', partialBlockOfNode))
+      // We never add the same way twice in order to prevent infinite loops.
+      // If we have a loop then adding firstFoundNodeOfFinalWay and no new way here will indicate that we have
+      // a loop and ar done
+      ways: R.concat(
+        ways,
+        R.ifElse(
+          newWays => R.any(newWay => R.contains(newWay, ways), newWays),
+          () => [],
+          R.identity
+        )(strPathOr([], 'ways', partialBlockOfNode))
+      )
     },
     // Remove the matchingPartialBlocks
     remainingPartialBlocks: R.without(matchingPartialBlocks, partialBlocks)
@@ -522,7 +532,7 @@ export function _deadEndNodeAndTrimmedWayOfWayResultTask(osmConfig, partialBlock
               ways: [way],
               nodes
             })}. Cannot find an endBlockNode. Giving up on it`;
-            log.warning(error);
+            log.warn(error);
             return of(Result.Error(error));
           }
           return of({

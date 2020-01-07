@@ -627,8 +627,10 @@ export const locationHasLocationPoints = blockLocation => R.compose(
 )(blockLocation);
 
 /**
- * Gets locationPoints from the blockLocation from blockLocation.locationPoints or from googleIntersectionObjects
- * @param blockLocation
+ * Gets locationPoints from the blockLocation from blockLocation.locationPoints or geojson.feature nodes or
+ * from interscections that have lat/lons (they shouldn't but this is legacy) or from googleIntersectionObjects
+ * @param {Object} blockLocation contains possibly  locationPoinst, intersections, googleIntersctionPoints, and/or geojson
+ * @returns {Object} the location with the locationPoints set to a two element array if anything was found
  */
 export const locationWithLocationPoints = blockLocation => {
   return R.over(
@@ -646,7 +648,7 @@ export const locationWithLocationPoints = blockLocation => {
 
         // Then see if the intersections are lat/lons. If so convert it to geojson points
         toNamedResponseAndInputs('locationPoints',
-          ({blockLocation}) => R.unless(
+          ({locationPoints, blockLocation}) => R.unless(
             R.length,
             () => R.ifElse(
               intersections => R.all(isLatLng)(intersections),
@@ -656,8 +658,29 @@ export const locationWithLocationPoints = blockLocation => {
                   R.map(s => parseFloat(s)),
                   R.split(','))
               )(strs),
-              () => null
+              () => []
             )(strPathOr(null, 'intersections', blockLocation))
+          )(locationPoints)
+        ),
+
+        // If we have two geojson nodes use those
+        // Failing that try to get them from the geojson nodes
+        toNamedResponseAndInputs('locationPoints',
+          ({blockLocation, locationPoints}) => R.unless(
+            R.length,
+            () => R.compose(
+              nodeFeatures => {
+                // If we have 2 use them. We assume they are in the correct order
+                return R.when(
+                  R.compose(R.not, R.equals(2), R.length),
+                  () => []
+                )(nodeFeatures);
+              },
+              blockLocation => {
+                // Get the nodes
+                return osmFeaturesOfLocationForType('node', blockLocation);
+              }
+            )(blockLocation)
           )(locationPoints)
         ),
 
@@ -755,4 +778,47 @@ const stateToStateCode = {
  */
 export const stateCodeLookup = state => {
   return R.propOr(null, state, stateToStateCode);
+};
+
+/**
+ * Converts intersection1Location and intersection2Location to geojson points
+ * @param location
+ * @returns {[Object]} To geojson points or null
+ */
+export const locationIntersectionLocationToTurfPoints = location => {
+  return R.compose(
+    R.map(
+      propValue => R.compose(
+        floats => locationToTurfPoint(floats),
+        strs => R.map(parseFloat, strs),
+        str => R.split(',', str)
+      )(propValue)
+    ),
+    R.props(['intersection1Location', 'intersection2Location'])
+  )(location);
+};
+
+/**
+ * Returns true if the the feature's type matches the osm types 'way', 'node', or 'relation'
+ * @param {String} type 'way', 'node', or 'relation'
+ * @param {Object} feature geojson feature
+ * @return {Boolean} true or false
+ */
+export const isOsmType = (type, feature) => {
+  return R.contains(type, strPathOr('', 'id', feature));
+};
+
+/**
+ * Returns the matching features of the location
+ * @param {String} type 'way', 'node', or 'relation'
+ * @param {Object} location
+ * @param {Object} location.geojson
+ * @param {[Object]} location.geojson.features geojson features
+ * @return {[Object]} the matching features
+ */
+export const osmFeaturesOfLocationForType = (type, location) => {
+  return R.filter(
+    feature => isOsmType(type, feature),
+    strPathOr([], 'geojson.features', location)
+  );
 };

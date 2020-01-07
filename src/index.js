@@ -43,7 +43,24 @@ export {
   wayFeatureNameOrDefault,
   locationAndOsmResultsToLocationWithGeojson,
   normalizedIntersectionNames,
-  addressStringForBlock
+  addressStringForBlock,
+  locationWithLocationPoints,
+  locationIntersectionAsLatLng,
+  locationWithIntersectionInBothOrders,
+  commonStreetOfLocation,
+  aggregateLocation,
+  oneLocationIntersectionsFromLocation,
+  stateCodeLookup,
+  isOsmType,
+  featuresByOsmType,
+  osmFeaturesOfLocationForType,
+  locationIntersectionLocationToTurfPoints,
+  geojsonFeaturesHaveRadii,
+  geojsonFeaturesHaveShape,
+  geojsonFeaturesHaveShapeOrRadii,
+  geojsonFeaturesIsPoint,
+  isLatLng,
+  isNominatimEligible
 } from './locationHelpers';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';

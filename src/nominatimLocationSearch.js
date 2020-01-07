@@ -277,7 +277,7 @@ export const nominatimResultTask = location => {
         () => value => {
           return R.both(
             value => R.compose(
-              value => R.contains(value, ['administrative', 'village', 'suburb', 'town', 'city']),
+              value => R.contains(value, ['administrative', 'village', 'suburb', 'town', 'city', 'island']),
               value => R.propOr(null, 'type', value)
             )(value),
             // The boundary or center point,

@@ -200,7 +200,7 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
         // Change to deal with Result.Error
         const {blocks, errorBlocks} = blocksResult.value;
         if (R.length(errorBlocks)) {
-          log.warning(`One or more blocks couldn't be built. Errors: ${JSON.stringify(errorBlocks)}`);
+          log.warn(`One or more blocks couldn't be built. Errors: ${JSON.stringify(errorBlocks)}`);
         }
         return of(R.map(
           // Add intersections to the blocks based on the ways and nodes' properties

@@ -169,39 +169,14 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
         };
       }
     )(locationBlocksResult)),
+
+    // Process the nominatim or google response(s) if any
     resultToTaskWithResult(
-      locationVariationsWithOsm => R.cond([
-        [R.length,
-          // If we have variations, query then in order until a positive result is returned
-          locationVariationsWithOsm => _queryLocationVariationsUntilFoundResultTask(
-            osmConfig,
-            (osmConfig, locationWithOsm) => R.map(
-              // _queryOverpassWithLocationForAllBlocksResultsTask returns a {Ok: [block locations], Error: [Error]}
-              // We need to reduce this: If anything is in error, we know the query failed, so we pass a Result.Error
-              results => R.ifElse(
-                R.compose(R.length, R.prop('Error')),
-                // Put in a Result.Error so this result is skipped
-                results => Result.Error(R.prop('Error', results)),
-                // Put in a Result.Ok so this result is processed
-                results => Result.Ok(R.prop('Ok', results))
-              )(results),
-              _queryOverpassWithLocationForAllBlocksResultsTask(osmConfig, locationWithOsm)
-            ),
-            locationVariationsWithOsm
-          )
-        ],
-        // If no query produced results return a Result.Error so we can give up gracefully
-        [R.T,
-          () => of(Result.Error({
-            errors: ({
-              errors: ['This location lacks jurisdiction or geojson properties to allow querying. The location must either have a country and city or geojson whose features all are shapes or have a radius property'],
-              location
-            }),
-            location
-          }))
-        ]
-      ])(locationVariationsWithOsm)
+      locationVariationsWithOsm => {
+        return processNominatimResponsesResultTask(osmConfig, location, locationVariationsWithOsm);
+      }
     ),
+
     // Nominatim query on the place search string or ready for querying because of geojson.
     location => R.cond([
       // If it's a geojson shape or has a radius, it's already prime for querying
@@ -223,6 +198,49 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
   ['osmConfig', PropTypes.shape().isRequired],
   ['location', PropTypes.shape().isRequired]
 ], 'locationToOsmAllBlocksQueryResultsTask');
+
+/**
+ * Given 1 or more locationVariationsWithOsm returns a result task to query those places in order until
+ * osm results are found. If 0 locationVariationsWithOsm are specified, retrurns a Result.Error
+ * @param {Object} osmConfig
+ * @param {Object} location The original location
+ * @param {[Object]} locationVariationsWithOsm
+ * @return {Task<Result<<Object>>} A task resolving to a Result.Ok with the successful location query or Result.Error
+ * with the unsuccessful result;
+ */
+const processNominatimResponsesResultTask = (osmConfig, location, locationVariationsWithOsm) => {
+  return R.cond([
+    [R.length,
+      // If we have variations, query then in order until a positive result is returned
+      locationVariationsWithOsm => _queryLocationVariationsUntilFoundResultTask(
+        osmConfig,
+        (osmConfig, locationWithOsm) => R.map(
+          // _queryOverpassWithLocationForAllBlocksResultsTask returns a {Ok: [block locations], Error: [Error]}
+          // We need to reduce this: If anything is in error, we know the query failed, so we pass a Result.Error
+          results => R.ifElse(
+            R.compose(R.length, R.prop('Error')),
+            // Put in a Result.Error so this result is skipped
+            results => Result.Error(R.prop('Error', results)),
+            // Put in a Result.Ok so this result is processed
+            results => Result.Ok(R.prop('Ok', results))
+          )(results),
+          _queryOverpassWithLocationForAllBlocksResultsTask(osmConfig, locationWithOsm)
+        ),
+        locationVariationsWithOsm
+      )
+    ],
+    // If no query produced results return a Result.Error so we can give up gracefully
+    [R.T,
+      () => of(Result.Error({
+        errors: ({
+          errors: ['This location lacks jurisdiction or geojson properties to allow querying. The location must either have a country and city or geojson whose features all are shapes or have a radius property'],
+          location
+        }),
+        location
+      }))
+    ]
+  ])(locationVariationsWithOsm);
+};
 
 /**
  * Resolves the jurisdiction geojson of a location.geojson.features[0] where a jurisdication is not specified
@@ -279,13 +297,13 @@ const _nominatimOrGoogleJurisdictionGeojsonResultTask = (osmConfig, location) =>
         [
           ({nominatimLocation, googleLocation}) => R.and(R.not(nominatimLocation), googleLocation),
           ({googleLocation}) => {
-            return R.set(
+            return Array.of(R.set(
               // Replace just the geometry of the only feature. We don't want to replace properties like radius
               R.lensPath(['geojson', 'features', 0, 'geometry']),
               // Replaces the single feature
               reqStrPathThrowing('geojson.geometry', googleLocation),
               location
-            );
+            ));
           }
         ],
         [R.T,

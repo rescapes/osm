@@ -352,15 +352,13 @@ export function _choicePointProcessPartialBlockResultTask(
       )(firstFoundNodeOfFinalWay),
       () => {
         return of(
-          Result.Ok(
-            _extendBlockToFakeIntersectionPartialBlock(
-              {hashToPartialBlocks},
-              partialBlocks,
-              // Mark the node as a fake intersection so we can remove it from the final block when we are done
-              // constructing the block
-              R.merge({__FAKE_INTERSECTION__: true}, firstFoundNodeOfFinalWay),
-              {nodes, ways}
-            )
+          _extendBlockToFakeIntersectionPartialBlockResult(
+            {hashToPartialBlocks},
+            partialBlocks,
+            // Mark the node as a fake intersection so we can remove it from the final block when we are done
+            // constructing the block
+            R.merge({__FAKE_INTERSECTION__: true}, firstFoundNodeOfFinalWay),
+            {nodes, ways}
           )
         );
       }
@@ -397,7 +395,7 @@ export function _choicePointProcessPartialBlockResultTask(
  * removed from partialBlocks. The twin partialBlock will also be removed if one exists.
  * @private
  */
-export function _extendBlockToFakeIntersectionPartialBlock(
+export function _extendBlockToFakeIntersectionPartialBlockResult(
   {hashToPartialBlocks},
   partialBlocks,
   firstFoundNodeOfFinalWay,
@@ -420,10 +418,17 @@ export function _extendBlockToFakeIntersectionPartialBlock(
     ),
     partialBlocks
   );
+  if (!partialBlockOfNode) {
+    log.warn(`Something is wrong with the nodes and ways of this partial block. Cannot find the partialBlock matching firstFoundNodeOfFinalWay for ${
+      JSON.stringify({nodes, ways})
+    }`);
+    return Result.Error({error: {nodes, ways}});
+  };
+
   // Get the twin partial block if it exists
   const matchingPartialBlocks = _matchingPartialBlocks(hashToPartialBlocks, partialBlockOfNode);
 
-  return {
+  return Result.Ok({
     block: {
       // Add firstFoundNodeOfFinalWay
       nodes: R.concat(nodes, [firstFoundNodeOfFinalWay]),
@@ -442,7 +447,7 @@ export function _extendBlockToFakeIntersectionPartialBlock(
     },
     // Remove the matchingPartialBlocks
     remainingPartialBlocks: R.without(matchingPartialBlocks, partialBlocks)
-  };
+  });
 };
 
 /**
@@ -771,4 +776,3 @@ export const _mergeInNewNodeAndWayRelationships = ({nodeIdToWays, wayIdToNodes, 
     )
   );
 };
-

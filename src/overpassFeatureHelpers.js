@@ -25,6 +25,8 @@ import {
 import * as Result from 'folktale/result';
 import 'regenerator-runtime';
 import {wayFeatureNameOrDefault} from './locationHelpers';
+import {loggers} from 'rescape-log';
+const log = loggers.get('rescapeDefault');
 
 /**
  * Makes a string from a point array for hashing

@@ -27,7 +27,7 @@ import {
   parallelWayNodeQueriesResultTask,
   waysByNodeIdTask
 } from './overpassBlockHelpers';
-import {_calculateNodeAndWayRelationships} from './overpassBlocks';
+import {_calculateNodeAndWayRelationships} from './overpassHelpers';
 import {_intersectionStreetNamesFromWaysAndNodesResult} from './overpassFeatureHelpers';
 import {length} from '@turf/turf';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';

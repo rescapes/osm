@@ -36,7 +36,7 @@ import {
 import {v} from 'rescape-validate';
 import PropTypes from 'prop-types';
 import {geocodeJursidictionResultTask} from './googleLocation';
-import {_queryOverpassForAllBlocksResultsTask} from './overlassAllBlocksHelpers';
+import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers';
 
 const log = loggers.get('rescapeDefault');
 

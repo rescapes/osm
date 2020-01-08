@@ -5,7 +5,7 @@ import {
   nodesAndIntersectionNodesByWayIdResultTask, orderWayFeaturesOfBlock,
   removeReverseTagsOfOrderWayFeaturesOfBlock, waysOfNodeQuery
 } from './overpassBlockHelpers';
-import {fetchOsmRawTask, osmResultTask} from './overpassHelpers';
+import {fetchOsmRawTask, osmResultTask, _calculateNodeAndWayRelationships} from './overpassHelpers';
 import {hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers';
 import {
   reqStrPathThrowing,
@@ -19,7 +19,7 @@ import {
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
-import {_calculateNodeAndWayRelationships, isRealIntersection, trimWayToNode, trimWayToNodeObj} from './overpassBlocks';
+import {isRealIntersection, trimWayToNode, trimWayToNodeObj} from './overpassBlockHelpers';
 import {loggers} from 'rescape-log';
 
 const log = loggers.get('rescapeDefault');

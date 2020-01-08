@@ -13,26 +13,16 @@
 import 'regenerator-runtime';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
-import {
-  addressString,
-  aggregateLocation,
-  featuresByOsmType,
-  isResolvableAllBlocksLocation,
-  isResolvableSingleBlockLocation, wayFeatureNameOrDefault
-} from './locationHelpers';
+import {aggregateLocation, featuresByOsmType} from './locationHelpers';
 import {fetchOsmRawTask, osmResultTask} from './overpassHelpers';
 import {
-  resultToTaskNeedingResult,
-  resultToTaskWithResult,
-  mapToNamedResponseAndInputs,
   chainObjToValues,
   eqStrPathsAll,
-  reqStrPathThrowing,
-  toNamedResponseAndInputs,
+  mapToNamedResponseAndInputs,
+  resultToTaskNeedingResult,
+  resultToTaskWithResult
 } from 'rescape-ramda';
 import {loggers} from 'rescape-log';
-import {_wayEndPointToDirectionalWays} from './overpassBlockHelpers';
-import {findMatchingNodes, hashNodeFeature, hashWayFeature, nodeMatchesWayEnd} from './overpassFeatureHelpers';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
@@ -221,153 +211,3 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
   )(filterLocation);
 };
 
-/**
- * Creates data structures that relate the nodes and ways
- * @param {[Object]} ways Way features
- * @param {[Object]} nodes Node features
- * @returns {Object} nodeIdToNode, nodePointToNode, nodeIdToNodePoint, wayIdToWay, wayIdToNodes, wayIdToWayPoints, nodeIdToWays, wayEndPointToDirectionalWays
- * @private
- */
-export const _calculateNodeAndWayRelationships = ({ways, nodes}) => {
-  return R.compose(
-    toNamedResponseAndInputs('wayEndPointToDirectionalWays',
-      ({ways, wayIdToWayPoints, nodePointToNode}) => _wayEndPointToDirectionalWays({
-        ways,
-        wayIdToWayPoints,
-        nodePointToNode
-      })
-    ),
-    toNamedResponseAndInputs('nodeIdToWays',
-      // "Invert" wayIdToNodes to create nodeIdToWays
-      ({wayIdToNodes, wayIdToWay}) => R.reduce(
-        (hash, [wayId, nodes]) => {
-          const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
-          return R.reduce(
-            // Add the wayId to the nodeId key
-            (hsh, nodeId) => R.over(
-              // Lens to get the node id in the hash
-              R.lensProp(nodeId),
-              // Add the way to the list of the nodeId
-              wayList => R.concat(wayList || [], [R.prop(wayId, wayIdToWay)]),
-              hsh
-            ),
-            hash,
-            nodeIds
-          );
-        },
-        {},
-        R.toPairs(wayIdToNodes))
-    ),
-    toNamedResponseAndInputs('wayIdToWayPoints',
-      // Map the way id to its points
-      ({ways}) => R.fromPairs(R.map(
-        wayFeature => [
-          reqStrPathThrowing('id', wayFeature),
-          hashWayFeature(wayFeature)
-        ],
-        ways
-      ))
-    ),
-    toNamedResponseAndInputs('wayIdToNodes',
-      // Hash all way ids by intersection node if any waynode matches or
-      // is an area-way (pedestrian area) within 5m  <-- TODO
-      ({nodePointToNode, ways}) => {
-        return R.fromPairs(R.map(
-          wayFeature => [reqStrPathThrowing('id', wayFeature), findMatchingNodes(nodePointToNode, wayFeature)],
-          ways
-        ));
-      }
-    ),
-    toNamedResponseAndInputs('wayIdToWay',
-      // way id to way
-      ({ways}) => R.indexBy(
-        reqStrPathThrowing('id'),
-        ways
-      )
-    ),
-    toNamedResponseAndInputs('nodeIdToNodePoint',
-      // Hash intersection nodes by id. These are all intersections
-      ({nodeIdToNode}) => R.map(
-        nodeFeature => hashNodeFeature(nodeFeature),
-        nodeIdToNode
-      )
-    ),
-    toNamedResponseAndInputs('nodePointToNode',
-      // Hash the node points to match ways to them
-      ({nodes}) => R.indexBy(
-        nodeFeature => hashNodeFeature(nodeFeature),
-        nodes
-      )
-    ),
-    toNamedResponseAndInputs('nodeIdToNode',
-      // Hash intersection nodes by id. These are all intersections
-      ({nodes}) => R.indexBy(
-        reqStrPathThrowing('id'),
-        nodes
-      )
-    )
-  )({ways, nodes});
-};
-/**
- * Returns true if the given nodeFeature connects at least two wayFeatures that have different street names.
- * Ways often end and start at a node where there isn't an intersection, and we don't want to treat these
- * nodes as intersections that break up blocks
- * @param {[Object]} wayFeatures List of way features which intersect the node
- * @param {Object} nodeFeature The node feature to test
- * @returns {Boolean} True if 1) There are no ways (maybe node of a way araa, in any case not enough info to say it's
- * not real)
- * 2) there are more than 2 ways,
- * 3) there at least two ways with different street names intersect the node or
- * 4) if the node point is not at the end of at least on way. This means it has to be a real intersection for Overpass
- * to have
- * returned it.
- */
-export const isRealIntersection = (wayFeatures, nodeFeature) => R.anyPass([
-  // Return true if there are no way features because it's a node of a way area. We never eliminate these
-  wayFeatures => R.isEmpty(wayFeatures),
-  // Either more than 2 ways
-  wayFeatures => R.compose(R.lt(2), R.length)(wayFeatures),
-  // The node point is not at the end of a way.
-  wayFeatures => R.any(
-    wayFeature => R.complement(nodeMatchesWayEnd)(wayFeature, nodeFeature),
-    wayFeatures
-  ),
-  // Or more than 1 distinct way names.
-  // If the way doesn't have a name default to the node id, which is to say pretend they have the same name.
-  wayFeatures => R.compose(
-    R.lt(1),
-    R.length,
-    R.uniq,
-    R.map(
-      wayFeature => wayFeatureNameOrDefault(reqStrPathThrowing('id', nodeFeature), wayFeature)
-    )
-  )(wayFeatures)
-])(wayFeatures);
-
-/**
- * Trims the given way to the index of the nodeObj inclusive
- * @param {Object} nodeObj
- * @param {Number} nodeObj.index The node index of the node in the way
- * @param {Object} nodeObj.node The node
- * @param {Object} way The way to trip
- * @returns {Object} The way trimmed ot the node inclusive
- */
-export const trimWayToNodeObj = (nodeObj, way) => R.over(
-  R.lensPath(['geometry', 'coordinates']),
-  // Slice the coordinates to the found node index
-  // (+2 because the index is based on remainingWayPoints and we want to be inclusive)
-  coordinates => R.slice(0, R.prop('index', nodeObj) + 2, coordinates),
-  way
-);
-
-/**
- * Trims the given way to the index of the nodeObj inclusive
- * @param {Object} node The node
- * @param {Object} way The way to trip
- * @returns {Object} The way trimmed ot the node inclusive
- */
-export const trimWayToNode = (node, way) => {
-  // Take the tail because trimWayToNodeObj expects the index based on the tail
-  const index = R.indexOf(hashNodeFeature(node), R.tail(hashWayFeature(way)));
-  return trimWayToNodeObj({node, index}, way);
-};

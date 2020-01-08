@@ -23,7 +23,7 @@ import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {loggers} from 'rescape-log';
 import {commonStreetOfLocation, locationAndOsmResultsToLocationWithGeojson} from './locationHelpers';
-import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocks';
+import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers';
 
 const log = loggers.get('rescapeDefault');
 

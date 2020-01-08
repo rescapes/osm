@@ -9,46 +9,56 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import fs from 'fs';
-import * as R from 'ramda';
-import {scaleOrdinal} from 'd3-scale';
-import {schemeCategory10} from 'd3-scale-chromatic';
-import {
-  cleanGeojson,
-  _intersectionStreetNamesFromWaysAndNodesResult, _linkedFeatures,
-  _reduceFeaturesByHeadAndLast, hashPoint, hashPointsToWayCoordinates, hashWayFeature
-} from './overpassFeatureHelpers';
-import {of} from 'folktale/concurrency/task';
+
+import 'regenerator-runtime';
+import {isLatLng, wayFeatureNameOrDefault} from './locationHelpers';
 import {
   configuredHighwayWayFilters,
-  fetchOsmRawTask, highwayNodeFilters, highwayWayFiltersNoAreas, highwayWayFiltersOnlyAreas,
+  fetchOsmRawTask,
+  highwayNodeFilters,
+  highwayWayFiltersNoAreas,
+  highwayWayFiltersOnlyAreas,
   osmResultTask
 } from './overpassHelpers';
 import {
-  traverseReduce,
-  mapObjToValues,
-  reqStrPathThrowing,
+  chainObjToValues,
+  compactEmpty,
   mapMDeep,
+  mapObjToValues,
+  mapToNamedResponseAndInputs,
   mergeAllWithKey,
+  reqStrPathThrowing,
+  resultToTaskNeedingResult,
+  splitAtInclusive,
   strPathOr,
   taskToResultTask,
-  traverseReduceWhile,
-  compactEmpty,
-  chainObjToValues,
-  splitAtInclusive,
   toNamedResponseAndInputs,
+  traverseReduce,
   traverseReduceResultError,
-  waitAllBucketed,
-  mapToNamedResponseAndInputs,
-  resultToTaskNeedingResult
+  traverseReduceWhile,
+  waitAllBucketed
 } from 'rescape-ramda';
-import {waitAll} from 'folktale/concurrency/task';
+import {loggers} from 'rescape-log';
+import {
+  _intersectionStreetNamesFromWaysAndNodesResult,
+  _linkedFeatures,
+  _reduceFeaturesByHeadAndLast,
+  cleanGeojson,
+  hashNodeFeature,
+  hashPoint,
+  hashPointsToWayCoordinates,
+  hashWayFeature,
+  nodeMatchesWayEnd
+} from './overpassFeatureHelpers';
+import * as R from 'ramda';
+import {of, waitAll} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
-import {isLatLng, wayFeatureNameOrDefault} from './locationHelpers';
+import fs from 'fs';
+import {scaleOrdinal} from 'd3-scale';
+import {schemeCategory10} from 'd3-scale-chromatic';
 import {length} from '@turf/turf';
 import {v} from 'rescape-validate';
 import PropTypes from 'prop-types';
-import {loggers} from 'rescape-log';
 
 const log = loggers.get('rescapeDefault');
 
@@ -975,54 +985,6 @@ export const _sortOppositeBlocksByNodeOrdering = oppositeBlockPair => {
   );
 };
 
-/**
- *
- * @param ways
- * @param wayIdToWayPoints
- * @param nodePointToNode
- * @private
- */
-export const _wayEndPointToDirectionalWays = ({ways, wayIdToWayPoints, nodePointToNode}) => R.compose(
-  // way end points will usually be unique, but some will match two ways when two ways meet at a place
-  // that is not an intersection
-  // This produces {wayEndPoint: [...ways with that end point], ...}
-  endPointToWayPair => R.reduceBy(
-    (acc, [endPoint, way]) => R.concat(acc, [way]),
-    [],
-    ([endPoint]) => endPoint,
-    endPointToWayPair
-  ),
-  R.chain(
-    wayFeature => {
-      const wayCoordinates = reqStrPathThrowing(R.prop('id', wayFeature), wayIdToWayPoints);
-      return R.compose(
-        endPointObjs => R.map(({endPoint, way}) => [endPoint, way], endPointObjs),
-        // Filter out points that are already nodes
-        endPointObjs => R.filter(
-          ({endPoint}) => R.not(R.propOr(false, endPoint, nodePointToNode)),
-          endPointObjs
-        ),
-        // Get the first and last point of the way
-        wayCoordinates => R.map(
-          prop => (
-            {
-              endPoint: R[prop](wayCoordinates),
-              way: R.when(
-                () => R.equals('tail', prop),
-                // For the tail end point, created a copy of the wayFeature with the coordinates reversed
-                // This makes it easy to traverse the ways from their endPoints.
-                // Since we hash ways independent of directions, we'll still detect ways we've already traversed
-                wayFeature => R.over(R.lensPath(['geometry', 'coordinates']), R.reverse, wayFeature)
-              )(wayFeature)
-            }
-          ),
-          ['head', 'last']
-        )
-      )(wayCoordinates);
-    }
-  )
-)(ways);
-
 // 1 Travel from every node along the directional ways
 //  A If starting at way end, travel other direction. Go to step 2 for the one direction CONTINUE
 //  B Else travel both directions to next node/way endpoint. Go to step 2 for each direction CONTINUEx2
@@ -1147,4 +1109,70 @@ const _wayToPartialBlocks = ({wayIdToWayPoints, nodeIdToNodePoint}, nodes, way) 
       ({way}) => reqStrPathThrowing(R.prop('id', way), wayIdToWayPoints)
     )
   )({way});
+};
+
+
+/**
+ * Returns true if the given nodeFeature connects at least two wayFeatures that have different street names.
+ * Ways often end and start at a node where there isn't an intersection, and we don't want to treat these
+ * nodes as intersections that break up blocks
+ * @param {[Object]} wayFeatures List of way features which intersect the node
+ * @param {Object} nodeFeature The node feature to test
+ * @returns {Boolean} True if 1) There are no ways (maybe node of a way araa, in any case not enough info to say it's
+ * not real)
+ * 2) there are more than 2 ways,
+ * 3) there at least two ways with different street names intersect the node or
+ * 4) if the node point is not at the end of at least on way. This means it has to be a real intersection for Overpass
+ * to have
+ * returned it.
+ */
+export const isRealIntersection = (wayFeatures, nodeFeature) => R.anyPass([
+  // Return true if there are no way features because it's a node of a way area. We never eliminate these
+  wayFeatures => R.isEmpty(wayFeatures),
+  // Either more than 2 ways
+  wayFeatures => R.compose(R.lt(2), R.length)(wayFeatures),
+  // The node point is not at the end of a way.
+  wayFeatures => R.any(
+    wayFeature => R.complement(nodeMatchesWayEnd)(wayFeature, nodeFeature),
+    wayFeatures
+  ),
+  // Or more than 1 distinct way names.
+  // If the way doesn't have a name default to the node id, which is to say pretend they have the same name.
+  wayFeatures => R.compose(
+    R.lt(1),
+    R.length,
+    R.uniq,
+    R.map(
+      wayFeature => wayFeatureNameOrDefault(reqStrPathThrowing('id', nodeFeature), wayFeature)
+    )
+  )(wayFeatures)
+])(wayFeatures);
+
+
+/**
+ * Trims the given way to the index of the nodeObj inclusive
+ * @param {Object} nodeObj
+ * @param {Number} nodeObj.index The node index of the node in the way
+ * @param {Object} nodeObj.node The node
+ * @param {Object} way The way to trip
+ * @returns {Object} The way trimmed ot the node inclusive
+ */
+export const trimWayToNodeObj = (nodeObj, way) => R.over(
+  R.lensPath(['geometry', 'coordinates']),
+  // Slice the coordinates to the found node index
+  // (+2 because the index is based on remainingWayPoints and we want to be inclusive)
+  coordinates => R.slice(0, R.prop('index', nodeObj) + 2, coordinates),
+  way
+);
+
+/**
+ * Trims the given way to the index of the nodeObj inclusive
+ * @param {Object} node The node
+ * @param {Object} way The way to trip
+ * @returns {Object} The way trimmed ot the node inclusive
+ */
+export const trimWayToNode = (node, way) => {
+  // Take the tail because trimWayToNodeObj expects the index based on the tail
+  const index = R.indexOf(hashNodeFeature(node), R.tail(hashWayFeature(way)));
+  return trimWayToNodeObj({node, index}, way);
 };

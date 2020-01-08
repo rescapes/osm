@@ -8,19 +8,18 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import queryOverpass from 'query-overpass';
-import {of, task} from 'folktale/concurrency/task';
-import * as R from 'ramda';
-import {
-  reqStrPathThrowing,
-  taskToResultTask,
-  traverseReduceWhile
-} from 'rescape-ramda';
-import os from 'os';
 import 'regenerator-runtime';
-import {loggers} from 'rescape-log';
-import * as Result from 'folktale/result';
 import {isLatLng} from './locationHelpers';
+import {reqStrPathThrowing, taskToResultTask, toNamedResponseAndInputs, traverseReduceWhile} from 'rescape-ramda';
+import {loggers} from 'rescape-log';
+import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers';
+import * as R from 'ramda';
+import {of, task} from 'folktale/concurrency/task';
+import * as Result from 'folktale/result';
+
+import queryOverpass from 'query-overpass';
+import os from 'os';
+
 const log = loggers.get('rescapeDefault');
 
 // When doing OSM queries with lat/lon points search for nodes withing this many meters of them
@@ -434,3 +433,140 @@ foreach.${possibleNodes} ->.${oneOfPossibleNodes}
   .${oneOfPossibleNodes} -> .${outputNodeName};
   ${leaveForAndIfBlocksOpen ? '' : '} };'}`;
 };
+
+/**
+ * Creates data structures that relate the nodes and ways
+ * @param {[Object]} ways Way features
+ * @param {[Object]} nodes Node features
+ * @returns {Object} nodeIdToNode, nodePointToNode, nodeIdToNodePoint, wayIdToWay, wayIdToNodes, wayIdToWayPoints, nodeIdToWays, wayEndPointToDirectionalWays
+ * @private
+ */
+export const _calculateNodeAndWayRelationships = ({ways, nodes}) => {
+  return R.compose(
+    toNamedResponseAndInputs('wayEndPointToDirectionalWays',
+      ({ways, wayIdToWayPoints, nodePointToNode}) => _wayEndPointToDirectionalWays({
+        ways,
+        wayIdToWayPoints,
+        nodePointToNode
+      })
+    ),
+    toNamedResponseAndInputs('nodeIdToWays',
+      // "Invert" wayIdToNodes to create nodeIdToWays
+      ({wayIdToNodes, wayIdToWay}) => R.reduce(
+        (hash, [wayId, nodes]) => {
+          const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
+          return R.reduce(
+            // Add the wayId to the nodeId key
+            (hsh, nodeId) => R.over(
+              // Lens to get the node id in the hash
+              R.lensProp(nodeId),
+              // Add the way to the list of the nodeId
+              wayList => R.concat(wayList || [], [R.prop(wayId, wayIdToWay)]),
+              hsh
+            ),
+            hash,
+            nodeIds
+          );
+        },
+        {},
+        R.toPairs(wayIdToNodes))
+    ),
+    toNamedResponseAndInputs('wayIdToWayPoints',
+      // Map the way id to its points
+      ({ways}) => R.fromPairs(R.map(
+        wayFeature => [
+          reqStrPathThrowing('id', wayFeature),
+          hashWayFeature(wayFeature)
+        ],
+        ways
+      ))
+    ),
+    toNamedResponseAndInputs('wayIdToNodes',
+      // Hash all way ids by intersection node if any waynode matches or
+      // is an area-way (pedestrian area) within 5m  <-- TODO
+      ({nodePointToNode, ways}) => {
+        return R.fromPairs(R.map(
+          wayFeature => [reqStrPathThrowing('id', wayFeature), findMatchingNodes(nodePointToNode, wayFeature)],
+          ways
+        ));
+      }
+    ),
+    toNamedResponseAndInputs('wayIdToWay',
+      // way id to way
+      ({ways}) => R.indexBy(
+        reqStrPathThrowing('id'),
+        ways
+      )
+    ),
+    toNamedResponseAndInputs('nodeIdToNodePoint',
+      // Hash intersection nodes by id. These are all intersections
+      ({nodeIdToNode}) => R.map(
+        nodeFeature => hashNodeFeature(nodeFeature),
+        nodeIdToNode
+      )
+    ),
+    toNamedResponseAndInputs('nodePointToNode',
+      // Hash the node points to match ways to them
+      ({nodes}) => R.indexBy(
+        nodeFeature => hashNodeFeature(nodeFeature),
+        nodes
+      )
+    ),
+    toNamedResponseAndInputs('nodeIdToNode',
+      // Hash intersection nodes by id. These are all intersections
+      ({nodes}) => R.indexBy(
+        reqStrPathThrowing('id'),
+        nodes
+      )
+    )
+  )({ways, nodes});
+};
+
+
+/**
+ *
+ * @param ways
+ * @param wayIdToWayPoints
+ * @param nodePointToNode
+ * @private
+ */
+export const _wayEndPointToDirectionalWays = ({ways, wayIdToWayPoints, nodePointToNode}) => R.compose(
+  // way end points will usually be unique, but some will match two ways when two ways meet at a place
+  // that is not an intersection
+  // This produces {wayEndPoint: [...ways with that end point], ...}
+  endPointToWayPair => R.reduceBy(
+    (acc, [endPoint, way]) => R.concat(acc, [way]),
+    [],
+    ([endPoint]) => endPoint,
+    endPointToWayPair
+  ),
+  R.chain(
+    wayFeature => {
+      const wayCoordinates = reqStrPathThrowing(R.prop('id', wayFeature), wayIdToWayPoints);
+      return R.compose(
+        endPointObjs => R.map(({endPoint, way}) => [endPoint, way], endPointObjs),
+        // Filter out points that are already nodes
+        endPointObjs => R.filter(
+          ({endPoint}) => R.not(R.propOr(false, endPoint, nodePointToNode)),
+          endPointObjs
+        ),
+        // Get the first and last point of the way
+        wayCoordinates => R.map(
+          prop => (
+            {
+              endPoint: R[prop](wayCoordinates),
+              way: R.when(
+                () => R.equals('tail', prop),
+                // For the tail end point, created a copy of the wayFeature with the coordinates reversed
+                // This makes it easy to traverse the ways from their endPoints.
+                // Since we hash ways independent of directions, we'll still detect ways we've already traversed
+                wayFeature => R.over(R.lensPath(['geometry', 'coordinates']), R.reverse, wayFeature)
+              )(wayFeature)
+            }
+          ),
+          ['head', 'last']
+        )
+      )(wayCoordinates);
+    }
+  )
+)(ways);

@@ -31,6 +31,9 @@ import {_calculateNodeAndWayRelationships} from './overpassHelpers';
 import {_intersectionStreetNamesFromWaysAndNodesResult} from './overpassFeatureHelpers';
 import {length} from '@turf/turf';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
+import {loggers} from 'rescape-log';
+
+const log = loggers.get('rescapeDefault');
 
 
 /**
@@ -195,7 +198,10 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
       ({blocksResult, nodeIdToWays}) => {
         // TODO just extracting the value from Result.Ok here.
         // Change to deal with Result.Error
-        const blocks = blocksResult.value;
+        const {blocks, errorBlocks} = blocksResult.value;
+        if (R.length(errorBlocks)) {
+          log.warning(`One or more blocks couldn't be built. Errors: ${JSON.stringify(errorBlocks)}`);
+        }
         return of(R.map(
           // Add intersections to the blocks based on the ways and nodes' properties
           block => R.merge(block, {
@@ -222,7 +228,7 @@ export const organizeResponseFeaturesResultsTask = (osmConfig, location, {way, n
           block => _hashBlock(R.over(R.lensProp('nodes'), () => [], block)),
           partialBlocks
         );
-        return _traversePartialBlocksToBuildBlocks(
+        return _traversePartialBlocksToBuildBlocksResultTask(
           osmConfig,
           {
             nodeIdToWays,
@@ -303,7 +309,7 @@ const _createPartialBlocks = ({ways, nodes, location}) => {
  * @returns {[Object]} The blocks
  * @private
  */
-export const _traversePartialBlocksToBuildBlocks = (
+export const _traversePartialBlocksToBuildBlocksResultTask = (
   osmConfig,
   {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, hashToPartialBlocks},
   partialBlocks
@@ -311,9 +317,9 @@ export const _traversePartialBlocksToBuildBlocks = (
   // Block b:: [b] -> Task Result [b]
   // Wait in parallel but bucket tasks to prevent stack overflow
   return mapMDeep(2,
-    ({blocks}) => {
-      // Remove the empty partialBlocks, just returning the blocks
-      return blocks;
+    ({blocks, errorBlocks}) => {
+      // Remove the empty partialBlocks, just returning the blocks and errorBlocks
+      return {blocks, errorBlocks};
     },
     // traverseReduceWhile allows us to chain tasks together that rely on the result of the previous task
     // since we can't know how many tasks we need to use up all the partialBlocks, we simply give it
@@ -332,13 +338,31 @@ export const _traversePartialBlocksToBuildBlocks = (
         mappingFunction: R.chain,
         monadConstructor: of
       },
-      ({value: {partialBlocks, blocks}}, x) => {
-        return mapMDeep(2,
+      // Ignore x, which just indicates the index of the reduction. We reduce until we run out of partialBlocks
+      ({value: {partialBlocks, blocks, errorBlocks}}, x) => {
+        return R.map(
           // partialBlocks are those remaining to be processed
           // block is the completed block that was created with one or more partial blocks
-          ({partialBlocks, block}) => {
-            return {partialBlocks, blocks: R.concat(blocks, [block])};
-          },
+          // Result.Ok -> Result.Ok, Result.Error -> Result.Ok
+          result => result.matchWith({
+            Ok: ({value: {partialBlocks, block}}) => {
+              return Result.Ok({
+                partialBlocks,
+                blocks: R.concat(blocks, [block]),
+                errorBlocks
+              });
+            },
+            Error: ({value: {error}}) => {
+              // Something went wrong processing a partial block
+              // error is {nodes, ways}, so we can eliminate the partialBlock matching it
+              // TODO error should contain information about the error
+              return Result.Ok({
+                partialBlocks: R.difference(partialBlocks, [error]),
+                blocks,
+                errorBlocks: R.concat(errorBlocks, [error])
+              });
+            }
+          }),
           // Call this R.length(partialBlocks) times until there are no partialBlocks left.
           // At most we call this R.length(partialBlocks) times, but if some partialBlocks join
           // into one we call it fewer times
@@ -349,7 +373,7 @@ export const _traversePartialBlocksToBuildBlocks = (
           )
         );
       },
-      of(Result.Ok({partialBlocks, blocks: []})),
+      of(Result.Ok({partialBlocks, blocks: [], errorBlocks: []})),
       // Just need to call a maximum of partialBlocks to process them all
       R.times(of, R.length(partialBlocks))
     )

@@ -78,6 +78,7 @@ const _matchingComponentLocations = (componentLocations, filterLocation) => R.fi
   ),
   R.defaultTo([], componentLocations)
 );
+
 /**
  * Returns the geojson of the location. For country, state, city, neighborhood this is the OSM relation's geojson
  * when available. For streets it's the geojson of all the location blocks of the street within the neighborhood

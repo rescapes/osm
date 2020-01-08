@@ -7,7 +7,7 @@ import {
 } from 'rescape-ramda';
 import {osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks';
 import * as R from 'ramda';
-import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
+import {queryOverpassWithLocationForStreetResultTask} from './overpassBlocks';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {of} from 'folktale/concurrency/task'
 

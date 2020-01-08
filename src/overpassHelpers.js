@@ -16,15 +16,11 @@ import {
   taskToResultTask,
   traverseReduceWhile
 } from 'rescape-ramda';
-import {turfBboxToOsmBbox} from 'rescape-helpers';
 import os from 'os';
 import 'regenerator-runtime';
 import {loggers} from 'rescape-log';
 import * as Result from 'folktale/result';
 import {isLatLng} from './locationHelpers';
-import bbox from '@turf/bbox';
-import {nominatimLocationResultTask} from './nominatimLocationSearch';
-
 const log = loggers.get('rescapeDefault');
 
 // When doing OSM queries with lat/lon points search for nodes withing this many meters of them

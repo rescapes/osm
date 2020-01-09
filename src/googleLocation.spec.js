@@ -20,6 +20,7 @@ import * as R from 'ramda';
 import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import {turfPointToLocation} from 'rescape-helpers';
 import {rejected} from 'folktale/concurrency/task';
+import {reverseCoordinatesOfFeature} from './locationHelpers';
 
 const austinIntersections = [['Salina St', 'E 21st St'], ['Leona St and E 21st St']];
 
@@ -418,7 +419,7 @@ describe('googleLocation', () => {
           // We expect a geojson point from the lat,lng. Flip the coordinates and stringify to match original
           const actualSecond = R.map(
             n => parseFloat(n).toFixed(2),
-            R.reverse(R.view(R.lensPath([1, 'geojson', 'geometry', 'coordinates']), results))
+            reverseCoordinatesOfFeature(R.view(R.lensPath(1, 'geojson')))
           );
           // Turf rounds off the end 0s
           expect(actualSecond).toEqual(['38.93', '-77.03']);

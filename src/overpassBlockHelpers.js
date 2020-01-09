@@ -13,6 +13,7 @@
 import 'regenerator-runtime';
 import {isLatLng, wayFeatureNameOrDefault} from './locationHelpers';
 import {
+  _calculateNodeAndWayRelationships,
   configuredHighwayWayFilters,
   fetchOsmRawTask,
   highwayNodeFilters,
@@ -994,8 +995,24 @@ export const _sortOppositeBlocksByNodeOrdering = oppositeBlockPair => {
 // At the end of this process we have a list of objects with nodes and ways.
 // nodes has just the start node and ways has just one directional (partial) way whose first point
 // is the node
-export const _buildPartialBlocks = ({wayIdToWayPoints, nodeIdToWays, nodeIdToNode, nodeIdToNodePoint, wayIdToNodes, wayIdToWay}) => {
-  return R.unnest(chainObjToValues(
+export const _buildPartialBlocks = ({ways, nodes}) => {
+  // Creates data structures to help process the ways and nodes:
+  // nodeIdToNode, nodePointToNode, nodeIdToNodePoint, wayIdToWay, wayIdToNodes, wayIdToWayPoints, nodeIdToWays,
+  // wayEndPointToDirectionalWays
+  const {
+    nodeIdToNode,
+    nodePointToNode,
+    nodeIdToNodePoint,
+    wayIdToWay,
+    wayIdToNodes,
+    wayIdToWayPoints,
+    nodeIdToWays,
+    wayEndPointToDirectionalWays
+  } = _calculateNodeAndWayRelationships({
+    ways,
+    nodes
+  });
+  const partialBlocks = R.unnest(chainObjToValues(
     (nodes, wayId) => {
       const way = R.prop(wayId, wayIdToWay);
       // Split the way by nodes, traveling in each direction from each node to the next node or dead end.
@@ -1005,6 +1022,17 @@ export const _buildPartialBlocks = ({wayIdToWayPoints, nodeIdToWays, nodeIdToNod
     },
     wayIdToNodes
   ));
+  return {
+    partialBlocks,
+    nodeIdToNode,
+    nodePointToNode,
+    nodeIdToNodePoint,
+    wayIdToWay,
+    wayIdToNodes,
+    wayIdToWayPoints,
+    nodeIdToWays,
+    wayEndPointToDirectionalWays
+  };
 };
 
 /**
@@ -1118,7 +1146,7 @@ const _wayToPartialBlocks = ({wayIdToWayPoints, nodeIdToNodePoint}, nodes, way) 
  * nodes as intersections that break up blocks
  * @param {[Object]} wayFeatures List of way features which intersect the node
  * @param {Object} nodeFeature The node feature to test
- * @returns {Boolean} True if 1) There are no ways (maybe node of a way araa, in any case not enough info to say it's
+ * @returns {Boolean} True if 1 There are no ways (maybe node of a way araa, in any case not enough info to say it's
  * not real)
  * 2) there are more than 2 ways,
  * 3) there at least two ways with different street names intersect the node or

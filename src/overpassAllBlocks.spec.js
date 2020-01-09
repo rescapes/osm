@@ -1,12 +1,14 @@
 import * as R from 'ramda';
-import {defaultRunConfig, defaultRunToResultConfig} from 'rescape-ramda';
+import {defaultRunConfig, defaultRunToResultConfig, composeWithChainMDeep, reqStrPathThrowing} from 'rescape-ramda';
 import {
-  locationToOsmAllBlocksQueryResultsTask
+  locationToOsmAllBlocksQueryResultsTask,
 } from './overpassAllBlocks';
 import {blocksToGeojson, blocksWithLengths, blockToGeojson} from './overpassBlockHelpers';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
-
+import grandrapids from './samples/grandrapids.json';
+import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers';
+import {featureWithReversedCoordinates, reverseCoordinatesOfFeature} from './locationHelpers';
 /**
  * Created by Andy Likuski on 2019.06.14
  * Copyright (c) 2019 Andy Likuski
@@ -107,7 +109,7 @@ describe('overpassAllBlocks', () => {
         onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
           blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          blocksWithLengths(R.map(R.prop('results'), locationsAndOsmResults))
+          blocksWithLengths(R.map(R.prop('results'), locationsAndOsmResults));
           expect(R.length(locationsAndOsmResults)).toEqual(16);
         }
       }, errors, done)
@@ -146,7 +148,7 @@ describe('overpassAllBlocks', () => {
         }
       }, errors, done)
     );
-  }, 1000000)
+  }, 1000000);
 
   test('Test Jurisdiction Point Buffer locations', done => {
     expect.assertions(1);
@@ -162,7 +164,7 @@ describe('overpassAllBlocks', () => {
             properties: {
               radius: 50,
               jurisdictionCenterPoint: true
-            },
+            }
           }
         ]
       }
@@ -176,7 +178,7 @@ describe('overpassAllBlocks', () => {
         }
       }, errors, done)
     );
-  }, 1000000)
+  }, 1000000);
 
   test('_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTaskTestLoopCase', done => {
     expect.assertions(1);
@@ -3390,8 +3392,8 @@ describe('overpassAllBlocks', () => {
           }
         ]
       }
-    }
-    const partialBlocks =[
+    };
+    const partialBlocks = [
       {
         "ways": [
           {
@@ -3632,7 +3634,7 @@ describe('overpassAllBlocks', () => {
           }
         ]
       }
-    ]
+    ];
     _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask({}, blockContext, partialBlocks).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({block, partialBlocks}) => {
@@ -3643,9 +3645,61 @@ describe('overpassAllBlocks', () => {
           expect(R.all(
             R.compose(R.equals('node/3348121417'), R.prop('id')),
             R.prop('nodes', block)
-          )).toBeTruthy()
+          )).toBeTruthy();
         }
       }, errors, done)
     );
-  }, 1000000)
+  }, 1000000);
+
+  test('Process geojson derived from shapefile', done => {
+    // Add name to each way feature.properties.tags.name
+    const features = R.map(
+      feature => R.over(
+        R.lensProp('properties'),
+        properties => R.over(
+          R.lensProp('tags'),
+          tags => R.merge(tags || {}, {name: R.prop('SEGNAME', properties)}),
+          properties
+        ),
+        feature
+      ),
+      R.prop('features', grandrapids)
+    );
+    const location = {country: 'USA', state: 'MI', city: 'Grand Rapids'};
+    // From the lines create a line in each direction and a node at the start of that line
+    const partialBlocks = composeWithChainMDeep(1, [
+      // Chain each item to ways, nodes
+      geojsonLineFeature => {
+        const firstCoordinate = reqStrPathThrowing('geometry.coordinates.0.0', geojsonLineFeature);
+        return {
+          ways: Array.of(geojsonLineFeature), nodes: Array.of(
+            {
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                // Get the first point of the only line
+                "coordinates": firstCoordinate
+              }
+            }
+          )
+        };
+      },
+      // Produce a flat list
+      features => R.chain(
+        geojsonLine => {
+          return [geojsonLine, featureWithReversedCoordinates(geojsonLine)];
+        },
+        features
+      )
+
+    ])(features);
+    const errors = [];
+    return organizeResponseFeaturesResultsTask({}, location, {partialBlocks}).run().listen(
+      defaultRunConfig({
+        onResolved: ({Ok: blocks, Error: errorBlocks}) => {
+          expect(R.length(blocks)).toEqual(8);
+        }
+      }, errors, done)
+    );
+  });
 });

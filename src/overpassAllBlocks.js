@@ -153,7 +153,7 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
     // Process the nominatim or google response(s) if any
     resultToTaskWithResult(
       locationVariationsWithOsm => {
-        return processNominatimResponsesResultTask(osmConfig, location, locationVariationsWithOsm);
+        return processJurisdictionOrGeojsonResponsesResultTask(osmConfig, location, locationVariationsWithOsm);
       }
     ),
 
@@ -181,14 +181,14 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
 
 /**
  * Given 1 or more locationVariationsWithOsm returns a result task to query those places in order until
- * osm results are found. If 0 locationVariationsWithOsm are specified, retrurns a Result.Error
+ * osm results are found. If 0 locationVariationsWithOsm are specified, returns a Result.Error
  * @param {Object} osmConfig
  * @param {Object} location The original location
  * @param {[Object]} locationVariationsWithOsm
  * @return {Task<Result<<Object>>} A task resolving to a Result.Ok with the successful location query or Result.Error
  * with the unsuccessful result;
  */
-const processNominatimResponsesResultTask = (osmConfig, location, locationVariationsWithOsm) => {
+const processJurisdictionOrGeojsonResponsesResultTask = (osmConfig, location, locationVariationsWithOsm) => {
   return R.cond([
     [R.length,
       // If we have variations, query then in order until a positive result is returned

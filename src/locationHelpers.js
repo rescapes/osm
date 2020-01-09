@@ -389,7 +389,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
   // TODO we should never get nodesToIntersectingStreets missing an intersections. Do this earlier
   const modifiedStreetIntersectionSets = R.when(
     R.compose(R.equals(1), R.length),
-    originalStreetIntersectionSets => R.concat(originalStreetIntersectionSets, originalStreetIntersectionSets),
+    originalStreetIntersectionSets => R.concat(originalStreetIntersectionSets, originalStreetIntersectionSets)
   )(originalStreetIntersectionSets);
 
   const blockname = commonStreetOfLocation(location, modifiedStreetIntersectionSets);
@@ -822,3 +822,21 @@ export const osmFeaturesOfLocationForType = (type, location) => {
     strPathOr([], 'geojson.features', location)
   );
 };
+
+/**
+ * Reverse the coordinates of the geojson feature and returns the coordinates
+ * @param feature
+ * @return {Object}
+ */
+export const reverseCoordinatesOfFeature = feature => {
+  return R.reverse(R.view(R.lensPath(['geometry', 'coordinates']), feature));
+};
+/**
+ * Reverses the coordinates of the gejson and returns the feature
+ * @param feature
+ * @return {f2|f1}
+ */
+export const featureWithReversedCoordinates = feature => {
+  return R.over(R.lensPath(['geometry', 'coordinates']), R.reverse, feature);
+}
+

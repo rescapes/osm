@@ -1,0 +1,352 @@
+{
+  "type": "FeatureCollection",
+  "name": "grandrapids",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Tamarack Ave NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.692970699636817,
+              42.988106945319011
+            ],
+            [
+              -85.693028085569381,
+              42.989011780978679
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Tamarack Ave NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.693028085569381,
+              42.989011780978679
+            ],
+            [
+              -85.69310846134313,
+              42.990828911182064
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Tamarack Ave NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.69310846134313,
+              42.990828911182064
+            ],
+            [
+              -85.693167260524774,
+              42.992644793755268
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Webster St NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.696792572399517,
+              42.990940704132626
+            ],
+            [
+              -85.69557228423173,
+              42.990901711887297
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Webster St NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.69557228423173,
+              42.990901711887297
+            ],
+            [
+              -85.694351091941229,
+              42.99086609079572
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Webster St NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.694351091941229,
+              42.99086609079572
+            ],
+            [
+              -85.69310846134313,
+              42.990828911182064
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Webster St NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.69310846134313,
+              42.990828911182064
+            ],
+            [
+              -85.691888373265328,
+              42.990775104656549
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Powers Ave NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.695560024104779,
+              42.988181591693255
+            ],
+            [
+              -85.695584635190571,
+              42.989084682967238
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Powers Ave NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.695584635190571,
+              42.989084682967238
+            ],
+            [
+              -85.69557228423173,
+              42.990901711887297
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Powers Ave NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.69557228423173,
+              42.990901711887297
+            ],
+            [
+              -85.695628799604236,
+              42.992725071284674
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Pine Ave NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.694303452852054,
+              42.989042397769317
+            ],
+            [
+              -85.694351091941229,
+              42.99086609079572
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Pine Ave NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.694351091941229,
+              42.99086609079572
+            ],
+            [
+              -85.694397755266905,
+              42.992685717486879
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Myrtle St NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.696745615861147,
+              42.989124504868265
+            ],
+            [
+              -85.696261576578465,
+              42.989107938454822
+            ],
+            [
+              -85.695584635190571,
+              42.989084682967238
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Myrtle St NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.695584635190571,
+              42.989084682967238
+            ],
+            [
+              -85.694303452852054,
+              42.989042397769317
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Myrtle St NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.694303452852054,
+              42.989042397769317
+            ],
+            [
+              -85.693028085569381,
+              42.989011780978679
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "SEGNAME": "Myrtle St NW"
+      },
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              -85.693028085569381,
+              42.989011780978679
+            ],
+            [
+              -85.691843524698385,
+              42.988969362652924
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

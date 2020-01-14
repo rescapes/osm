@@ -166,7 +166,7 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
       // If it's got jurisdiction info, query nominatim to resolve the area
       [
         location => isNominatimEligible(location),
-        location => _nominatimOrGoogleJurisdictionGeojsonResultTask(osmConfig, location)
+        location => nominatimOrGoogleJurisdictionGeojsonResultTask(osmConfig, location)
       ],
       [R.T, location => of(Result.Error({
         error: 'Location not eligible for nominatim query and does not have a geojson shape or radius',
@@ -226,9 +226,10 @@ const processJurisdictionOrGeojsonResponsesResultTask = (osmConfig, location, lo
  * Resolves the jurisdiction geojson of a location.geojson.features[0] where a jurisdication is not specified
  * @param {Object} osmConfig
  * @param {Object} location
- * @return {Task<Result<Object>>} location with location.geojson.features[0] set to the nominatim or google geojson
+ * @return {Task<Result<[Object]>>}  Returns 1 or more versions of the location, depending on whether nominatim
+ * was allowed to fallback from a neighborhood query to a city query.
  */
-const _nominatimOrGoogleJurisdictionGeojsonResultTask = (osmConfig, location) => {
+export const nominatimOrGoogleJurisdictionGeojsonResultTask = (osmConfig, location) => {
   return composeWithChainMDeep(2, [
     ({nominatimLocations, googleLocation}) => {
       // If we get a googleLocation that is more than 100 meters from the nominatim point,

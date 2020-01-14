@@ -1,4 +1,5 @@
 import * as R from 'ramda';
+import {featureCollection} from '@turf/helpers';
 import {
   addressPair,
   addressStrings,
@@ -7,8 +8,52 @@ import {
   aggregateLocation,
   locationWithIntersectionInBothOrders,
   isResolvableAllBlocksLocation,
-  normalizedIntersectionNames, addressStringForBlock, osmFeaturesOfLocationForType, locationWithLocationPoints
+  normalizedIntersectionNames,
+  addressStringForBlock,
+  osmFeaturesOfLocationForType,
+  locationWithLocationPoints,
+  geojsonFeaturesHaveRadii, mapGeojsonFeaturesHaveRadiiToPolygon
 } from './locationHelpers';
+import {reqStrPathThrowing} from 'rescape-ramda';
+
+const sampleCityLocations = [
+  {
+    "city": "Kampala",
+    "country": "Uganda"
+  },
+  {
+    "city": "Yerevan",
+    "country": "Armenia"
+  },
+  {
+    "city": "Phnom Penh",
+    "country": "Cambodia"
+  },
+  {
+    "city": "Siem Reap",
+    "country": "Cambodia"
+  },
+  {
+    "city": "Sihanoukville",
+    "country": "Cambodia"
+  },
+  {
+    "city": "Hong Kong",
+    "country": "Hong Kong"
+  },
+  {
+    "city": "Fukuoka",
+    "country": "Japan"
+  },
+  {
+    "city": "Hiroshima",
+    "country": "Japan"
+  },
+  {
+    "city": "Kanazawa",
+    "country": "Japan"
+  }
+];
 
 describe('LocationSelector', () => {
   const location = {
@@ -521,5 +566,82 @@ describe('LocationSelector', () => {
       }
     };
     expect(R.compose(R.length, R.prop('locationPoints'), locationWithLocationPoints)(location)).toEqual(2);
+  });
+
+  test('geojsonFeaturesHaveRadii', () => {
+    // Create locations that all have radius features
+    const locations = R.map(
+      location => {
+        return R.merge(
+          {
+            geojson: {
+              type: 'FeatureCollection',
+              features: [
+                {
+                  type: "Feature",
+                  properties: {
+                    radius: 80
+                  },
+                  geometry: {
+                    type: "Point",
+                    // Fake
+                    coordinates: [
+                      -80.18231999999999,
+                      26.098829
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          location
+        );
+      },
+      sampleCityLocations
+    );
+    const geojson = {features: R.chain(reqStrPathThrowing('geojson.features'), locations)};
+    expect(
+      geojsonFeaturesHaveRadii(geojson)
+    ).toBeTruthy();
+  });
+
+  test('mapGeojsonFeaturesHaveRadii', () => {
+    // Create locations that all have radius features
+    const locations = R.map(
+      location => {
+        return R.merge(
+          {
+            geojson: {
+              type: 'FeatureCollection',
+              features: [
+                {
+                  type: "Feature",
+                  properties: {
+                    radius: 80
+                  },
+                  geometry: {
+                    type: "Point",
+                    // Fake
+                    coordinates: [
+                      -80.18231999999999,
+                      26.098829
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          location
+        );
+      },
+      sampleCityLocations
+    );
+    const geojson = {features: R.chain(reqStrPathThrowing('geojson.features'), locations)};
+    expect(
+      R.all(
+        feature => R.compose(R.equals('Polygon'), reqStrPathThrowing('geometry.type'))(feature),
+        reqStrPathThrowing('features', mapGeojsonFeaturesHaveRadiiToPolygon(geojson))
+      )
+    ).toBeTruthy();
   });
 });

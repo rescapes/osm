@@ -193,7 +193,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
                 // TODO this is a special case of filling in empty features that might be replaced in the future
                 R.over(
                   R.lensPath(['geojson', 'features']),
-                  features => R.whenm
+                  features => R.when(
                     R.identity,
                     features => R.map(
                       feature => {

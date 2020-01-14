@@ -56,6 +56,8 @@ export {
   osmFeaturesOfLocationForType,
   locationIntersectionLocationToTurfPoints,
   geojsonFeaturesHaveRadii,
+  mapGeojsonFeaturesHaveRadiiToPolygon,
+  featureRepresentsCircle,
   geojsonFeaturesHaveShape,
   geojsonFeaturesHaveShapeOrRadii,
   geojsonFeaturesIsPoint,
@@ -65,7 +67,7 @@ export {
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';
 export {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
-export {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
+export {locationToOsmAllBlocksQueryResultsTask, nominatimOrGoogleJurisdictionGeojsonResultTask} from './overpassAllBlocks';
 export {
   osmLocationToLocationWithGeojsonResultTask,
   osmRelationshipGeojsonResultTask

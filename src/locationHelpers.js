@@ -8,12 +8,13 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import {compactEmpty, reqStrPathThrowing, strPathOr, toNamedResponseAndInputs} from 'rescape-ramda';
+import {compactEmpty, reqStrPathThrowing, strPathOr, toNamedResponseAndInputs, mapKeys} from 'rescape-ramda';
 import {locationToTurfPoint} from 'rescape-helpers';
 import * as R from 'ramda';
 import PropTypes from 'prop-types';
 import {v} from 'rescape-validate';
 import {point} from '@turf/helpers';
+import circle from '@turf/circle';
 
 // The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
 // Switzerland for example doesn't resolve correctly if the canton abbreviation is included
@@ -536,18 +537,50 @@ export const geojsonFeaturesIsPoint = geojson => R.and(
  */
 export const geojsonFeaturesHaveRadii = geojson => {
   return R.both(
-    features => R.length(features),
-    features => R.all(
-      feature => R.both(
-        feature => strPathOr(false, 'properties.radius', feature),
-        // THere must be a point defined
-        feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Point'])
-      )(feature),
+    features => {return R.length(features)},
+    features => {return R.all(
+      feature => {
+        return featureRepresentsCircle(feature);
+      },
       features
+    )}
+  )(strPathOr([], 'features', geojson));
+};
+
+/**
+ * Returns geojson features with radii mapped to polygons features, since radii aren't part of the geojson spec.
+ * Features that don't have radii are left alone
+ * @param {Object} geojson
+ * @param {[Object]} geojson.features The features to map
+ * @return {Object} geojson with modified features, if any
+ */
+export const mapGeojsonFeaturesHaveRadiiToPolygon = geojson => {
+  return R.over(
+    R.lensProp('features'),
+    features => R.and(
+      features,
+      R.map(
+        feature => {
+          return featureWithRadiusToCirclePolygon(feature);
+
+        },
+        features
+      )
     )
-  )(
-    strPathOr([], 'features', geojson)
-  );
+  )(geojson)
+};
+
+/**
+ * Returns true if the feature has a properties.radius property and the feature is a point
+ * @param {Object} feature Feature to test
+ * @return {Boolean} True if both conditions are met, else false
+ */
+export const featureRepresentsCircle = feature => {
+  return R.both(
+    feature => strPathOr(false, 'properties.radius', feature),
+    // There must be a point defined
+    feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Point'])
+  )(feature);
 };
 
 
@@ -838,5 +871,44 @@ export const reverseCoordinatesOfFeature = feature => {
  */
 export const featureWithReversedCoordinates = feature => {
   return R.over(R.lensPath(['geometry', 'coordinates']), R.reverse, feature);
-}
+};
+
+/**
+ * Maps the given feature to a polygon using turf.circl
+ * @param feature
+ * @param {Object} options turf.circle options
+ * @param {Number} [options.steps]  Default 100 number of stpes
+ * @param {String} [options.units]  Default 'meters'  'kilometers'  miles, kilometers, degrees, or radians
+ * @params {Object} [options.properties] Default {}. Properties to give the feature. This will normally be omitted and simply red from
+ * feature.properties. The radius property will be converted to _radius to indicate that this is not longer
+ * a feature representing a circle
+ */
+export const featureWithRadiusToCirclePolygon = (feature, options) => {
+  return R.when(
+    feature => {
+      // Is it a circle feature
+      return featureRepresentsCircle(feature);
+    },
+    feature => {
+      // Then map it to a polygon
+      // Merger given options with defaults
+      const mergedOptions = R.merge({
+        steps: 100,
+        units: 'meters',
+        properties: mapKeys(
+          prop => R.when(R.equals('radius'), () => '_radius')(prop),
+          reqStrPathThrowing('properties', feature)
+        )
+      }, options);
+      const radius = reqStrPathThrowing('properties.radius', feature);
+      const center = reqStrPathThrowing('geometry.coordinates', feature);
+      // Create a polygon circle feature, converting the radius property to _radius
+      return circle(
+        center,
+        radius,
+        mergedOptions
+      );
+    }
+  )(feature);
+};
 

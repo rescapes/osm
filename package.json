@@ -9,8 +9,7 @@
   "author": "calocan <andy@likuski.org>",
   "license": "MIT",
   "main": "lib/index.js",
-  "module": "esm/index.js",
-  "jsnext:main": "src/index.js",
+  "module": "src/index.js",
   "files": [
     "lib",
     "esm",

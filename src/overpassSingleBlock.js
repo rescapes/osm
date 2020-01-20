@@ -44,7 +44,7 @@ import {
   createSingleBlockFeatures,
   mapToCleanedFeatures, mapWaysByNodeIdToCleanedFeatures,
   parallelWayNodeQueriesResultTask,
-  waysByNodeIdTask
+  waysByNodeIdResultsTask
 } from './overpassBlockHelpers';
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 import {extents} from './overpassFeatureHelpers';
@@ -468,9 +468,15 @@ const _queryOverpassForSingleBlockResultTask = (osmConfig, location, {way: wayQu
     // If our _predicate fails, give up with a Response.Error
     // Task Result [Object] -> Task Result.Ok (Object) | Result.Error (Object)
     resultToTaskWithResult(
-      ({way, node, waysByNodeId}) => of(
-        _validateOsmResults({way, node, waysByNodeId})
-      )
+      ({Ok: {way, node, waysByNodeId}, Error: errors}) => {
+        if (R.length(errors)) {
+          log.warn(`Errors getting waysByNodeId ${JSON.stringify(errors)}`);
+        }
+
+        return of(
+          _validateOsmResults({way, node, waysByNodeId})
+        );
+      }
     ),
 
     // Once we get our way query and node query done,
@@ -479,7 +485,7 @@ const _queryOverpassForSingleBlockResultTask = (osmConfig, location, {way: wayQu
     // Task Result.Ok <way: <queries, response>, node: <queries, response>>> ->
     // Task Result.Ok <way: <queries, response>, node: <queries, response>, waysByNodeId: <node: <queries, response>>>>
     ({result}) => resultToTaskNeedingResult(
-      ({way, node}) => waysByNodeIdTask(osmConfig, {way, node})
+      ({way, node}) => waysByNodeIdResultsTask(osmConfig, {way, node})
     )(result),
 
     // Query for the ways and nodes in parallel

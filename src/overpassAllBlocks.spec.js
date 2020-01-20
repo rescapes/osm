@@ -1,14 +1,12 @@
 import * as R from 'ramda';
-import {defaultRunConfig, defaultRunToResultConfig, composeWithChainMDeep, reqStrPathThrowing} from 'rescape-ramda';
-import {
-  locationToOsmAllBlocksQueryResultsTask,
-} from './overpassAllBlocks';
+import {composeWithChainMDeep, defaultRunConfig, defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 import {blocksToGeojson, blocksWithLengths, blockToGeojson} from './overpassBlockHelpers';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
 import grandrapids from './samples/grandrapids.json';
 import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers';
-import {featureWithReversedCoordinates, reverseCoordinatesOfFeature} from './locationHelpers';
+import {featureWithReversedCoordinates, nodeFromCoordinate} from './locationHelpers';
 /**
  * Created by Andy Likuski on 2019.06.14
  * Copyright (c) 2019 Andy Likuski
@@ -3652,17 +3650,28 @@ describe('overpassAllBlocks', () => {
   }, 1000000);
 
   test('Process geojson derived from shapefile', done => {
-    // Add name to each way feature.properties.tags.name
-    const features = R.map(
-      feature => R.over(
-        R.lensProp('properties'),
-        properties => R.over(
-          R.lensProp('tags'),
-          tags => R.merge(tags || {}, {name: R.prop('SEGNAME', properties)}),
-          properties
-        ),
-        feature
-      ),
+    // Add an id and name to each way feature.properties.tags.name
+    const features = R.addIndex(R.map)(
+      (feature, index) => R.compose(
+        feature => {
+          // Create a fake id that matches the OSM way/ id syntax.
+          return R.set(R.lensProp('id'), `way/fake${index}`, feature);
+        },
+        feature => {
+          return R.over(
+            R.lensProp('properties'),
+            properties => R.over(
+              R.lensProp('tags'),
+              tags => R.merge(tags || {}, {
+                name: R.prop('SEGNAME', properties
+                )
+              }),
+              properties
+            ),
+            feature
+          );
+        }
+      )(feature),
       R.prop('features', grandrapids)
     );
     const location = {country: 'USA', state: 'MI', city: 'Grand Rapids'};
@@ -3670,21 +3679,18 @@ describe('overpassAllBlocks', () => {
     const partialBlocks = composeWithChainMDeep(1, [
       // Chain each item to ways, nodes
       geojsonLineFeature => {
+        // Get the firstCoordinate of the lineFeature to produce a node.
         const firstCoordinate = reqStrPathThrowing('geometry.coordinates.0.0', geojsonLineFeature);
         return {
           ways: Array.of(geojsonLineFeature), nodes: Array.of(
-            {
-              "type": "Feature",
-              "geometry": {
-                "type": "Point",
-                // Get the first point of the only line
-                "coordinates": firstCoordinate
-              }
-            }
+            nodeFromCoordinate(
+              {id: `node/${R.compose(reqStrPathThrowing('1'), R.split('/'), R.prop('id'))(geojsonLineFeature)}`},
+              firstCoordinate
+            )
           )
         };
       },
-      // Produce a flat list
+      // Produce a flat list of each line in both directions
       features => R.chain(
         geojsonLine => {
           return [geojsonLine, featureWithReversedCoordinates(geojsonLine)];
@@ -3694,7 +3700,11 @@ describe('overpassAllBlocks', () => {
 
     ])(features);
     const errors = [];
-    return organizeResponseFeaturesResultsTask({}, location, {partialBlocks}).run().listen(
+    return organizeResponseFeaturesResultsTask(
+      {disableNodesOfWayQueries: true},
+      location,
+      {partialBlocks}
+    ).run().listen(
       defaultRunConfig({
         onResolved: ({Ok: blocks, Error: errorBlocks}) => {
           expect(R.length(blocks)).toEqual(8);

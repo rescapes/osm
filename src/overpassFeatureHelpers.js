@@ -20,12 +20,15 @@ import {
   traverseReduce,
   objOfMLevelDeepMonadsToListWithPairs,
   filterWithKeys,
-  composeWithChainMDeep
+  composeWithChainMDeep,
+  chainMDeep,
+  chainExceptMapDeepestMDeep
 } from 'rescape-ramda';
 import * as Result from 'folktale/result';
 import 'regenerator-runtime';
 import {wayFeatureNameOrDefault} from './locationHelpers';
 import {loggers} from 'rescape-log';
+
 const log = loggers.get('rescapeDefault');
 
 /**
@@ -52,12 +55,63 @@ export const hashNodeFeature = nodeFeature => {
 const hashNodeFeatures = nodeFeatures => R.map(hashNodeFeature, nodeFeatures);
 
 /**
- * Hash the given way, a LineString Feature into an array of points
+ * Hash the given way, a LineString or MultiLineString Feature into an array of points
  * @param wayFeature
  * @returns {[String]} Array of point hashes
  */
 export const hashWayFeature = wayFeature => {
-  return R.map(hashPoint, reqStrPathThrowing('geometry.coordinates', wayFeature));
+  return chainWayCoordinates(hashPoint, wayFeature);
+};
+
+/**
+ * The flat coordinates of the way features
+ * @param wayFeature
+ * @return {*[]}
+ */
+export const wayFeaturesToCoordinates = wayFeature => {
+  return chainWayCoordinates(R.identity, wayFeature);
+};
+
+/**
+ * Applies fun to each wayFeature coordinate, returning a flat result whether coordinates are
+ * from a LineString or multiple lines in a MultiLineString
+ * @param func Expects a coordinate pair and returns a mapped value
+ * @param {Object} wayFeature geojson that contains geometry.coordinates
+ * @param {Object} wayFeature.geojson
+ * @param {Object} wayFeature.geojson.coordinates A LineString or MultiLineString
+ * @return {[*]} The mapped values
+ */
+export const chainWayCoordinates = (func, wayFeature) => {
+  return R.cond([
+    [geometry => R.propEq('type', 'MultiLineString', geometry),
+      geometry => {
+        // Process each point of each line string
+        return chainExceptMapDeepestMDeep(
+          2,
+          coord => {
+            return func(coord);
+          },
+          R.prop('coordinates', geometry)
+        );
+      }
+    ],
+    [geometry => R.propEq('type', 'LineString', geometry),
+      geometry => {
+        // Process each point of the single line string
+        return R.map(
+          coord => {
+            return func(coord);
+          },
+          R.prop('coordinates', geometry)
+        );
+      }
+    ],
+    [R.T,
+      geometry => {
+        throw new Error(`Geometry type is wrong ${R.prop('type', geometry)}`);
+      }
+    ]
+  ])(R.prop('geometry', wayFeature));
 };
 
 /**
@@ -483,7 +537,7 @@ const someAllOrNoneOfWay = (nodeMatches, nodeFeatures, wayFeature) => {
  * @param wayFeature
  */
 const shortenToNodeFeaturesIfNeeded = (nodeMatches, nodeFeatures, wayFeature) => {
-  const wayPointHashes = R.map(hashPoint, wayFeature.geometry.coordinates);
+  const wayPointHashes = hashWayFeature(wayFeature);
   const nodeHashes = hashNodeFeatures(nodeFeatures);
   // If we don't find the node in the way, resolve to index 0 for the head node
   // and resolve to Infinity for the last node
@@ -659,7 +713,7 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (wayFeatures, node
           (accum, pair) => R.concat(accum, [pair]),
           Result.Ok([]),
           objOfMLevelDeepMonadsToListWithPairs(1, Result.Ok, nodeIdToResult)
-        ),
+        )
       ])(nodeIdToResult);
     },
     // Errors in at least one value. Wrap in an Error to abandon
@@ -677,8 +731,8 @@ export const findMatchingNodes = R.curry((nodePointHash, wayFeature) => {
   return R.compose(
     nodes => compact(nodes),
     wayFeature => R.map(
-      coordinate => R.propOr(null, hashPoint(coordinate), nodePointHash),
-      reqStrPathThrowing('geometry.coordinates', wayFeature)
+      wayPointHash => R.propOr(null, wayPointHash, nodePointHash),
+      hashWayFeature(wayFeature)
     )
   )(wayFeature);
 });

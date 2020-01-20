@@ -9,16 +9,15 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import {
+  composeWithMapMDeep,
   mapMDeep,
+  mapToMergedResponseAndInputs,
   mapToNamedResponseAndInputs,
   reqStrPathThrowing,
   resultsToResultObj,
-  composeWithMapMDeep,
   strPathOr,
-  mapToNamedResponseAndInputsMDeep,
   toNamedResponseAndInputs,
-  traverseReduceWhile,
-  mapToMergedResponseAndInputs
+  traverseReduceWhile
 } from 'rescape-ramda';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
@@ -28,7 +27,7 @@ import {
   _hashBlock,
   _sortOppositeBlocksByNodeOrdering,
   parallelWayNodeQueriesResultTask,
-  waysByNodeIdTask
+  waysByNodeIdResultsTask
 } from './overpassBlockHelpers';
 import {_calculateNodeAndWayRelationships} from './overpassHelpers';
 import {
@@ -39,7 +38,6 @@ import {
 import {length} from '@turf/turf';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
 import {loggers} from 'rescape-log';
-import {featuresByOsmType} from './locationHelpers';
 
 const log = loggers.get('rescapeDefault');
 
@@ -75,20 +73,31 @@ export const _queryOverpassForAllBlocksResultsTask = (
     // Task Result [<way, node>] -> Task <Ok: [Location], Error: [<way, node>]>
     result => result.matchWith({
       Ok: ({value: {way, node}}) => R.composeK(
-        ({way, node, waysByNodeId}) => {
+        ({Ok: {way, node, waysByNodeId}, Error: errors}) => {
+          if (R.length(errors)) {
+            log.warn(`Some waysByNodeId could not be queried ${JSON.stringify(errors)}`);
+          }
           // Get the features from the response
           const [ways, nodes] = R.map(reqStrPathThrowing('response.features'), [way, node]);
-          return organizeResponseFeaturesResultsTask(osmConfig, location, {
-            ways,
-            nodes
-          });
+          return R.map(
+            ({Ok: oks, Error: errs}) => {
+              return {Ok: oks, Error: R.concat(errors, errs || [])};
+            },
+            organizeResponseFeaturesResultsTask(osmConfig, location, {
+              ways,
+              nodes
+            })
+          );
         },
         // If we are doing a narrow street query we need to get waysByNode so we know which nodes of the street are real intersections
+        // TODO we aren't using these results
         ({way, node}) => R.ifElse(
           ({osmConfig}) => R.propOr(false, 'forceWaysOfNodeQueries', osmConfig),
-          ({way, node}) => waysByNodeIdTask(osmConfig, {way, node}),
+          // Produces {Ok: {way, node, waysByNodeId: {...}}, Error: []}
+          // waysByNodeId contain the query results by node id. If any errors occur they are stored in Error.
+          ({way, node}) => waysByNodeIdResultsTask(osmConfig, {way, node}),
           // Otherwise we don't need waysByNode because our query was comprehensive
-          ({way, node}) => of({way, node, waysByNodeId: {}})
+          ({way, node}) => of({Ok: {way, node, waysByNodeId: {}}, Error: []})
         )({osmConfig, way, node})
       )({way, node}),
       // Create a Results object with the one error
@@ -105,6 +114,8 @@ export const _queryOverpassForAllBlocksResultsTask = (
  * @param {Object} osmConfig.minimumWayLength. The minimum lengths of way features to return. Defaults to 20 meters.
  * This exists to eliminate blocks that are just short connectors between streets, roundabout entrances, etc.
  * It should be set to 0 if all segments are needed for routing algorithms
+ * @param {Object} osmConfig.disableNodesOfWayQueries. Don't allow OSM queries to find nodes of incomplete ways
+ * We do this when we node the way/node set is complete and/or we have ways/nodes that aren't from OSM
  * @param {Object} location Used for context to help resolve the blocks. This location represents the geojson
  * or jurisdiction data used to create the way and node queries
  * @param {Object} features {ways, nodes} way features and node features
@@ -120,6 +131,7 @@ export const organizeResponseFeaturesResultsTask = (
 ) => {
 
   return R.composeK(
+    no => of(no),
     ({nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
       return _partialBlocksToFeaturesResultsTask(
         osmConfig,
@@ -150,7 +162,7 @@ export const organizeResponseFeaturesResultsTask = (
               }), {partialBlocks});
             },
             // Build the partial blocks
-            () => _buildPartialBlocks({ways, nodes}),
+            () => _buildPartialBlocks({ways, nodes})
           )(partialBlocks)
         );
       }
@@ -160,7 +172,8 @@ export const organizeResponseFeaturesResultsTask = (
 
 /**
  * Builds partial blocks to features One or more partial blocks can result in a features.
- * @param osmConfig
+ * @param {Object} osmConfig
+ * @param {Object} osmConfig.disableNodesOfWayQueries
  * @param {Object} location The original location that was searched for to create these blocks
  * @param {Object} locationConfig
  * @param locationConfig.nodeIdToWays

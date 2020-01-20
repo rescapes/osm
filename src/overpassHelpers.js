@@ -58,7 +58,6 @@ export const roundRobinNoimnatimServers = () => {
 };
 
 
-
 /**
  * Translates to OSM condition that must be true
  * @param {string} prop The feature property that must be true
@@ -452,34 +451,36 @@ export const _calculateNodeAndWayRelationships = ({ways, nodes}) => {
     ),
     toNamedResponseAndInputs('nodeIdToWays',
       // "Invert" wayIdToNodes to create nodeIdToWays
-      ({wayIdToNodes, wayIdToWay}) => R.reduce(
-        (hash, [wayId, nodes]) => {
-          const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
-          return R.reduce(
-            // Add the wayId to the nodeId key
-            (hsh, nodeId) => R.over(
-              // Lens to get the node id in the hash
-              R.lensProp(nodeId),
-              // Add the way to the list of the nodeId
-              wayList => R.concat(wayList || [], [R.prop(wayId, wayIdToWay)]),
-              hsh
-            ),
-            hash,
-            nodeIds
-          );
-        },
-        {},
-        R.toPairs(wayIdToNodes))
+      ({wayIdToNodes, wayIdToWay}) => {
+        return R.reduce(
+          (hash, [wayId, nodes]) => {
+            const nodeIds = R.map(reqStrPathThrowing('id'), nodes);
+            return R.reduce(
+              // Add the wayId to the nodeId key
+              (hsh, nodeId) => R.over(
+                // Lens to get the node id in the hash
+                R.lensProp(nodeId),
+                // Add the way to the list of the nodeId
+                wayList => R.concat(wayList || [], [R.prop(wayId, wayIdToWay)]),
+                hsh
+              ),
+              hash,
+              nodeIds
+            );
+          },
+          {},
+          R.toPairs(wayIdToNodes));
+      }
     ),
     toNamedResponseAndInputs('wayIdToWayPoints',
       // Map the way id to its points
-      ({ways}) => R.fromPairs(R.map(
+      ({ways}) => {return R.fromPairs(R.map(
         wayFeature => [
           reqStrPathThrowing('id', wayFeature),
           hashWayFeature(wayFeature)
         ],
         ways
-      ))
+      ))}
     ),
     toNamedResponseAndInputs('wayIdToNodes',
       // Hash all way ids by intersection node if any waynode matches or

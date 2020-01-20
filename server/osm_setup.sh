@@ -39,29 +39,33 @@ sudo apt-get install g++ make  libexpat1-dev zlib1g-dev
 
 #### Download the latest install file
 
-wget http://dev.overpass-api.de/releases/osm-3s_v[0.7.55.7].tar.gz
+wget http://dev.overpass-api.de/releases/osm-3s_v0.7.55.7.tar.gz
 
 #### Gunzip
 
-gunzip <osm-3s_v[0.7.55.7].tar.gz | tar xvf -
+gunzip <osm-3s_v0.7.55.7.tar.gz | tar xvf -
 
 ### Install
 
 put the following in ~/.bashrc:
 
-export EXEC_DIR=osm-3s_v[0.7.55]/
+export BASE_OSM_DIR=~/src/osm-3s_v0.7.55
+export EXEC_DIR=$BASE_OSM_DIR/bin
+export DB_DIR="$BASE_OSM_DIR/db"
+export DIFF_DIR="$BASE_OSM_DIR/diffs"
+export OSM_SERVER='osm.rescapes.net'
+export NOMINATIM_USERNAME=nominatim
+export NOMINATIM_USERHOME=/srv/nominatim
 
-export DB_DIR="$EXEC_DIR/db"
-
-export REPLICATE_DIR="$EXEC_DIR/replications"
+export REPLICATE_DIR="$DB_DIR/replications"
 
 source ~/.bashrc
 
 mkdir ~/src
 
-mv osm-3s_v[0.7.55]/ src
+mv osm-3s_v0.7.55/ src
 
-cd src/osm-3s_v[0.7.55]/ src
+cd src/osm-3s_v0.7.55/ src
 
 ./configure --prefix="`pwd`"
 
@@ -85,15 +89,15 @@ chmod 755 bin/apply_osc_to_db.sh
 
 ### Start the dispatcher
 
-nohup $EXEC_DIR/bin/dispatcher --osm-base --meta --db-dir=$DB_DIR &
+nohup $EXEC_DIR/dispatcher --osm-base --meta --db-dir=$DB_DIR &
 
 # If you have problems because of a previous run, delete the following marker files
 # rm -f /dev/shm/osm3s_v0.7.55_osm_base
 # rm -f $DB_DIR/osm3s_v0.7.55_osm_base
 
-nohup $EXEC_DIR/bin/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" &
+nohup $EXEC_DIR/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" &
 
-nohup $EXEC_DIR/bin/apply_osc_to_db.sh "diffs/" auto --meta=yes &
+nohup $EXEC_DIR/apply_osc_to_db.sh "diffs/" auto --meta=yes &
 
 
 ### Install nginx
@@ -137,15 +141,15 @@ cd $BASE_DIR
 cp -pR "rules" $DB_DIR
 
 # This takes about 30 hours to complete
-nohup $EXEC_DIR/bin/dispatcher --areas --db-dir=$DB_DIR &
+nohup $EXEC_DIR/dispatcher --areas --db-dir=$DB_DIR &
 # If you have problems because of a previous run, delete the following marker files
 # rm -f /dev/shm/osm3s_v0.7.55_osm_areas
-# rm -f $DB_DATA/osm3s_v0.7.55_osm_areas
+# rm -f $DB_DIR/osm3s_v0.7.55_osm_areas
 
 chmod 666 db/osm3s_v0.7.55_areas
 chmod 755 bin/rules_loop.sh
 # Something is wrong with the paths in this script. Comment out the DB_DIR=... line. We already have it defined
-nohup $EXEC_DIR/bin/rules_loop.sh $DB_DIR &
+nohup $EXEC_DIR/rules_loop.sh $DB_DIR &
 
 #### Nice the process to be less important:
 
@@ -183,24 +187,37 @@ sudo chown root:root ./certbot-auto
 sudo chmod a+x ./certbot-auto
 sudo mv ./certbot-auto /usr/local/bin
 
+
 # Set it up with the domain you want to use. You must have the IP address of the server registered
 # as an A record in this domain's DNS registry
 sudo /usr/local/bin/certbot-auto --cert-name osm.rescapes.net
 # This asks which subdomain to use and updates /etc/nginx/sites-enabled/sop to point to the security certificate
 
-
 # Extras
 
 # To start all the scripts at once
-nohup $EXEC_DIR/bin/dispatcher --osm-base --meta --db-dir=$DB_DIR &
-nohup $EXEC_DIR/bin/dispatcher --areas --db-dir=$DB_DIR &
-nohup $EXEC_DIR/bin/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" &
-nohup $EXEC_DIR/bin/apply_osc_to_db.sh "diffs/" auto --meta=yes &
-nohup $EXEC_DIR/bin/rules_loop.sh $DB_DIR &
+nohup $EXEC_DIR/dispatcher --osm-base --meta --db-dir=$DB_DIR &
+nohup $EXEC_DIR/dispatcher --areas --db-dir=$DB_DIR &> dispatcher-areas.out&
+nohup $EXEC_DIR/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" &> fetch_osc.out&
+nohup $EXEC_DIR/apply_osc_to_db.sh "diffs/" auto --meta=yes > apply_osc_to_db.out&
+nohup $EXEC_DIR/rules_loop.sh $DB_DIR > rules_loop.out&
 
 # To kill the dispatchers
-$EXEC_DIR/bin/dispatcher --osm-base --terminate
-$EXEC_DIR/bin/dispatcher --areas --terminate
+$EXEC_DIR/dispatcher --osm-base --terminate
+# manual
+# If you have problems because of a previous run, delete the following marker files
+# rm  /dev/shm/osm3s_v0.7.55_osm_base
+# rm  $DB_DIR/osm3s_v0.7.55_osm_base
+$EXEC_DIR/dispatcher --areas --terminate
+
+
+# To test the server quickly
+wget -q -O - "$@" "https://overpass-api.de/api/interpreter?data=%3Cprint%20mode=%22body%22/%3E"
+wget -q -O - "$@" "https://osm.rescapes.net/api/interpreter?data=%3Cprint%20mode=%22body%22/%3E"
+# If the dispatcher isn't working, terminate it and test the installation vi the bin command:
+$EXEC_DIR/osm3s_query --db-dir=$DB_DIR
+paste: <query type="node"><bbox-query n="51.0" s="50.9" w="6.9" e="7.0"/><has-kv k="amenity" v="pub"/></query><print/>
+CTRL+D
 
 
 # If you need to increase the size of the volume on EC2:

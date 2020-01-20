@@ -16,7 +16,7 @@ import {
   blocksToGeojson,
   getFeaturesOfBlock,
   locationsToGeojson, locationsToGeojsonFile,
-  nodesAndIntersectionNodesByWayIdResultTask
+  nodesAndIntersectionNodesForIncompleteWayResultTask
 } from './overpassBlockHelpers';
 
 const blocks = [
@@ -3526,7 +3526,7 @@ describe('overpassBlockHelpers', () => {
   test('nodesOfWaysTask', done => {
     const errors = [];
     expect.assertions(1);
-    nodesAndIntersectionNodesByWayIdResultTask(
+    nodesAndIntersectionNodesForIncompleteWayResultTask(
       {},
       {
         way: {

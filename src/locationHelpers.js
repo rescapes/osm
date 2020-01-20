@@ -345,7 +345,7 @@ export const commonStreetOfLocation = (location, streetIntersectionSets) => {
     () => {
       // If there's a question about who's the main block, consult location
       const wayFeature = R.find(
-        feature => R.contains('way', R.prop('id', feature)),
+        feature => isOsmType('way', feature),
         reqStrPathThrowing('geojson.features', location)
       );
       // Use the name of the way or failing that the id
@@ -537,13 +537,17 @@ export const geojsonFeaturesIsPoint = geojson => R.and(
  */
 export const geojsonFeaturesHaveRadii = geojson => {
   return R.both(
-    features => {return R.length(features)},
-    features => {return R.all(
-      feature => {
-        return featureRepresentsCircle(feature);
-      },
-      features
-    )}
+    features => {
+      return R.length(features);
+    },
+    features => {
+      return R.all(
+        feature => {
+          return featureRepresentsCircle(feature);
+        },
+        features
+      );
+    }
   )(strPathOr([], 'features', geojson));
 };
 
@@ -567,7 +571,7 @@ export const mapGeojsonFeaturesHaveRadiiToPolygon = geojson => {
         features
       )
     )
-  )(geojson)
+  )(geojson);
 };
 
 /**
@@ -901,10 +905,9 @@ export const featureWithRadiusToCirclePolygon = (feature, options) => {
         )
       }, options);
       const radius = reqStrPathThrowing('properties.radius', feature);
-      const center = reqStrPathThrowing('geometry.coordinates', feature);
       // Create a polygon circle feature, converting the radius property to _radius
       return circle(
-        center,
+        feature,
         radius,
         mergedOptions
       );
@@ -912,3 +915,22 @@ export const featureWithRadiusToCirclePolygon = (feature, options) => {
   )(feature);
 };
 
+/**
+ * Creates a node from the coordinate and context
+ * @param {Object} context
+ * @param {String } context.id The id of the node. Should be in the format 'node/*' to match OSM
+ * @param {[Number]} coordinate The coordinate pair lon, lat
+ * @return {{geometry: {coordinates: *, type: string}, id: *, type: string, properties: {}}}
+ */
+export const nodeFromCoordinate = ({id}, coordinate) => {
+  return {
+    type: 'Feature',
+    id,
+    properties: {},
+    geometry: {
+      type: 'Point',
+      // Get the first point of the only line
+      coordinates: coordinate
+    }
+  };
+};

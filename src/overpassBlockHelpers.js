@@ -610,6 +610,7 @@ export const mapWaysByNodeIdToCleanedFeatures = waysByNodeId => mapMDeep(2,
  * the intersection. The first wayFeatures street name is that of the block itself, the subsequent are one or more alphabetically
  * listed street names. Example intersections:
  * {nodeFeatures/1234: ['Main St', 'Billy Goat Gate', 'Wonder Woman Way'], nodeFeatures/2345: ['Main St', 'Howdy Doody Drive']}
+ * @param {Object} osmConfig
  * @param location {Object} Location object for street context
  * @param features
  * @param features.wayFeatures
@@ -617,7 +618,7 @@ export const mapWaysByNodeIdToCleanedFeatures = waysByNodeId => mapMDeep(2,
  * @param features.wayFeaturesByNodeId
  * @returns {Object} {wayFeatures: wayFeatures features, nodeFeatures: nodeFeatures features, intersections: ... }
  */
-export const createSingleBlockFeatures = (location, {wayFeatures, nodeFeatures, wayFeaturesByNodeId}) => {
+export const createSingleBlockFeatures = (osmConfig, location, {wayFeatures, nodeFeatures, wayFeaturesByNodeId}) => {
   return R.merge(
     {
       // Calculate the street names and put them in intersections
@@ -628,6 +629,7 @@ export const createSingleBlockFeatures = (location, {wayFeatures, nodeFeatures, 
       // If we handle roundabouts correctly in the future these could also account for more
       // TODO we should handle Result.Error here
       nodesToIntersectingStreets: _intersectionStreetNamesFromWaysAndNodesResult(
+        osmConfig,
         wayFeatures,
         nodeFeatures,
         wayFeaturesByNodeId

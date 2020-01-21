@@ -30,10 +30,10 @@ describe('overpassSingleOrAllBlocks', () => {
     };
     queryLocationForOsmBlockOrAllResultsTask({}, location).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+        onResolved: ({Ok: locationsWithBlocks, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
-          blocksToGeojson(R.map(R.pick(['nodes', 'ways']), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(1);
+          blocksToGeojson(R.map(R.pick(['nodes', 'ways']), locationsWithBlocks));
+          expect(R.length(locationsWithBlocks)).toEqual(1);
         }
       }, errors, done)
     );

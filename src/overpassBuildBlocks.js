@@ -6,7 +6,7 @@ import {
   removeReverseTagsOfOrderWayFeaturesOfBlock, waysOfNodeQuery
 } from './overpassBlockHelpers';
 import {fetchOsmRawTask, osmResultTask, _calculateNodeAndWayRelationships} from './overpassHelpers';
-import {hashNodeFeature, hashWayFeature, wayFeaturesToCoordinates} from './overpassFeatureHelpers';
+import {hashNodeFeature, hashWayFeature, wayFeatureToCoordinates} from './overpassFeatureHelpers';
 import {
   reqStrPathThrowing,
   resultToTaskWithResult,
@@ -568,7 +568,7 @@ export function _resolveIncompleteWayResultTask(
                 coordinate
               ),
               coordinates => R.last(coordinates),
-              way => wayFeaturesToCoordinates(way)
+              way => wayFeatureToCoordinates(way)
             )(way);
             return of(Result.Ok({
               ways: R.concat(

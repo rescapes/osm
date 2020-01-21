@@ -38,6 +38,7 @@ import {
 import {length} from '@turf/turf';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
 import {loggers} from 'rescape-log';
+import {featuresByOsmType} from './locationHelpers';
 
 const log = loggers.get('rescapeDefault');
 
@@ -185,7 +186,10 @@ export const organizeResponseFeaturesResultsTask = (
  * and blocks that failes
  * @private
  */
-const _partialBlocksToFeaturesResultsTask = (osmConfig, location, {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
+const _partialBlocksToFeaturesResultsTask = (
+  osmConfig,
+  location,
+  {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
   return composeWithMapMDeep(1, [
     // Convert the results their values under Ok and Error
     // [Result] -> {Ok: [Object], Error: [Object]}
@@ -198,6 +202,7 @@ const _partialBlocksToFeaturesResultsTask = (osmConfig, location, {nodeIdToWays,
       return R.map(
         block => {
           const nodesToIntersectingStreetsResult = _intersectionStreetNamesFromWaysAndNodesResult(
+            osmConfig,
             reqStrPathThrowing('ways', block),
             reqStrPathThrowing('nodes', block),
             nodeIdToWays
@@ -205,7 +210,7 @@ const _partialBlocksToFeaturesResultsTask = (osmConfig, location, {nodeIdToWays,
           return R.map(
             nodesToIntersectingStreets => ({
               // Put the OSM results together
-              results: R.merge(block, {nodesToIntersectingStreets}),
+              block: R.merge(block, {nodesToIntersectingStreets}),
               // Add the intersections to the location and return it
               location: R.merge(
                 location,
@@ -267,6 +272,7 @@ const _partialBlocksToFeaturesResultsTask = (osmConfig, location, {nodeIdToWays,
           // Add intersections to the blocks based on the ways and nodes' properties
           block => R.merge(block, {
               nodesToIntersectingStreets: _intersectionStreetNamesFromWaysAndNodesResult(
+                osmConfig,
                 reqStrPathThrowing('ways', block),
                 reqStrPathThrowing('nodes', block),
                 nodeIdToWays

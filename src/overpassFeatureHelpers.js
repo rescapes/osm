@@ -68,7 +68,7 @@ export const hashWayFeature = wayFeature => {
  * @param wayFeature
  * @return {*[]}
  */
-export const wayFeaturesToCoordinates = wayFeature => {
+export const wayFeatureToCoordinates = wayFeature => {
   return chainWayCoordinates(R.identity, wayFeature);
 };
 
@@ -273,7 +273,6 @@ export const _linkedFeatures = (lookup, nodeFeatures) => {
         ({results, nodeMatches, nodeFeatures},
          wayFeature
         ) => {
-
           // Update the node matches with wayFeature. If we find the last node before the had node, reverse
           // the nodes and the matches, and henceforth the nodes will be reversed
           const updatedNodeMatches = _updateNodeMatches(nodeFeatures, nodeMatches, wayFeature);
@@ -596,6 +595,10 @@ export const cleanGeojson = feature => {
  * intersections of the wayFeatures. If street names can't be resolved because a nodeFeature is a dead end,
  * we use the street name and the dead-end node id. This way we always have two names at each end of the way.
  * It's possible that have more that two street names for an intersection where more than two street names meet
+ * @param {Object} osmConfig
+ * @param {Object} osmConfig.disableNodesOfWayQueries If true then no extra OSM queries are allowed to get
+ * intersection data. This means we allow naming intersections based on node ids if intersecting street features
+ * aren't loaded
  * @param {[Object]} nodeFeatures The 2 node features of the single block. This might include a dead end node
  * @param {[Object]} wayFeatures The way features of a single block. This could be one or more ways:
  * If the way splits half way through the block or if it's a boulevard, highway, etc with a divided roads
@@ -613,7 +616,7 @@ export const cleanGeojson = feature => {
  * Returns Result.Error if anything goes wrong
  * @private
  */
-export const _intersectionStreetNamesFromWaysAndNodesResult = (wayFeatures, nodeFeatures, nodeIdToWayFeatures) => {
+export const _intersectionStreetNamesFromWaysAndNodesResult = (osmConfig, wayFeatures, nodeFeatures, nodeIdToWayFeatures) => {
   // Get the node id to way features matching our node features
   const limitedNodeIdToWayFeatures = R.fromPairs(
     R.map(
@@ -640,24 +643,52 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (wayFeatures, node
   // Scores a featureName 100 if it matches a way name or id, else 0
   const wayMatchWeight = R.ifElse(feature => R.contains(R.prop('name', feature), wayMatches), R.always(1), R.always(0));
 
-  const nodeIdToResult = R.map(
-    waysOfNodeFeatures => {
+  const nodeIdToResult = R.mapObjIndexed(
+    (waysOfNodeFeatures, nodeId) => {
       return composeWithChainMDeep(1, [
-        // Take the name
+        // Take the name of each feature
         features => {
           return Result.Ok(R.map(R.prop('name'), features));
         },
-        // Error terminally if we didn't generate two features. This should never happen
+        // Error terminally if we didn't generate two features (i.e. an intersection).
+        // This should never happen when we can query OSM
+        // If we disabled OSM querying because we are processing non OSM data
         features => {
-          return R.ifElse(
-            features => R.compose(R.gt(2), R.length)(features),
-            features => {
-              const error = `Feature ${JSON.stringify(features)} generated fewer than 2 intersection names. This should never happen`;
-              log.warn(error);
-              return Result.Error({error});
-            },
-            features => Result.Ok(features)
-          )(features);
+          return R.cond([
+            [
+              // If we got 1 feature and disableNodesOfWayQueries is false, error
+              features => {
+                return R.both(
+                  () => R.propEq('disableNodesOfWayQueries', false, osmConfig),
+                  R.compose(R.gt(2), R.length)
+                )(features);
+              },
+              features => {
+                const error = `Feature ${JSON.stringify(features)} generated fewer than 2 intersection names. This should never happen`;
+                log.warn(error);
+                return Result.Error({error});
+              }
+            ],
+            [
+              // If we got 1 feature and disableNodesOfWayQueries is true, use the node id for the intersection name
+              () => {
+                return R.both(
+                  () => R.propEq('disableNodesOfWayQueries', true, osmConfig),
+                  R.compose(R.gt(2), R.length)
+                )(features);
+              },
+              features => {
+                return Result.Ok(R.concat(features, [{name: nodeId}]));
+              }
+            ],
+            [
+              // Otherwise returns the >1 features successfully
+              R.T,
+              features => {
+                return Result.Ok(features);
+              }
+            ]
+          ])(features);
         },
         // Sort by first matching a way and second alphabetically
         uniqueFeatures => Result.Ok(R.sortWith(

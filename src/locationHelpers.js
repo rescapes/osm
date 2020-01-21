@@ -652,6 +652,20 @@ export const featuresByOsmType = v(features => {
   id: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
 })).isRequired]], 'featuresByOsmType');
 
+/***
+ * Returs only features of the given OSM type from the feaatures
+ * @type {f1}
+ */
+export const featuresOfOsmType = v((osmType, features) => {
+  return R.prop(osmType, featuresByOsmType(features));
+}, [
+  ['osmType', PropTypes.string.isRequred],
+  ['features', PropTypes.arrayOf(PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+    }
+  )).isRequired]
+], 'featuresOfOsmType');
+
 /**
  * Indicates if loction has an array intersectionLocations with values, meaning it has lat/lon points which
  * tell us where the block location is

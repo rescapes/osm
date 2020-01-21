@@ -9,8 +9,11 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
-import {normalizedIntersectionNames} from './locationHelpers';
+export {
+  nonOsmGeojsonLinesToBlocksResultsTask,
+  osmCompatibleWayFeaturesFromGeojson,
+  partialBlocksFromNonOsmWayFeatures
+} from './overpassExternalSourceBlocks';
 
 export {
   calculateRouteTask,
@@ -53,6 +56,7 @@ export {
   stateCodeLookup,
   isOsmType,
   featuresByOsmType,
+  featuresOfOsmType,
   osmFeaturesOfLocationForType,
   locationIntersectionLocationToTurfPoints,
   geojsonFeaturesHaveRadii,
@@ -67,7 +71,9 @@ export {
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';
 export {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
-export {locationToOsmAllBlocksQueryResultsTask, nominatimOrGoogleJurisdictionGeojsonResultTask} from './overpassAllBlocks';
+export {
+  locationToOsmAllBlocksQueryResultsTask, nominatimOrGoogleJurisdictionGeojsonResultTask
+} from './overpassAllBlocks';
 export {
   osmLocationToLocationWithGeojsonResultTask,
   osmRelationshipGeojsonResultTask
@@ -89,3 +95,4 @@ export {
 export {
   blockToGeojson, blocksToGeojson, blocksWithLengths, lengthOfBlocks, locationsToGeojson, locationsToGeojsonFile
 } from './overpassBlockHelpers';
+

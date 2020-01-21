@@ -52,7 +52,7 @@ export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) =>
                     // Create the geojson fro the location
                     const {ways, nodes, nodesToIntersectingStreets} = value;
                     return {
-                      results: {nodesToIntersectingStreets},
+                      block: {nodesToIntersectingStreets},
                       location: locationAndOsmResultsToLocationWithGeojson(location, {ways, nodes})
                     };
                   },

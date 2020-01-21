@@ -7,16 +7,20 @@ const config = {
   input: [
     'src/index.js',
     'src/googleLocation.js',
+    'src/overpassExternalSourceBlocks.js',
     'src/locationHelpers.js',
     'src/nominatimLocationSearch.js',
     'src/overpassHelpers.js',
     'src/overpassAllBlocks.js',
+    'src/overpassAllBlocksHelpers.js',
     'src/overpassBlockHelpers.js',
     'src/overpassFeatureHelpers.js',
     'src/overpassSingleBlock.js',
+    'src/overpassSingleOrAllBlocks.js',
     'src/overpassStreet.js',
     'src/overpassBlocks.js',
-    'src/overpassTransit.js',
+    'src/overpassBuildBlocks.js',
+    'src/overpassTransit.js'
   ],
   plugins: []
 };
@@ -61,8 +65,11 @@ const configs = R.map(c => {
       ...Object.keys(pkg.dependencies || {}),
       ...Object.keys(pkg.peerDependencies || {})
     ],
-    plugins: R.concat(config.plugins, [ ])
-  },
+    plugins: R.concat(
+      config.plugins,
+      []
+    )
+  }
 
   /*
   // ES for Browsers
@@ -97,4 +104,4 @@ const configs = R.map(c => {
   }
    */
 ]);
-export default configs
+export default configs;

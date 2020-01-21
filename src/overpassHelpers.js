@@ -10,7 +10,7 @@
  */
 import 'regenerator-runtime';
 import {isLatLng} from './locationHelpers';
-import {reqStrPathThrowing, taskToResultTask, toNamedResponseAndInputs, traverseReduceWhile} from 'rescape-ramda';
+import {reqStrPathThrowing, taskToResultTask, toNamedResponseAndInputs, traverseReduceWhile, toMergedResponseAndInputs} from 'rescape-ramda';
 import {loggers} from 'rescape-log';
 import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers';
 import * as R from 'ramda';
@@ -474,20 +474,29 @@ export const _calculateNodeAndWayRelationships = ({ways, nodes}) => {
     ),
     toNamedResponseAndInputs('wayIdToWayPoints',
       // Map the way id to its points
-      ({ways}) => {return R.fromPairs(R.map(
-        wayFeature => [
-          reqStrPathThrowing('id', wayFeature),
-          hashWayFeature(wayFeature)
-        ],
-        ways
-      ))}
+      ({ways}) => {
+        return R.fromPairs(R.map(
+          wayFeature => [
+            reqStrPathThrowing('id', wayFeature),
+            hashWayFeature(wayFeature)
+          ],
+          ways
+        ));
+      }
     ),
     toNamedResponseAndInputs('wayIdToNodes',
       // Hash all way ids by intersection node if any waynode matches or
       // is an area-way (pedestrian area) within 5m  <-- TODO
       ({nodePointToNode, ways}) => {
         return R.fromPairs(R.map(
-          wayFeature => [reqStrPathThrowing('id', wayFeature), findMatchingNodes(nodePointToNode, wayFeature)],
+          wayFeature => {
+            return [
+              // way id becomes key
+              reqStrPathThrowing('id', wayFeature),
+              // nodes matching the way are values
+              findMatchingNodes(nodePointToNode, wayFeature)
+            ];
+          },
           ways
         ));
       }
@@ -501,24 +510,30 @@ export const _calculateNodeAndWayRelationships = ({ways, nodes}) => {
     ),
     toNamedResponseAndInputs('nodeIdToNodePoint',
       // Hash intersection nodes by id. These are all intersections
-      ({nodeIdToNode}) => R.map(
-        nodeFeature => hashNodeFeature(nodeFeature),
-        nodeIdToNode
-      )
+      ({nodeIdToNode}) => {
+        return R.map(
+          nodeFeature => hashNodeFeature(nodeFeature),
+          nodeIdToNode
+        );
+      }
     ),
     toNamedResponseAndInputs('nodePointToNode',
       // Hash the node points to match ways to them
-      ({nodes}) => R.indexBy(
-        nodeFeature => hashNodeFeature(nodeFeature),
-        nodes
-      )
+      ({nodes}) => {
+        return R.indexBy(
+          nodeFeature => hashNodeFeature(nodeFeature),
+          nodes
+        );
+      }
     ),
     toNamedResponseAndInputs('nodeIdToNode',
       // Hash intersection nodes by id. These are all intersections
-      ({nodes}) => R.indexBy(
-        reqStrPathThrowing('id'),
-        nodes
-      )
+      ({nodes}) => {
+        return R.indexBy(
+          reqStrPathThrowing('id'),
+          nodes
+        );
+      }
     )
   )({ways, nodes});
 };

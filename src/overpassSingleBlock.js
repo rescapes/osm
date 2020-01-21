@@ -358,17 +358,17 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
   // Try to query by bounds, if we fail accumulate errors
 
   return R.composeK(
-    matchingLocationsWithResults => of(_locationToOsmSingleBlockBoundsResolve(location, matchingLocationsWithResults)),
+    matchingLocationsWithBlocks => of(_locationToOsmSingleBlockBoundsResolve(location, matchingLocationsWithBlocks)),
     location => locationToOsmAllBlocksQueryResultsTask(osmConfig, location)
   )(locationWithGeojsonBounds);
 };
 
-const _locationToOsmSingleBlockBoundsResolve = (location, {Ok: locationsWithResults, Errors: errors}) => {
+const _locationToOsmSingleBlockBoundsResolve = (location, {Ok: locationsWithBlocks, Errors: errors}) => {
   // Debug
-  blocksToGeojson(R.map(R.prop('results'), locationsWithResults));
+  blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
   // Find the block that has nodes within an acceptable tolerance of location.locationPoints to be
   // considered the correct block
-  const matchingLocationsWithResults = compact(
+  const matchingLocationsWithBlocks = compact(
     R.map(
       ({location, results}) => {
         const nodes = extents(reqStrPathThrowing('nodes', results));
@@ -390,17 +390,17 @@ const _locationToOsmSingleBlockBoundsResolve = (location, {Ok: locationsWithResu
           () => null
         )({location, result: results});
       },
-      locationsWithResults
+      locationsWithBlocks
     )
   );
   return R.ifElse(
-    matchingLocationsWithResults => R.compose(R.lt(0), R.length)(matchingLocationsWithResults),
-    matchingLocationsWithResults => Result.Ok(R.head(matchingLocationsWithResults)),
+    matchingLocationsWithBlocks => R.compose(R.lt(0), R.length)(matchingLocationsWithBlocks),
+    matchingLocationsWithBlocks => Result.Ok(R.head(matchingLocationsWithBlocks)),
     () => Result.Error({
       location,
       errors: [`_locationToOsmSingleBlockBoundsQueryResultTask could not resolve location with bounds`]
     })
-  )(matchingLocationsWithResults);
+  )(matchingLocationsWithBlocks);
 };
 
 /**
@@ -445,6 +445,7 @@ const _queryOverpassForSingleBlockResultTask = (osmConfig, location, {way: wayQu
     // Finally get the features from the response
     resultToTaskNeedingResult(
       ({wayFeatures, nodeFeatures, wayFeaturesByNodeId}) => of(createSingleBlockFeatures(
+        osmConfig,
         location,
         {wayFeatures, nodeFeatures, wayFeaturesByNodeId}
       ))

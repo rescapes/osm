@@ -1,12 +1,11 @@
 import * as R from 'ramda';
-import {composeWithChainMDeep, defaultRunConfig, defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {defaultRunConfig, defaultRunToResultConfig} from 'rescape-ramda';
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 import {blocksToGeojson, blocksWithLengths, blockToGeojson} from './overpassBlockHelpers';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
 import grandrapids from './samples/grandrapids.json';
-import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers';
-import {featureWithReversedCoordinates, nodeFromCoordinate} from './locationHelpers';
+import {nonOsmGeojsonLinesToBlocksResultsTask} from './overpassExternalSourceBlocks';
 /**
  * Created by Andy Likuski on 2019.06.14
  * Copyright (c) 2019 Andy Likuski
@@ -32,10 +31,10 @@ describe('overpassAllBlocks', () => {
     };
     locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+        onResolved: ({Ok: locationsWithBlocks, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
-          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(1030);
+          blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
+          expect(R.length(locationsWithBlocks)).toEqual(1030);
         }
       }, errors, done)
     );
@@ -52,10 +51,10 @@ describe('overpassAllBlocks', () => {
     };
     locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+        onResolved: ({Ok: locationsWithBlocks, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
-          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(131);
+          blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
+          expect(R.length(locationsWithBlocks)).toEqual(131);
         }
       }, errors, done)
     );
@@ -104,11 +103,11 @@ describe('overpassAllBlocks', () => {
     };
     queryLocationForOsmBlockOrAllResultsTask({}, location).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+        onResolved: ({Ok: locationsWithBlocks, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
-          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          blocksWithLengths(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(16);
+          blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
+          blocksWithLengths(R.map(R.prop('block'), locationsWithBlocks));
+          expect(R.length(locationsWithBlocks)).toEqual(16);
         }
       }, errors, done)
     );
@@ -139,10 +138,10 @@ describe('overpassAllBlocks', () => {
     };
     locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+        onResolved: ({Ok: locationsWithBlocks, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
-          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(9);
+          blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
+          expect(R.length(locationsWithBlocks)).toEqual(9);
         }
       }, errors, done)
     );
@@ -169,10 +168,10 @@ describe('overpassAllBlocks', () => {
     };
     locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
       {
-        onResolved: ({Ok: locationsAndOsmResults, Error: errors}) => {
+        onResolved: ({Ok: locationsWithBlocks, Error: errors}) => {
           // Paste the results of this into a geojson viewer for debugging
-          blocksToGeojson(R.map(R.prop('results'), locationsAndOsmResults));
-          expect(R.length(locationsAndOsmResults)).toEqual(9);
+          blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
+          expect(R.length(locationsWithBlocks)).toEqual(9);
         }
       }, errors, done)
     );
@@ -3648,68 +3647,4 @@ describe('overpassAllBlocks', () => {
       }, errors, done)
     );
   }, 1000000);
-
-  test('Process geojson derived from shapefile', done => {
-    // Add an id and name to each way feature.properties.tags.name
-    const features = R.addIndex(R.map)(
-      (feature, index) => R.compose(
-        feature => {
-          // Create a fake id that matches the OSM way/ id syntax.
-          return R.set(R.lensProp('id'), `way/fake${index}`, feature);
-        },
-        feature => {
-          return R.over(
-            R.lensProp('properties'),
-            properties => R.over(
-              R.lensProp('tags'),
-              tags => R.merge(tags || {}, {
-                name: R.prop('SEGNAME', properties
-                )
-              }),
-              properties
-            ),
-            feature
-          );
-        }
-      )(feature),
-      R.prop('features', grandrapids)
-    );
-    const location = {country: 'USA', state: 'MI', city: 'Grand Rapids'};
-    // From the lines create a line in each direction and a node at the start of that line
-    const partialBlocks = composeWithChainMDeep(1, [
-      // Chain each item to ways, nodes
-      geojsonLineFeature => {
-        // Get the firstCoordinate of the lineFeature to produce a node.
-        const firstCoordinate = reqStrPathThrowing('geometry.coordinates.0.0', geojsonLineFeature);
-        return {
-          ways: Array.of(geojsonLineFeature), nodes: Array.of(
-            nodeFromCoordinate(
-              {id: `node/${R.compose(reqStrPathThrowing('1'), R.split('/'), R.prop('id'))(geojsonLineFeature)}`},
-              firstCoordinate
-            )
-          )
-        };
-      },
-      // Produce a flat list of each line in both directions
-      features => R.chain(
-        geojsonLine => {
-          return [geojsonLine, featureWithReversedCoordinates(geojsonLine)];
-        },
-        features
-      )
-
-    ])(features);
-    const errors = [];
-    return organizeResponseFeaturesResultsTask(
-      {disableNodesOfWayQueries: true},
-      location,
-      {partialBlocks}
-    ).run().listen(
-      defaultRunConfig({
-        onResolved: ({Ok: blocks, Error: errorBlocks}) => {
-          expect(R.length(blocks)).toEqual(8);
-        }
-      }, errors, done)
-    );
-  });
 });

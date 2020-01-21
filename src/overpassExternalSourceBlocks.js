@@ -1,14 +1,8 @@
 import {hashPoint, wayFeatureToCoordinates} from './overpassFeatureHelpers';
 import * as R from 'ramda';
-import {composeWithChainMDeep, defaultRunConfig, defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
-import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
-import {blocksToGeojson, blocksWithLengths, blockToGeojson} from './overpassBlockHelpers';
-import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
-import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
-import grandrapids from './samples/grandrapids.json';
+import {composeWithChainMDeep} from 'rescape-ramda';
 import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers';
 import {featureWithReversedCoordinates, nodeFromCoordinate} from './locationHelpers';
-import {hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers';
 
 /**
  * Created by Andy Likuski on 2020.01.21

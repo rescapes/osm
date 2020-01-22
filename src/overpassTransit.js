@@ -12,7 +12,7 @@
 import * as R from 'ramda';
 import {mergeAllWithKey, removeDuplicateObjectsByProp, reqStrPathThrowing} from 'rescape-ramda';
 import {loggers} from 'rescape-log';
-import {buildFilterQuery, taskQuery} from './overpassHelpers';
+import {buildFilterQuery, queryTask} from './overpassHelpers';
 import {concatFeatures} from 'rescape-helpers';
 import {extractSquareGridBboxesFromBounds} from 'rescape-helpers';
 
@@ -23,7 +23,7 @@ import {extractSquareGridBboxesFromBounds} from 'rescape-helpers';
  * put a bounding box here. Instead put it in conditions.bounds.
  * @param {Object} options.cellSize If specified delegates to fetchCelled
  * @param {String} options.overpassUrl server to query
- * @param {Object} options.testMockJsonToKey for testing only matches a test result in __mocks__/query-overpass.js
+ * @param {Object} options.context for testing only matches a test result in __mocks__/query-overpass.js
  * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
  * @param {Array} conditions.filters List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
  * The conditions apply to all types given
@@ -42,7 +42,7 @@ export const fetchTransitOsm = R.curry((options, conditions, types) => {
   // Build the query
   const query = buildFilterQuery(defaultOptions.settings, conditions, types);
   // Create a Task to run the query. Settings are already added to the query, so omit here
-  return taskQuery(R.omit(['settings'], options), query);
+  return queryTask(R.omit(['settings'], options), query);
 });
 
 
@@ -58,7 +58,7 @@ export const fetchTransitOsm = R.curry((options, conditions, types) => {
  * @param {[Number]} bounds [lat_min, lon_min, lat_max, lon_max]
  * @param {String} options.overpassUrl server to query
  * @param {Number} options.sleepBetweenCalls Pause this many milliseconds between calls to avoid the request rate limit
- * @param {Object} options.testMockJsonToKey Used only for testing
+ * @param {Object} options.context Used only for testing
  * @param {Array} conditions List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
  * @param {Array} conditions.filters List of query conditions, each in the form '["prop"]' or '["prop" operator "value"]'.
  * The conditions apply to all types given

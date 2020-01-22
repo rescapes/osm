@@ -748,7 +748,7 @@ export function _completeDeadEndNodeOrQueryForFakeIntersectionNodeResultTask(osm
         // Query for ways of the node to find out if it's a real intersection
         ({node}) => osmResultTask({
             name: 'waysOfNodeQueryForFakeIntersection',
-            testMockJsonToKey: {node: reqStrPathThrowing('id', node), type: 'waysOfNode'}
+            context: {node: reqStrPathThrowing('id', node), type: 'waysOfNode'}
           },
           options => fetchOsmRawTask(options, waysOfNodeQuery(osmConfig, reqStrPathThrowing('id', node)))
         )

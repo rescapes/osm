@@ -11,8 +11,8 @@
 
 
 import {of, rejected} from 'folktale/concurrency/task';
-import {osmLocationToRelationshipGeojsonResultTask, osmResultTask} from './overpassHelpers';
-import {defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {osmResultTask} from './overpassHelpers';
+import {defaultRunToResultConfig} from 'rescape-ramda';
 
 describe('overpass', () => {
 

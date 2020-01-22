@@ -204,8 +204,8 @@ const intersectionNodesOfWayQuery = (osmConfig, {wayFeature}, wayId) => {
  * results with the neighborhood level osmId because it is faster, but if we get no results we query with the
  * city osmId. Alternatively this can be a location with lat/lons specified for the intersections.
  * Having lat/lons is just as good as an osmId
- * @returns {Task<Result<Object>>} Result.Ok in the form {location, result} or a Result.Error in the form {location, error}
- * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
+ * @returns {Task<Result<Object>>} Result.Ok in the form {location, block} or a Result.Error in the form {location, error}
+ * The block contain nodes and ways, where there are normally 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
  * Some blocks have more than two nodes if they have multiple divided ways.
  * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
@@ -342,9 +342,11 @@ export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) =
             R.map(
               query => osmResultTask({
                   name: `parallelWayNodeQueriesResultTask: ${type}`,
-                  testMockJsonToKey: R.merge({type}, location)
+                  context: R.merge({type}, location)
                 },
-                options => fetchOsmRawTask(options, query)
+                options => {
+                  return fetchOsmRawTask(options, query);
+                }
               ),
               queries
             )
@@ -392,7 +394,7 @@ export const waysByNodeIdResultsTask = (osmConfig, {way, node}) => R.map(
           // Then map the task response to include the query for debugging/error resolution
           response => ({[nodeId]: {query: waysOfNodeQuery(osmConfig, nodeId), response: response}}),
           // Perform the task
-          osmResultTask({name: 'waysOfNodeQuery', testMockJsonToKey: {nodeId, type: 'waysOfNode'}},
+          osmResultTask({name: 'waysOfNodeQuery', context: {nodeId, type: 'waysOfNode'}},
             options => fetchOsmRawTask(options, waysOfNodeQuery(osmConfig, nodeId))
           )
         );
@@ -532,7 +534,7 @@ const _intersectionNodesOfWayResultTask = (osmConfig, {wayFeature}, wayId) => {
       // Perform the task
       ({wayId, intersectionNodesOfWayQuery}) => osmResultTask({
           name: 'intersectionNodesOfWayQuery',
-          testMockJsonToKey: {wayId, type: 'nodesOfWay'}
+          context: {wayId, type: 'nodesOfWay'}
         },
         options => fetchOsmRawTask(options, intersectionNodesOfWayQuery)
       )
@@ -560,7 +562,7 @@ const _nodesOfWayResultTask = (osmConfig, wayId) => {
       // Perform the task
       ({wayId, nodesOfWayQuery}) => osmResultTask({
           name: 'nodesOfWayQuery',
-          testMockJsonToKey: {wayId, type: 'nodesOfWay'}
+          context: {wayId, type: 'nodesOfWay'}
         },
         options => fetchOsmRawTask(options, nodesOfWayQuery)
       )

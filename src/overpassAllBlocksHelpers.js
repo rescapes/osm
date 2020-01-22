@@ -312,18 +312,18 @@ const _partialBlocksToFeaturesResultsTask = (
 const _removeOpposingDuplicateBlocks = blocks => {
   return R.reduceBy(
     (otherBlock, block) => {
-      // TODO if we get in here we did something wrong
-      log.warn(`_removeOpposingDuplicateBlocks: Received matching opposing blocks. This shouldn't happen anymore. Block 1: ${
-        JSON.stringify(block)
-      } Block 2: ${
-        JSON.stringify(otherBlock)
-      }`);
       return R.when(
         () => otherBlock,
         // When we have 2 blocks it means we have the block in each direction, which we expect.
         // It's also possible to get some weird cases where ways were entered wrong in OSM and overlap,
         // creating the same block in terms of the node has but with different way ids
         block => {
+          // TODO if we get in here we did something wrong
+          log.warn(`_removeOpposingDuplicateBlocks: Received matching opposing blocks. This shouldn't happen anymore. Block 1: ${
+            JSON.stringify(block)
+          } Block 2: ${
+            JSON.stringify(otherBlock)
+          }`);
           if (R.complement(R.equals)(
             ...R.map(
               b => R.compose(R.sort(R.identity), R.map(reqStrPathThrowing('id')), reqStrPathThrowing('ways'))(b),
@@ -390,7 +390,7 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
 ) => {
 
   // Hash the partial blocks independent of direction so we can eliminate twin partialBlocks whenever
-  // on is processed.
+  // one is processed.
   const hashToPartialBlocks = R.reduceBy(
     (a, b) => R.concat(a, [b]),
     [],

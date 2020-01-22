@@ -160,15 +160,15 @@ const getResponse = (mockRequestContext) => {
  * @param query
  * @param cb
  * @param options
- * @param options.testMockJsonToKey Required for testing
+ * @param options.context Required for testing
  * @return {Promise}
  */
 module.exports = (query, cb, options) => {
   // We can't mock nodesOfWay queries, there are too many
-  if (R.propEq('type', 'nodesOfWay', options.testMockJsonToKey)) {
+  if (R.propEq('type', 'nodesOfWay', options.context)) {
     return _unmocked(query, cb, options);
   }
-  const response = getResponse(options.testMockJsonToKey);
+  const response = getResponse(options.context);
   // If our mock doesn't have the right data it gives a warning and we query for real
   if (!response) {
     return _unmocked(query, cb, options)

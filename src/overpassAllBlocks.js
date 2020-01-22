@@ -31,7 +31,7 @@ import {
   geojsonFeaturesHaveShapeOrRadii,
   geojsonFeaturesIsPoint,
   isNominatimEligible,
-  locationAndOsmResultsToLocationWithGeojson
+  locationAndOsmBlocksToLocationWithGeojson
 } from './locationHelpers';
 import {v} from 'rescape-validate';
 import PropTypes from 'prop-types';
@@ -93,12 +93,12 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
     result => resultToTaskWithResult(
       // Process Result Tasks locations, merging in jurisdiction data when needed
       // Task Result [Location] -> Task Result [Location]
-      resultsAndLocations => {
+      locationAndBlocks => {
         return traverseReduceDeep(2,
           (locations, location) => R.concat(locations, [location]),
           of(Result.Ok([])),
           R.map(
-            ({results, location}) => {
+            ({block, location}) => {
               return R.ifElse(
                 ({location}) => {
                   return R.both(
@@ -111,14 +111,14 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                 },
                 // If we had a country or city, we already have jurisdiction data. Just rewrap in Result.Ok and task
                 obj => R.compose(of, Result.Ok)(obj),
-                // Reverse geocode and combine results, favoring keys already in location
-                ({results, location}) => {
+                // Reverse geocode and combine block, favoring keys already in location
+                ({block, location}) => {
                   // Task Result Object -> Task Result Object
                   return mapMDeep(2,
                     l => {
-                      // Merge the results of the reverse goecoding. We'll keep our geojson since it represents
+                      // Merge the block of the reverse goecoding. We'll keep our geojson since it represents
                       // the block and the reverse geocode just represents the center point
-                      return {results, location: R.merge(l, location)};
+                      return {block, location: R.merge(l, location)};
                     },
                     // Reverse geocode the center of the block to get missing jurisdiction data
                     nominatimReverseGeocodeToLocationResultTask(
@@ -132,9 +132,9 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                     )
                   );
                 }
-              )({results, location});
+              )({block, location});
             },
-            resultsAndLocations
+            locationAndBlocks
           )
         );
       }
@@ -142,10 +142,10 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
     // Use the results to create geojson for the location
     // Task Result [<results, location>] -> Task Result [<results, location>]
     locationBlocksResult => of(mapMDeep(2,
-      ({results, location}) => {
+      ({block, location}) => {
         return {
-          results,
-          location: locationAndOsmResultsToLocationWithGeojson(location, results)
+          block,
+          location: locationAndOsmBlocksToLocationWithGeojson(location, block)
         };
       }
     )(locationBlocksResult)),

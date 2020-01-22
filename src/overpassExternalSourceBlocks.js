@@ -1,8 +1,12 @@
 import {hashPoint, wayFeatureToCoordinates} from './overpassFeatureHelpers';
 import * as R from 'ramda';
-import {composeWithChainMDeep} from 'rescape-ramda';
+import {composeWithChainMDeep, composeWithMapMDeep} from 'rescape-ramda';
 import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers';
-import {featureWithReversedCoordinates, nodeFromCoordinate} from './locationHelpers';
+import {
+  featureWithReversedCoordinates,
+  locationAndOsmBlocksToLocationWithGeojson,
+  nodeFromCoordinate
+} from './locationHelpers';
 
 /**
  * Created by Andy Likuski on 2020.01.21
@@ -110,12 +114,30 @@ export const partialBlocksFromNonOsmWayFeatures = wayFeatures => {
  * this isn't really async just uses OSM code paths that needs to query OSM when osmConfig.disableNodesOfWayQueries
  * is false
  */
-export const nonOsmGeojsonLinesToBlocksResultsTask = ({osmConfig}, {location, nameProp}, lineGeojson) => {
+export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {location, nameProp}, lineGeojson) => {
   const wayFeatures = osmCompatibleWayFeaturesFromGeojson({nameProp}, lineGeojson);
   const partialBlocks = partialBlocksFromNonOsmWayFeatures(wayFeatures);
-  return organizeResponseFeaturesResultsTask(
-    R.merge(osmConfig, {disableNodesOfWayQueries: true}),
-    location,
-    {partialBlocks}
-  );
+  return composeWithMapMDeep(1, [
+    locationWithBlockResults => {
+      return R.over(
+        R.lensProp('Ok'),
+        locationWithBlocks => {
+          return R.map(
+            locationWithBlock => {
+              return locationAndOsmBlocksToLocationWithGeojson(
+                R.prop('location', locationWithBlock),
+                R.prop('block', locationWithBlock)
+              );
+            },
+            locationWithBlocks
+          );
+        },
+        locationWithBlockResults);
+    },
+    ({osmConfig, location, partialBlocks}) => organizeResponseFeaturesResultsTask(
+      R.merge(osmConfig, {disableNodesOfWayQueries: true}),
+      location,
+      {partialBlocks}
+    )
+  ])({osmConfig, location, partialBlocks});
 };

@@ -10,7 +10,7 @@
  */
 
 export {
-  nonOsmGeojsonLinesToBlocksResultsTask,
+  nonOsmGeojsonLinesToLocationBlocksResultsTask,
   osmCompatibleWayFeaturesFromGeojson,
   partialBlocksFromNonOsmWayFeatures
 } from './overpassExternalSourceBlocks';
@@ -44,7 +44,7 @@ export {
   locationHasLocationPoints,
   wayFeatureName,
   wayFeatureNameOrDefault,
-  locationAndOsmResultsToLocationWithGeojson,
+  locationAndOsmBlocksToLocationWithGeojson,
   normalizedIntersectionNames,
   addressStringForBlock,
   locationWithLocationPoints,

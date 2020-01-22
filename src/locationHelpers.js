@@ -596,7 +596,7 @@ export const featureRepresentsCircle = feature => {
  * @param {[Object]} nodes List of node features
  * @returns {f2|f1}
  */
-export const locationAndOsmResultsToLocationWithGeojson = (location, {ways, nodes, relations}) => {
+export const locationAndOsmBlocksToLocationWithGeojson = (location, {ways, nodes, relations}) => {
   return R.set(
     R.lensProp('geojson'),
     {
@@ -623,7 +623,7 @@ export const locationAndOsmResultsToLocationWithGeojson = (location, {ways, node
  */
 export const aggregateLocation = ({preserveLocationGeojson}, location, componentLocations) => {
   return R.compose(
-    featuresByType => locationAndOsmResultsToLocationWithGeojson(location, featuresByType),
+    featuresByType => locationAndOsmBlocksToLocationWithGeojson(location, featuresByType),
     // Get rid of duplicate nodes. We don't want to remove duplicate way ids because
     // we chop ways into individual blocks, so they have the same id but different points
     featuresByType => R.over(R.lensProp('nodes'), nodes => R.uniqBy(R.prop('id'), nodes || []), featuresByType),

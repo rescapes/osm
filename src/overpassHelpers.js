@@ -10,7 +10,13 @@
  */
 import 'regenerator-runtime';
 import {isLatLng} from './locationHelpers';
-import {reqStrPathThrowing, taskToResultTask, toNamedResponseAndInputs, traverseReduceWhile, toMergedResponseAndInputs} from 'rescape-ramda';
+import {
+  reqStrPathThrowing,
+  taskToResultTask,
+  toNamedResponseAndInputs,
+  traverseReduceWhile,
+  toMergedResponseAndInputs
+} from 'rescape-ramda';
 import {loggers} from 'rescape-log';
 import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers';
 import * as R from 'ramda';
@@ -294,12 +300,12 @@ export const buildFilterQuery = R.curry((settings, conditions, types) => {
  * @param {Object} config
  * @param {Number} [config.tries] Number of tries to make. Defaults to the number of server
  * @param {String} config.name The name taskFunc for logging purposes
- * @param {Object} config.testMockJsonToKey For mock testing only. JSON to identify the desired results
- * in __mocks__/query-overpass.js
+ * @param {Object} config.context For errors and mock testing only. Context to identify information about the request
+ * and to mock the desired results in __mocks__/query-overpass.js
  * @param taskFunc
  * @returns {Task<Result<Object>>} The response in a Result.Ok or errors in Result.Error
  */
-export const osmResultTask = ({tries, name, testMockJsonToKey}, taskFunc) => {
+export const osmResultTask = ({tries, name, context}, taskFunc) => {
   const attempts = tries || R.length(overpassServers);
   return traverseReduceWhile(
     {
@@ -330,7 +336,15 @@ export const osmResultTask = ({tries, name, testMockJsonToKey}, taskFunc) => {
         task(({resolve}) => {
           log.debug(`Starting OSM task ${name} attempt ${attempt + 1} of ${attempts} on server ${server}`);
           return resolve(server);
-        }).chain(server => taskFunc({overpassUrl: server, testMockJsonToKey}))
+        }).chain(server => {
+          return taskFunc({overpassUrl: server, context: context});
+        }).orElse(error => {
+          return {
+            error,
+            name,
+            context: context
+          };
+        })
       ).map(v => v.mapError(e => ({value: e, server})));
     }, attempts)
   );
@@ -342,9 +356,9 @@ export const osmResultTask = ({tries, name, testMockJsonToKey}, taskFunc) => {
  * @param {Number} options.sleepBetweenCalls: Optional value to slow down calls. This only matters when
  * multiple queries are running
  * @param {String} query The complete OSM query string
- * @return {Task} A task that calls query-overpass with the query and resolves to a query result
+ * @return {Task} A task that calls query-overpass with the query and resolves to a query response
  */
-export const taskQuery = (options, query) => {
+export const queryTask = (options, query) => {
   // Wrap overpass helper's execution and callback in a Task
   return task(resolver => {
     // Possibly delay each call to query_overpass to avoid request rate threshold
@@ -355,7 +369,7 @@ export const taskQuery = (options, query) => {
           if (!error) {
             resolver.resolve(data);
           } else {
-            resolver.reject(error);
+            resolver.reject({error, query});
           }
         }, options);
       },
@@ -371,7 +385,7 @@ export const taskQuery = (options, query) => {
  * @param {[String]} options.settings OSM query settings such as '[out:csv']`. Defaults to [`[out:json]`]. Don't
  * put a bounding box here. Instead put it in conditions.bounds.
  * @param {String} query A complete OSM query, minus the settings
- * @returns {Task} A Task to run the query
+ * @returns {Task} A Task that resolves to the query reponse or rejects with an Error
  */
 export const fetchOsmRawTask = R.curry((options, query) => {
   // Default settings. Set timeout and maxsize to large values
@@ -386,7 +400,16 @@ export const fetchOsmRawTask = R.curry((options, query) => {
     )(options)
   };`;
   // Create a Task to run the query. Settings are already added to the query, so omit here
-  return taskQuery(options, `${appliedSettings}${query}`);
+  return queryTask(options, `${appliedSettings}${query}`).orElse(
+    error => {
+      // Return Error context
+      return {
+        error,
+        options,
+        query
+      };
+    }
+  );
 });
 
 /**

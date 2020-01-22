@@ -36,7 +36,7 @@ const log = loggers.get('rescapeDefault');
  */
 export const osmRelationshipGeojsonResultTask = osmId => {
   return osmResultTask(
-    {name: 'fetchOsmRawTask', testMockJsonToKey: {osmId}},
+    {name: 'fetchOsmRawTask', context: {osmId}},
     options => fetchOsmRawTask(options, `
 rel(id:${osmId}) -> .rel;
 .rel out geom; 
@@ -137,7 +137,7 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
               geojson => of(R.merge(filterLocation, {geojson}))
             ),
             osmId => osmResultTask(
-              {name: 'fetchOsmRawTask', testMockJsonToKey: {osmId}},
+              {name: 'fetchOsmRawTask', context: {osmId}},
               options => fetchOsmRawTask(options, `${locationType}(id:${osmId}) -> .${locationType};
 .${locationType} out geom;`)
             )

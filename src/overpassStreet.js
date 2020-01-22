@@ -22,7 +22,7 @@ import {
 import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {loggers} from 'rescape-log';
-import {commonStreetOfLocation, locationAndOsmResultsToLocationWithGeojson} from './locationHelpers';
+import {commonStreetOfLocation, locationAndOsmBlocksToLocationWithGeojson} from './locationHelpers';
 import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers';
 
 const log = loggers.get('rescapeDefault');
@@ -42,7 +42,7 @@ export const queryOverpassWithLocationForStreetResultTask = (osmConfig, location
   return R.composeK(
     // Take the positive results and combine them with the location, which has corresponding intersections
     ({Ok: locationsAndResults}) => of(Result.Ok(R.map(
-      ({location, results}) => locationAndOsmResultsToLocationWithGeojson(location, results),
+      ({location, results}) => locationAndOsmBlocksToLocationWithGeojson(location, results),
       locationsAndResults
     ))),
     // Query for all blocks matching the street

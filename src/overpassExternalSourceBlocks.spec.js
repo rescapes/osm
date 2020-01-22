@@ -1,8 +1,8 @@
 import * as R from 'ramda';
 import {defaultRunConfig} from 'rescape-ramda';
-import {blocksToGeojson} from './overpassBlockHelpers';
+import {blocksToGeojson, locationsToGeojson} from './overpassBlockHelpers';
 import grandrapids from './samples/grandrapids.json';
-import {nonOsmGeojsonLinesToBlocksResultsTask} from './overpassExternalSourceBlocks';
+import {nonOsmGeojsonLinesToLocationBlocksResultsTask} from './overpassExternalSourceBlocks';
 /**
  * Created by Andy Likuski on 2019.06.14
  * Copyright (c) 2019 Andy Likuski
@@ -23,11 +23,11 @@ describe('overpassAllBlocks', () => {
     const geojsonLines = grandrapids;
     const osmConfig = {}
     const errors = [];
-    nonOsmGeojsonLinesToBlocksResultsTask({osmConfig}, {location, nameProp}, geojsonLines).run().listen(
+    nonOsmGeojsonLinesToLocationBlocksResultsTask({osmConfig}, {location, nameProp}, geojsonLines).run().listen(
       defaultRunConfig({
-        onResolved: ({Ok: locationsWithBlocks, Error: errorBlocks}) => {
-          blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
-          expect(R.length(locationsWithBlocks)).toEqual(16);
+        onResolved: ({Ok: locationBlocks, Error: errorBlocks}) => {
+          locationsToGeojson(locationBlocks);
+          expect(R.length(locationBlocks)).toEqual(16);
         }
       }, errors, done)
     );

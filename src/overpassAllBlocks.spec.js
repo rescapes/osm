@@ -4,8 +4,6 @@ import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 import {blocksToGeojson, blocksWithLengths, blockToGeojson} from './overpassBlockHelpers';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
-import grandrapids from './samples/grandrapids.json';
-import {nonOsmGeojsonLinesToBlocksResultsTask} from './overpassExternalSourceBlocks';
 /**
  * Created by Andy Likuski on 2019.06.14
  * Copyright (c) 2019 Andy Likuski
@@ -151,8 +149,8 @@ describe('overpassAllBlocks', () => {
     expect.assertions(1);
     const errors = [];
     const location = {
-      country: 'Bermuda',
-      city: 'Southampton',
+      country: 'Norway',
+      city: 'Oslo',
       geojson: {
         type: 'FeatureCollection',
         features: [

@@ -13,7 +13,7 @@ import {
   addressString,
   isResolvableAllBlocksLocation,
   isResolvableSingleBlockLocation,
-  locationAndOsmResultsToLocationWithGeojson
+  locationAndOsmBlocksToLocationWithGeojson
 } from './locationHelpers';
 import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
@@ -53,7 +53,7 @@ export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) =>
                     const {ways, nodes, nodesToIntersectingStreets} = value;
                     return {
                       block: {nodesToIntersectingStreets},
-                      location: locationAndOsmResultsToLocationWithGeojson(location, {ways, nodes})
+                      location: locationAndOsmBlocksToLocationWithGeojson(location, {ways, nodes})
                     };
                   },
                   toArrayIfNot(value))

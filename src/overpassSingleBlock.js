@@ -35,7 +35,12 @@ import {
   osmEquals, osmIdEquals, osmIdToAreaId
 } from './overpassHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
-import {locationHasLocationPoints, locationWithLocationPoints} from './locationHelpers';
+import {
+  featuresByOsmType,
+  locationHasGeojsonFeatures,
+  locationHasLocationPoints,
+  locationWithLocationPoints
+} from './locationHelpers';
 import {_googleResolveJurisdictionResultTask, googleIntersectionTask} from './googleLocation';
 import {loggers} from 'rescape-log';
 import {
@@ -81,13 +86,14 @@ export const queryLocationForOsmSingleBlocksResultsTask = (osmConfig, locations)
  * was already set
  * @param {Object} location A Location object
  * @param {[String]} location.intersections Two pairs of strings representing the intersections cross-streets
- * @returns {Task<Result>} Result.Ok with the geojson results and the location in the form {results, location}
+ * @returns {Task<Result>} Result.Ok with the geojson results and the location in the form {blcok, location}
  * or a Result.Error in the form {error, location}. The location has a new property googleIntersctionObjs if Result.Ok,
  * which is the result of the google geocodings
- * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
- * There must be at least on way and possibly more, depending on where two ways meet.
+ * The blocks contain nodes and ways, and nodesToIntersectingStreets ,
+ * where there are normally 2 nodes for the two intersections.
+ * There must be at least one way and possibly more, depending on where two ways meet.
  * Some blocks have more than two nodes if they have multiple divided ways.
- * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
+ * The results also contain nodesToIntersectingStreets, and object keyed by node ids and valued by the ways that intersect
  * the node. There is also an intersections array, which is also keyed by node id but valued by an array
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
@@ -98,18 +104,32 @@ export const queryLocationForOsmSingleBlocksResultsTask = (osmConfig, locations)
 export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) => {
   // If the location already has geojson.features there's nothing to do.
   // If we forceOsmQuery then we query osm and get new geojson
-  if (R.and(
-    strPathOr(false, 'geojson.features', location),
-    R.not(strPathOr(false, 'forceOsmQuery', osmConfig)))
-  ) {
-    return of(Result.Ok(location));
+  if (R.allPass([
+    location => locationHasGeojsonFeatures(location),
+    () => R.not(strPathOr(false, 'forceOsmQuery', osmConfig)),
+    location => R.propOr([], 'intersections', location)
+  ])(location)) {
+    // We already have the geojosn and intersections. Mimic the response from OSM
+    const nodes = featuresByOsmType('node', strPathOr('geojson.features', location));
+    const intersections = strPathOr('intersections', location);
+    return of(Result.Ok({
+        location,
+        block: {
+          ways: featuresByOsmType('way', strPathOr('geojson.features', location)),
+          nodes,
+          nodesToIntersectingStreets: R.compose(R.fromPairs, R.zip)(nodes, intersections)
+        }
+      }
+    ));
   }
 
   return R.composeK(
     // Task (Result.Ok Object | Result.Error) -> Task Result.Ok Object | Task Result.Error
     locationResult => {
       return resultToTaskWithResult(
-        location => _locationToOsmSingleBlockQueryResultTask(osmConfig, location),
+        location => {
+          return _locationToOsmSingleBlockQueryResultTask(osmConfig, location);
+        },
         locationResult
       );
     },
@@ -261,7 +281,7 @@ const _queryOverpassBasedLocationPropsForSingleBlockResultTasks = (osmConfig, bl
  * we retry with the city area
  * @param {Object} osmConfig
  * @param {Object} location A location object
- * @returns {Task<Result<Object>>} Result.Ok in the form {location,  results} if data is found,
+ * @returns {Task<Result<Object>>} Result.Ok in the form {location, block} if data is found,
  * otherwise Result.Error in the form {errors: {errors, location}, location} where the internal
  * location are varieties of the original with an osm area id added. Result.Error is only returned
  * if no variation of the location succeeds in returning a result

@@ -362,7 +362,10 @@ export const commonStreetOfLocation = (location, streetIntersectionSets) => {
  * @param {Object} wayFeature Looks for wayFeature.properties.tag.name to get the street name
  * @param {String} The name or wayFeature.id
  */
-export const wayFeatureName = wayFeature => wayFeatureNameOrDefault(wayFeature.id, wayFeature);
+export const wayFeatureName = wayFeature => {
+  return wayFeatureNameOrDefault(R.prop('id', wayFeature), wayFeature);
+};
+
 
 /**
  * Like wayFeatureName but defaults to defaultTo instead of wayFeature.id
@@ -370,7 +373,9 @@ export const wayFeatureName = wayFeature => wayFeatureNameOrDefault(wayFeature.i
  * @param {Object} wayFeature Looks for wayFeature.properties.tag.name to get the street name
  * @param {String} The name or the default
  */
-export const wayFeatureNameOrDefault = (defaultTo, wayFeature) => strPathOr(defaultTo, 'properties.tags.name', wayFeature);
+export const wayFeatureNameOrDefault = (defaultTo, wayFeature) => {
+  return strPathOr(defaultTo, 'properties.tags.name', wayFeature);
+};
 
 /**
  * Finds the common street of the intersections then sorts the intersections alphabetically based on the second street.
@@ -587,6 +592,27 @@ export const featureRepresentsCircle = feature => {
   )(feature);
 };
 
+/**
+ * Does the location have at least one geojson features
+ * @param {Object} location
+ * @param {Object} location.geojson
+ * @param {Object} location.geojson.features
+ * @return {Boolean} True if there is at least one feature
+ */
+export const locationHasGeojsonFeatures = location => {
+  return R.both(
+    features => R.length(features),
+    features => R.all(
+      feature => {
+        return R.any(
+          type => isOsmType(type, feature),
+          ['way', 'node', 'rel']
+        );
+      },
+      features
+    )
+  )(strPathOr([], 'geojson.features', location));
+};
 
 /**
  * Combines a location with the ways and nodes that came back from OSM queries, putting them in the location's

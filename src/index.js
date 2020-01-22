@@ -66,7 +66,8 @@ export {
   geojsonFeaturesHaveShapeOrRadii,
   geojsonFeaturesIsPoint,
   isLatLng,
-  isNominatimEligible
+  isNominatimEligible,
+  locationHasGeojsonFeatures
 } from './locationHelpers';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';

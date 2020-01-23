@@ -17,13 +17,12 @@ import distance from '@turf/distance';
 import {featureCollection} from '@turf/helpers';
 import {
   compact,
-  mapMDeep,
   mapKeysAndValues,
+  mapToNamedResponseAndInputs,
+  pickDeepPaths,
   reqStrPathThrowing,
   resultToTaskNeedingResult,
   resultToTaskWithResult,
-  pickDeepPaths,
-  mapToNamedResponseAndInputs,
   strPathOr,
   traverseReduceDeepResults
 } from 'rescape-ramda';
@@ -31,23 +30,29 @@ import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {
   _filterForIntersectionNodesAroundPoint,
-  AROUND_LAT_LON_TOLERANCE, aroundPointDeclaration, configuredHighwayWayFilters, highwayNodeFilters,
-  osmEquals, osmIdEquals, osmIdToAreaId
+  AROUND_LAT_LON_TOLERANCE,
+  aroundPointDeclaration,
+  configuredHighwayWayFilters,
+  highwayNodeFilters,
+  osmEquals,
+  osmIdEquals,
+  osmIdToAreaId
 } from './overpassHelpers';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {
-  featuresByOsmType,
+  featuresOfOsmType,
   locationHasGeojsonFeatures,
   locationHasLocationPoints,
   locationWithLocationPoints
 } from './locationHelpers';
-import {_googleResolveJurisdictionResultTask, googleIntersectionTask} from './googleLocation';
+import {_googleResolveJurisdictionResultTask} from './googleLocation';
 import {loggers} from 'rescape-log';
 import {
-  blocksToGeojson,
   _queryLocationVariationsUntilFoundResultTask,
+  blocksToGeojson,
   createSingleBlockFeatures,
-  mapToCleanedFeatures, mapWaysByNodeIdToCleanedFeatures,
+  mapToCleanedFeatures,
+  mapWaysByNodeIdToCleanedFeatures,
   parallelWayNodeQueriesResultTask,
   waysByNodeIdResultsTask
 } from './overpassBlockHelpers';
@@ -109,15 +114,21 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
     () => R.not(strPathOr(false, 'forceOsmQuery', osmConfig)),
     location => R.propOr([], 'intersections', location)
   ])(location)) {
-    // We already have the geojosn and intersections. Mimic the response from OSM
-    const nodes = featuresByOsmType('node', strPathOr('geojson.features', location));
-    const intersections = strPathOr('intersections', location);
+    const features = reqStrPathThrowing('geojson.features', location);
+    // We already have the geojson and intersections. Mimic the response from OSM
+    const nodes = featuresOfOsmType('nodes', features);
+    const intersections = reqStrPathThrowing('intersections', location);
     return of(Result.Ok({
         location,
         block: {
-          ways: featuresByOsmType('way', strPathOr('geojson.features', location)),
+          ways: featuresOfOsmType('ways', features),
           nodes,
-          nodesToIntersectingStreets: R.compose(R.fromPairs, R.zip)(nodes, intersections)
+          nodesToIntersectingStreets: R.compose(
+            R.fromPairs,
+            R.zipWith((node, intersections) => [
+              R.prop('id', node), intersections
+            ])
+          )(nodes, intersections)
         }
       }
     ));
@@ -133,25 +144,27 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
         locationResult
       );
     },
-    location => R.cond([
-      // If we defined explicitly OSM intersections set the intersections to them
-      [R.view(R.lensPath(['data', 'osmOverrides', 'intersections'])),
-        location => of(Result.of(
-          R.over(
-            R.lensProp('intersections'),
-            () => R.view(R.lensPath(['data', 'osmOverrides', 'intersections']), location),
-            location
-          )
-        ))
-      ],
-      [location => locationHasLocationPoints(location), R.compose(of, Result.Ok)],
-      // Otherwise OSM needs full street names (Avenue not Ave), so use Google to resolve them
-      // Use Google to resolve full names. If Google can't resolve either intersection a Result.Error
-      // is returned. Otherwise a Result.Ok containing the location with the updated location.intersections
-      // Also maintain the Google results. We can use either the intersections or the Google geojson to
-      // resolve OSM data.
-      [R.T, location => _googleResolveJurisdictionResultTask(location)]
-    ])(location)
+    location => {
+      return R.cond([
+        // If we defined explicitly OSM intersections set the intersections to them
+        [R.view(R.lensPath(['data', 'osmOverrides', 'intersections'])),
+          location => of(Result.of(
+            R.over(
+              R.lensProp('intersections'),
+              () => R.view(R.lensPath(['data', 'osmOverrides', 'intersections']), location),
+              location
+            )
+          ))
+        ],
+        [location => locationHasLocationPoints(location), R.compose(of, Result.Ok)],
+        // Otherwise OSM needs full street names (Avenue not Ave), so use Google to resolve them
+        // Use Google to resolve full names. If Google can't resolve either intersection a Result.Error
+        // is returned. Otherwise a Result.Ok containing the location with the updated location.intersections
+        // Also maintain the Google results. We can use either the intersections or the Google geojson to
+        // resolve OSM data.
+        [R.T, location => _googleResolveJurisdictionResultTask(location)]
+      ])(location);
+    }
   )(locationWithLocationPoints(location));
 };
 
@@ -304,7 +317,9 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
     // If we get a Result.Error, it means our query failed. Try next with a bounding box query using the two location
     // points
     result => result.matchWith({
-      Ok: of,
+      Ok: ({value}) => {
+        return of({block: value, location});
+      },
       Error: ({value: {errors, location}}) => {
         return R.ifElse(
           location => R.length(strPathOr([], 'locationPoints', location)),

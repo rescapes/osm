@@ -13,7 +13,7 @@ import {
   addressString,
   isResolvableAllBlocksLocation,
   isResolvableSingleBlockLocation,
-  locationAndOsmBlocksToLocationWithGeojson
+  locationAndOsmBlocksToLocationWithGeojson, locationHasGeojsonFeatures
 } from './locationHelpers';
 import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
@@ -23,7 +23,7 @@ import * as R from 'ramda';
 import * as Result from 'folktale/result';
 
 const log = loggers.get('rescapeDefault');
-import {toArrayIfNot} from 'rescape-ramda';
+import {toArrayIfNot, strPathOr} from 'rescape-ramda';
 
 
 /**
@@ -50,10 +50,17 @@ export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) =>
                 Ok: R.map(
                   value => {
                     // Create the geojson fro the location
-                    const {ways, nodes, nodesToIntersectingStreets} = value;
+                    const {block: {ways, nodes, nodesToIntersectingStreets}} = value;
                     return {
                       block: {nodesToIntersectingStreets},
-                      location: locationAndOsmBlocksToLocationWithGeojson(location, {ways, nodes})
+                      // Assign the geojson to the location if it hasn't been assigned yet or is forced
+                      location: R.when(
+                        R.either(
+                          () => strPathOr(false, 'forceOsmQuery', osmConfig),
+                          location => R.complement(locationHasGeojsonFeatures)(location)
+                        ),
+                        location => locationAndOsmBlocksToLocationWithGeojson(location, {ways, nodes})
+                      )(location)
                     };
                   },
                   toArrayIfNot(value))

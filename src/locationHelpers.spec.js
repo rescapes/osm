@@ -12,7 +12,7 @@ import {
   addressStringForBlock,
   osmFeaturesOfLocationForType,
   locationWithLocationPoints,
-  geojsonFeaturesHaveRadii, mapGeojsonFeaturesHaveRadiiToPolygon
+  geojsonFeaturesHaveRadii, mapGeojsonFeaturesHaveRadiiToPolygon, featuresOfOsmType
 } from './locationHelpers';
 import {reqStrPathThrowing} from 'rescape-ramda';
 
@@ -644,4 +644,18 @@ describe('LocationSelector', () => {
       )
     ).toBeTruthy();
   });
+
+  test('featuresOfOsmType', () => {
+    const location = {
+      geojson: {
+        features: [
+          {id: 'way/1'},
+          {id: 'way/2'},
+          {id: 'way/3'},
+          {id: 'node/1'},
+        ]
+      }
+    }
+    expect(R.length(featuresOfOsmType('ways', location.geojson.features))).toEqual(3)
+  })
 });

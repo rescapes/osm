@@ -616,7 +616,12 @@ export const cleanGeojson = feature => {
  * Returns Result.Error if anything goes wrong
  * @private
  */
-export const _intersectionStreetNamesFromWaysAndNodesResult = (osmConfig, wayFeatures, nodeFeatures, nodeIdToWayFeatures) => {
+export const _intersectionStreetNamesFromWaysAndNodesResult = (
+  osmConfig,
+  wayFeatures,
+  nodeFeatures,
+  nodeIdToWayFeatures
+) => {
   // Get the node id to way features matching our node features
   const limitedNodeIdToWayFeatures = R.fromPairs(
     R.map(
@@ -641,14 +646,39 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (osmConfig, wayFea
   const wayIds = R.map(R.prop('id'), wayFeatures);
   const wayMatches = R.concat(wayIds, wayNames);
   // Scores a featureName 100 if it matches a way name or id, else 0
-  const wayMatchWeight = R.ifElse(feature => R.contains(R.prop('name', feature), wayMatches), R.always(1), R.always(0));
+  const wayMatchWeight = R.ifElse(
+    feature => R.contains(R.prop('name', feature), wayMatches),
+    R.always(1),
+    R.always(0)
+  );
 
   const nodeIdToResult = R.mapObjIndexed(
     (waysOfNodeFeatures, nodeId) => {
       return composeWithChainMDeep(1, [
         // Take the name of each feature
-        features => {
-          return Result.Ok(R.map(R.prop('name'), features));
+        // If we have duplicate names at this point, either because like-named streets meet or because
+        // we have a fake intersection and osmConfig.disableNodesOfWayQueries is true so we can't remove them,
+        // then rename matching features of the same name to name-wayId. Don't rename the first feature,
+        // which represents the block name
+        featureAndNames => {
+          return Result.Ok(
+            R.reduce(
+              (acc, {feature, name}) => {
+                return R.concat(
+                  acc,
+                  Array.of(R.when(
+                    name => R.contains(name, acc),
+                    // Add the id if we are on a second feature that is a duplicate name
+                    // This doesn't cover the case where the 2nd and 3rd features have duplicate names
+                    name => `${name}-${R.prop('id', feature)}`
+                    )(name)
+                  )
+                );
+              },
+              [],
+              featureAndNames
+            )
+          );
         },
         // Error terminally if we didn't generate two features (i.e. an intersection).
         // This should never happen when we can query OSM

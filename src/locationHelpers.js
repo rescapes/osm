@@ -477,6 +477,9 @@ export const isResolvableSingleBlockLocation = location => R.either(
  * @returns {Boolean} True if resolvable, else false
  */
 export const isResolvableAllBlocksLocation = location => {
+  if (isResolvableSingleBlockLocation(location)) {
+    return false
+  }
   return R.cond([
     [location => isNominatimEligible(location), () => true],
     // At least one geojson feature and al either have a shape or has a radius property
@@ -679,13 +682,13 @@ export const featuresByOsmType = v(features => {
 })).isRequired]], 'featuresByOsmType');
 
 /***
- * Returs only features of the given OSM type from the feaatures
- * @type {f1}
+ * Returns only features of the given OSM type from the feaatures
+ * @type {[Object]}
  */
 export const featuresOfOsmType = v((osmType, features) => {
-  return R.prop(osmType, featuresByOsmType(features));
+  return R.propOr([], osmType, featuresByOsmType(features));
 }, [
-  ['osmType', PropTypes.string.isRequred],
+  ['osmType', PropTypes.string.isRequired],
   ['features', PropTypes.arrayOf(PropTypes.shape({
       id: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
     }

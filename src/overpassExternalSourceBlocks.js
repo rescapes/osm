@@ -7,6 +7,9 @@ import {
   locationAndOsmBlocksToLocationWithGeojson,
   nodeFromCoordinate
 } from './locationHelpers';
+import {loggers} from 'rescape-log';
+
+const log = loggers.get('rescapeDefault');
 
 /**
  * Created by Andy Likuski on 2020.01.21

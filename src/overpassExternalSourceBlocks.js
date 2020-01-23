@@ -119,6 +119,7 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
   const partialBlocks = partialBlocksFromNonOsmWayFeatures(wayFeatures);
   return composeWithMapMDeep(1, [
     locationWithBlockResults => {
+      log.debug(`nonOsmGeojsonLinesToLocationBlocksResultsTask: Produced ${R.prop('Ok', locationWithBlockResults)} blocks`);
       return R.over(
         R.lensProp('Ok'),
         locationWithBlocks => {
@@ -134,10 +135,13 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
         },
         locationWithBlockResults);
     },
-    ({osmConfig, location, partialBlocks}) => organizeResponseFeaturesResultsTask(
-      R.merge(osmConfig, {disableNodesOfWayQueries: true}),
-      location,
-      {partialBlocks}
-    )
+    ({osmConfig, location, partialBlocks}) => {
+      log.debug(`nonOsmGeojsonLinesToLocationBlocksResultsTask: Organizing ${R.length(partialBlocks)} partial blocks`);
+      return organizeResponseFeaturesResultsTask(
+        R.merge(osmConfig, {disableNodesOfWayQueries: true}),
+        location,
+        {partialBlocks}
+      );
+    }
   ])({osmConfig, location, partialBlocks});
 };

@@ -81,6 +81,7 @@ export const _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = v
   const matchingPartialBlocks = _matchingPartialBlocks(hashToPartialBlocks, partialBlock);
   const remainingPartialBlocks = R.without(matchingPartialBlocks, partialBlocks);
   const {nodes, ways} = partialBlock;
+  log.debug(`_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask: Processing partial block ${JSON.stringify(partialBlock)}`);
   blockToGeojson({nodes, ways});
   blocksToGeojson(remainingPartialBlocks);
   // Get the current final way of the partial block. This is the way we will process
@@ -347,7 +348,7 @@ export function _choicePointProcessPartialBlockResultTask(
       ({firstFoundNodeOfFinalWay}) => R.isNil(firstFoundNodeOfFinalWay),
       // Find the dead-end node or intersection node outside the query results
       () => {
-        blockToGeojson(block);
+        log.debug(`_choicePointProcessPartialBlockResultTask: resolving incomplete way for block calling  ${JSON.stringify(block)}`);
         return _resolveIncompleteWayResultTask(osmConfig, partialBlocks, {nodes, ways});
       }
     ],
@@ -359,18 +360,21 @@ export function _choicePointProcessPartialBlockResultTask(
       // to start a new way without being at a true intersection, or it might be the intersection of a parking lot
       // or something we don't treat as a new block. We treat two (and only two) joining ways as a not real intersection
       // unless the street name changes
-      ({firstFoundNodeOfFinalWay}) => R.both(
-        R.identity,
-        firstFoundNodeOfFinalWay => {
-          return R.not(
-            isRealIntersection(
-              R.prop(R.prop('id', firstFoundNodeOfFinalWay), nodeIdToWays),
-              firstFoundNodeOfFinalWay
-            )
-          );
-        }
-      )(firstFoundNodeOfFinalWay),
+      ({firstFoundNodeOfFinalWay}) => {
+        return R.both(
+          R.identity,
+          firstFoundNodeOfFinalWay => {
+            return R.not(
+              isRealIntersection(
+                R.prop(R.prop('id', firstFoundNodeOfFinalWay), nodeIdToWays),
+                firstFoundNodeOfFinalWay
+              )
+            );
+          }
+        )(firstFoundNodeOfFinalWay);
+      },
       () => {
+        log.debug(`_choicePointProcessPartialBlockResultTask: extending block with fake intersection for ${JSON.stringify(block)}`);
         return of(
           _extendBlockToFakeIntersectionPartialBlockResult(
             {hashToPartialBlocks},
@@ -386,17 +390,20 @@ export function _choicePointProcessPartialBlockResultTask(
     // We have a firstFoundNodeOfFinalWay, add it
     [
       R.T,
-      () => of(Result.Ok({
-        block: {
-          // Add firstFoundNodeOfFinalWay if it isn't already added
-          nodes: R.compose(
-            R.uniqBy(R.prop('id')),
-            R.concat(nodes)
-          )([firstFoundNodeOfFinalWay]),
-          ways
-        },
-        remainingPartialBlocks: partialBlocks
-      }))
+      () => {
+        log.debug(`_choicePointProcessPartialBlockResultTask: completed block for ${JSON.stringify(block)}`);
+        return of(Result.Ok({
+          block: {
+            // Add firstFoundNodeOfFinalWay if it isn't already added
+            nodes: R.compose(
+              R.uniqBy(R.prop('id')),
+              R.concat(nodes)
+            )([firstFoundNodeOfFinalWay]),
+            ways
+          },
+          remainingPartialBlocks: partialBlocks
+        }));
+      }
     ]
   ])({firstFoundNodeOfFinalWay});
 }

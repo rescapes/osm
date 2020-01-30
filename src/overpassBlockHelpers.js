@@ -11,7 +11,7 @@
 
 
 import 'regenerator-runtime';
-import {isLatLng, wayFeatureNameOrDefault} from './locationHelpers';
+import {featuresOfOsmType, isLatLng, wayFeatureNameOrDefault} from './locationHelpers';
 import {
   _calculateNodeAndWayRelationships,
   configuredHighwayWayFilters,
@@ -862,20 +862,27 @@ const generateFile = (filePath, body) => {
 };
 
 
-/**
- * locationsToGeojson dumped to a file with the given directory and name, with the extension .json
- * @param dir
- * @param filename
- * @param locations
- * @return {{geojson: f1, file: string}}
- */
 export const locationsToGeojsonFile = (dir, filename, locations) => {
+  log.debug(`Dumping geojson for ${R.length(locations)}`);
   const geojson = locationsToGeojson(locations);
+  const geojsonWays = locationsToGeojson(
+    R.over(
+      R.lensPath(['geojson', 'features']),
+      fs => R.filter(featuresOfOsmType('ways', fs)),
+      locations
+    )
+  );
   const file = `${dir}/${filename}.json`;
   // Write an html file to review the results
   generateFile(
     file,
     geojson
+  );
+  const wayfile = `${dir}/way${filename}.json`;
+  // Write an html file to review the results
+  generateFile(
+    wayfile,
+    geojsonWays
   );
   return {geojson, file};
 };
@@ -947,7 +954,7 @@ export const blocksToGeojson = blocks => {
                   ),
                   thing
                 ),
-                things
+                things || []
               ),
               block
             );

@@ -1,27 +1,31 @@
 import {
+  _hashBlock,
   blocksToGeojson,
   blockToGeojson,
-  _hashBlock,
-  nodesAndIntersectionNodesForIncompleteWayResultTask, orderWayFeaturesOfBlock,
-  removeReverseTagsOfOrderWayFeaturesOfBlock, waysOfNodeQuery
+  isRealIntersection,
+  nodesAndIntersectionNodesForIncompleteWayResultTask,
+  orderWayFeaturesOfBlock,
+  removeReverseTagsOfOrderWayFeaturesOfBlock,
+  trimWayToNode,
+  trimWayToNodeObj,
+  waysOfNodeQuery
 } from './overpassBlockHelpers';
-import {fetchOsmRawTask, osmResultTask, _calculateNodeAndWayRelationships} from './overpassHelpers';
+import {_calculateNodeAndWayRelationships, fetchOsmRawTask, osmResultTask} from './overpassHelpers';
 import {hashNodeFeature, hashWayFeature, wayFeatureToCoordinates} from './overpassFeatureHelpers';
 import {
-  reqStrPathThrowing,
-  resultToTaskWithResult,
-  mapToNamedResponseAndInputs,
   compact,
-  strPathOr,
-  resultToTaskNeedingResult,
+  composeWithChainMDeep,
+  mapToNamedResponseAndInputs,
   mapToNamedResponseAndInputsMDeep,
-  composeWithChainMDeep
+  reqStrPathThrowing,
+  resultToTaskNeedingResult,
+  resultToTaskWithResult,
+  strPathOr
 } from 'rescape-ramda';
 
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
-import {isRealIntersection, trimWayToNode, trimWayToNodeObj} from './overpassBlockHelpers';
 import {loggers} from 'rescape-log';
 import {v} from 'rescape-validate';
 import PropTypes from 'prop-types';
@@ -81,9 +85,14 @@ export const _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = v
   const matchingPartialBlocks = _matchingPartialBlocks(hashToPartialBlocks, partialBlock);
   const remainingPartialBlocks = R.without(matchingPartialBlocks, partialBlocks);
   const {nodes, ways} = partialBlock;
-  log.debug(`_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask: Processing partial block ${JSON.stringify(partialBlock)}`);
-  blockToGeojson({nodes, ways});
-  blocksToGeojson(remainingPartialBlocks);
+  log.debug(`_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask: Processing partial block way ids ${
+    JSON.stringify(R.map(R.prop('id'), ways))
+  } with ${
+    R.length(remainingPartialBlocks)
+  } remaining.`);
+
+  //blockToGeojson({nodes, ways});
+  //blocksToGeojson(remainingPartialBlocks);
   // Get the current final way of the partial block. This is the way we will process
   const way = R.last(ways);
   // Get the remaining way points, excluding the first point that the node is on
@@ -101,6 +110,7 @@ export const _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = v
     way,
     tailWayPoints
   );
+
   // Replace the last way of ways with the trimmedWay if it was found
   const trimmedWays = R.concat(R.init(ways), [trimmedWay || R.last(ways)]);
 
@@ -348,7 +358,10 @@ export function _choicePointProcessPartialBlockResultTask(
       ({firstFoundNodeOfFinalWay}) => R.isNil(firstFoundNodeOfFinalWay),
       // Find the dead-end node or intersection node outside the query results
       () => {
-        log.debug(`_choicePointProcessPartialBlockResultTask: resolving incomplete way for block calling  ${JSON.stringify(block)}`);
+        log.debug(`_choicePointProcessPartialBlockResultTask: resolving incomplete way for block calling ${
+            JSON.stringify(R.map(R.prop('id'), ways))
+          }.`
+        );
         return _resolveIncompleteWayResultTask(osmConfig, partialBlocks, {nodes, ways});
       }
     ],
@@ -374,7 +387,9 @@ export function _choicePointProcessPartialBlockResultTask(
         )(firstFoundNodeOfFinalWay);
       },
       () => {
-        log.debug(`_choicePointProcessPartialBlockResultTask: extending block with fake intersection for ${JSON.stringify(block)}`);
+        log.debug(`_choicePointProcessPartialBlockResultTask: extending block with fake intersection for ${
+          JSON.stringify(block)
+        }`);
         return of(
           _extendBlockToFakeIntersectionPartialBlockResult(
             {hashToPartialBlocks},
@@ -391,7 +406,9 @@ export function _choicePointProcessPartialBlockResultTask(
     [
       R.T,
       () => {
-        log.debug(`_choicePointProcessPartialBlockResultTask: completed block for ${JSON.stringify(block)}`);
+        log.debug(`_choicePointProcessPartialBlockResultTask: completed block for ${
+          JSON.stringify(R.map(R.prop('id'), strPathOr([], 'ways', block)))
+        }`);
         return of(Result.Ok({
           block: {
             // Add firstFoundNodeOfFinalWay if it isn't already added
@@ -429,6 +446,7 @@ export function _extendBlockToFakeIntersectionPartialBlockResult(
   block
 ) {
   const {nodes, ways} = block;
+  const wayIds = R.map(R.prop('id'), ways);
   // For fake intersections, we expect a pair of partialBlocks representing the second way that isn't
   // the way we're currently processing. We need to use this way to extend our block and also eliminate
   // the pair of partialBlocks from further processing.
@@ -439,7 +457,7 @@ export function _extendBlockToFakeIntersectionPartialBlockResult(
   // TODO we should never get here with a fake intersection node that isn't from the original partialBlocks set
   // because we can't extend the block with a new way. This case is handled in the dead end code
   const partialBlockOfNode = R.find(
-    partialBlock => R.contains(
+    partialBlock => R.includes(
       R.prop('id', firstFoundNodeOfFinalWay),
       R.map(R.prop('id'), reqStrPathThrowing('nodes', partialBlock))
     ),
@@ -451,7 +469,6 @@ export function _extendBlockToFakeIntersectionPartialBlockResult(
     }`);
     return Result.Error({error: {nodes, ways}});
   }
-  ;
 
   // Get the twin partial block if it exists
   const matchingPartialBlocks = _matchingPartialBlocks(hashToPartialBlocks, partialBlockOfNode);
@@ -467,7 +484,12 @@ export function _extendBlockToFakeIntersectionPartialBlockResult(
       ways: R.concat(
         ways,
         R.ifElse(
-          newWays => R.any(newWay => R.contains(newWay, ways), newWays),
+          newWays => {
+            return R.any(
+              newWayId => R.includes(newWayId, wayIds),
+              R.map(R.prop('id'), newWays)
+            );
+          },
           () => [],
           R.identity
         )(strPathOr([], 'ways', partialBlockOfNode))
@@ -686,7 +708,10 @@ export function _completeDeadEndNodeOrQueryForFakeIntersectionNodeResultTask(osm
     // If the node was from the intersectionNodesByWayId, get the ways of the node to see if it's a real intersection
     ({intersectionNodesByWayId}) => {
       return R.compose(
-        features => R.contains(node, features),
+        features => R.includes(
+          R.prop('id', node),
+          R.map(R.prop('id'), features)
+        ),
         // Get the features of the response if it exists
         intersectionNodes => strPathOr([], 'response.features', intersectionNodes),
         // Get the nodes of the way if we queried for them

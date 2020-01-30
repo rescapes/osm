@@ -402,7 +402,7 @@ describe('googleLocation', () => {
       '38.931990, -77.030890'
     ];
     // Don't worry which street is listed first
-    const expected = actual => R.head(R.filter(R.contains(actual), [
+    const expected = actual => R.head(R.filter(R.includes(actual), [
       "Monroe St NW & 13th St NW, Washington, DC 20010, USA",
       "13th St NW & Monroe St NW, Washington, DC 20010, USA"
     ]));

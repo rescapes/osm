@@ -70,7 +70,7 @@ export const isLatLng = address => {
  */
 export const removeStateFromSomeCountriesForSearch = location => {
   return R.when(
-    location => R.contains(
+    location => R.includes(
       R.prop('country', location),
       EXCLUDE_STATES_FROM_COUNTRIES
     ),
@@ -411,7 +411,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
         // dead-end node id
         R.find(
           featureId => R.both(
-            R.contains('node'),
+            R.includes('node'),
             // node id doesn't equal the real intersection's node
             R.complement(R.equals)(
               R.compose(R.head, R.keys)(nodesToIntersectingStreets)
@@ -518,7 +518,7 @@ export const geojsonFeaturesHaveShapeOrRadii = geojson => R.either(
 export const geojsonFeaturesHaveShape = geojson => R.and(
   R.compose(R.length, strPathOr([], 'features'))(geojson),
   R.all(
-    feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Polygon', 'Multipolygon']),
+    feature => R.includes(strPathOr(false, 'geometry.type', feature), ['Polygon', 'Multipolygon']),
     strPathOr([], 'features', geojson)
   )
 );
@@ -532,7 +532,7 @@ export const geojsonFeaturesHaveShape = geojson => R.and(
 export const geojsonFeaturesIsPoint = geojson => R.and(
   R.compose(R.length, strPathOr([], 'features'))(geojson),
   R.all(
-    feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Point']),
+    feature => R.includes(strPathOr(false, 'geometry.type', feature), ['Point']),
     strPathOr([], 'features', geojson)
   )
 );
@@ -591,7 +591,7 @@ export const featureRepresentsCircle = feature => {
   return R.both(
     feature => strPathOr(false, 'properties.radius', feature),
     // There must be a point defined
-    feature => R.contains(strPathOr(false, 'geometry.type', feature), ['Point'])
+    feature => R.includes(strPathOr(false, 'geometry.type', feature), ['Point'])
   )(feature);
 };
 
@@ -885,7 +885,7 @@ export const locationIntersectionLocationToTurfPoints = location => {
  * @return {Boolean} true or false
  */
 export const isOsmType = (type, feature) => {
-  return R.contains(type, strPathOr('', 'id', feature));
+  return R.includes(type, strPathOr('', 'id', feature));
 };
 
 /**

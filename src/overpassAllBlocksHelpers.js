@@ -17,7 +17,7 @@ import {
   resultsToResultObj,
   strPathOr,
   toNamedResponseAndInputs,
-  traverseReduceWhile
+  traverseReduceWhileBucketedTasks
 } from 'rescape-ramda';
 import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
@@ -38,7 +38,6 @@ import {
 import {length} from '@turf/turf';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
 import {loggers} from 'rescape-log';
-import {featuresByOsmType} from './locationHelpers';
 
 const log = loggers.get('rescapeDefault');
 
@@ -194,11 +193,13 @@ const _partialBlocksToFeaturesResultsTask = (
     // Convert the results their values under Ok and Error
     // [Result] -> {Ok: [Object], Error: [Object]}
     blockResults => {
+      log.warn(`_partialBlocksToFeaturesResultsTask: Calling resultsToResultObj on ${R.length(blockResults)} blocks`);
       return resultsToResultObj(blockResults);
     },
 
     // Extract the intersection street names
     ({blocks, nodeIdToWays}) => {
+      log.warn(`_partialBlocksToFeaturesResultsTask: Calling _intersectionStreetNamesFromWaysAndNodesResult on ${R.length(blocks)} blocks`);
       return R.map(
         block => {
           const nodesToIntersectingStreetsResult = _intersectionStreetNamesFromWaysAndNodesResult(
@@ -232,6 +233,7 @@ const _partialBlocksToFeaturesResultsTask = (
     // to incorporate these short segments into adjacent walks
     toNamedResponseAndInputs('blocks',
       ({blocks}) => {
+        log.warn(`_partialBlocksToFeaturesResultsTask: Removing small ways on ${R.length(blocks)} blocks`);
         return R.filter(
           block => R.compose(
             // ways add up to at least 20 meters
@@ -257,6 +259,7 @@ const _partialBlocksToFeaturesResultsTask = (
     // TODO remove. We shouldn't have duplicates anymore
     toNamedResponseAndInputs('hashToBestBlock',
       ({blocks}) => {
+        log.warn(`_partialBlocksToFeaturesResultsTask: Calling _removeOpposingDuplicateBlocks on ${R.length(blocks)} blocks`);
         return _removeOpposingDuplicateBlocks(blocks);
       }
     ),
@@ -265,6 +268,7 @@ const _partialBlocksToFeaturesResultsTask = (
         // TODO just extracting the value from Result.Ok here.
         // Change to deal with Result.Error
         const {blocks, errorBlocks} = blocksResult.value;
+        log.debug(`_partialBlocksToFeaturesResultsTask: Calling _intersectionStreetNamesFromWaysAndNodesResult on ${R.length(blocks)} blocks`);
         if (R.length(errorBlocks)) {
           log.warn(`One or more blocks couldn't be built. Errors: ${JSON.stringify(errorBlocks)}`);
         }
@@ -401,6 +405,11 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
   // Wait in parallel but bucket tasks to prevent stack overflow
   return mapMDeep(2,
     ({blocks, errorBlocks}) => {
+      log.debug(`_traversePartialBlocksToBuildBlocksResultTask: Done with ${
+        R.length(blocks)
+      } blocks and ${
+        R.length(errorBlocks)
+      } error blocks`);
       // Remove the empty partialBlocks, just returning the blocks and errorBlocks
       return {blocks, errorBlocks};
     },
@@ -410,11 +419,12 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
     // Each traverseReduceWhile is called it will create a complete block. The block might consist of multiple
     // partialBlocks if the node between the partialBlocks wasn't a real intersection node, which we only
     // discover whilst traversing
-    traverseReduceWhile(
+    traverseReduceWhileBucketedTasks(
       {
         accumulateAfterPredicateFail: false,
         predicate: ({value: {partialBlocks}}, x) => {
           // Quit if we have no more partial blocks
+          log.debug(`_traversePartialBlocksToBuildBlocksResultTask: Predicate. ${R.length(partialBlocks)} remaining`);
           return R.length(partialBlocks);
         },
         // Chain to chain the results of each task. R.map would embed them within each other
@@ -429,6 +439,7 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
           // Result.Ok -> Result.Ok, Result.Error -> Result.Ok
           result => result.matchWith({
             Ok: ({value: {partialBlocks, block}}) => {
+              log.debug(`_traversePartialBlocksToBuildBlocksResultTask: finished block. ${R.length(partialBlocks)} remaining`);
               return Result.Ok({
                 partialBlocks,
                 blocks: R.concat(blocks, [block]),

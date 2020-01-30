@@ -400,7 +400,7 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
 
 const _locationToOsmSingleBlockBoundsResolve = (location, {Ok: locationsWithBlocks, Errors: errors}) => {
   // Debug
-  blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
+  //blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
   // Find the block that has nodes within an acceptable tolerance of location.locationPoints to be
   // considered the correct block
   const matchingLocationsWithBlocks = compact(

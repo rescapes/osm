@@ -277,13 +277,13 @@ export const nominatimResultTask = location => {
         () => value => {
           return R.both(
             value => R.compose(
-              value => R.contains(value, ['administrative', 'village', 'suburb', 'town', 'city', 'island']),
+              value => R.includes(value, ['administrative', 'village', 'suburb', 'town', 'city', 'island']),
               value => R.propOr(null, 'type', value)
             )(value),
             // The boundary or center point,
             // The boundary will be preferred over the center point.
             value => R.compose(
-              value => R.contains(value, ['relation', 'node']),
+              value => R.includes(value, ['relation', 'node']),
               value => R.propOr(null, 'osm_type', value)
             )(value)
           )(value);

@@ -176,11 +176,11 @@ export const geocodeAddressResultTask = location => {
                   Error: R.F
                 }),
                 // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE location
-                r => R.contains(r.geometry.location_type, ['GEOMETRIC_CENTER']),
+                r => R.includes(r.geometry.location_type, ['GEOMETRIC_CENTER']),
                 // No partial matches allowed.
                 r => R.not(R.prop('partial_match', r)),
                 // It must be an intersection, thus have & in the address
-                r => R.contains('&', r.formatted_address)
+                r => R.includes('&', r.formatted_address)
               ])(r)
             )(result),
             results
@@ -706,7 +706,7 @@ export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResu
       // For each key value (e.g. locality for city)
       type => R.find(
         // Look in each of addressComponent.types and try to find a match
-        ({types}) => R.contains(
+        ({types}) => R.includes(
           type,
           types
         ),

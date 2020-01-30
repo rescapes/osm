@@ -122,7 +122,7 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
   const partialBlocks = partialBlocksFromNonOsmWayFeatures(wayFeatures);
   return composeWithMapMDeep(1, [
     locationWithBlockResults => {
-      log.debug(`nonOsmGeojsonLinesToLocationBlocksResultsTask: Produced ${R.prop('Ok', locationWithBlockResults)} blocks`);
+      log.debug(`nonOsmGeojsonLinesToLocationBlocksResultsTask: Produced ${JSON.stringify(R.prop('Ok', locationWithBlockResults))} blocks`);
       return R.over(
         R.lensProp('Ok'),
         locationWithBlocks => {

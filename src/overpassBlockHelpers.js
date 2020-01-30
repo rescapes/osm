@@ -22,18 +22,16 @@ import {
   osmResultTask
 } from './overpassHelpers';
 import {
-  resultsToResultObj,
   chainObjToValues,
   compactEmpty,
-  mapMDeep,
-  mapToNamedResponseAndInputsMDeep,
   composeWithMapMDeep,
-  composeWithChainMDeep,
+  mapMDeep,
   mapObjToValues,
   mapToNamedResponseAndInputs,
+  mapToNamedResponseAndInputsMDeep,
   mergeAllWithKey,
   reqStrPathThrowing,
-  resultToTaskNeedingResult,
+  resultsToResultObj,
   splitAtInclusive,
   strPathOr,
   taskToResultTask,
@@ -703,7 +701,7 @@ export const getFeaturesOfBlock = v((location, wayFeatures, nodeFeatures) => {
       // If we have street names in location.intersections we can eliminate way features that don't match
       // the street. TODO. This probably isn't 100% certain to work, but works in most cases. The danger
       // is we filter out a valid way feature that is named weird
-      name => R.contains(
+      name => R.includes(
         name,
         // Take the first block of each intersection, this is our main block.
         // I believe they're always the same value, but maybe there's a case where the name changes mid-block

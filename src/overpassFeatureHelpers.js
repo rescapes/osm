@@ -10,19 +10,18 @@
  */
 import * as R from 'ramda';
 import {
-  composeWithMapMDeep,
+  chainExceptMapDeepestMDeep,
+  chainObjToValues,
   compact,
+  composeWithChainMDeep,
+  composeWithMapMDeep,
+  filterWithKeys,
   findOneThrowing,
   mapKeys,
-  reqStrPathThrowing,
   mapMDeep,
-  chainObjToValues,
-  traverseReduce,
   objOfMLevelDeepMonadsToListWithPairs,
-  filterWithKeys,
-  composeWithChainMDeep,
-  chainMDeep,
-  chainExceptMapDeepestMDeep
+  reqStrPathThrowing,
+  traverseReduce
 } from 'rescape-ramda';
 import * as Result from 'folktale/result';
 import 'regenerator-runtime';
@@ -142,7 +141,7 @@ export const extents = list => {
  * @param {Object} nodeFeature The node
  * @returns {Boolean} True if the nodeFeature point equals one of the end wayFeature points
  */
-export const nodeMatchesWayEnd = (wayFeature, nodeFeature) => R.contains(
+export const nodeMatchesWayEnd = (wayFeature, nodeFeature) => R.includes(
   hashNodeFeature(nodeFeature), hashWayFeatureExtents(wayFeature)
 );
 
@@ -221,7 +220,7 @@ const _lineStringFeatureEndNodeMatches = R.curry((nodePointHashes, lineStringFea
     R.map(
       headLast => [
         headLast,
-        R.contains(R[headLast](nodePointHashes), lineStringPointHashes)
+        R.includes(R[headLast](nodePointHashes), lineStringPointHashes)
       ],
       headLastValues
     )
@@ -340,7 +339,7 @@ const orderedWayFeatureGenerator = (lookup, nodeFeatures) => {
             // Only has one key
             R.compose(R.equals(1), R.length, R.keys),
             // Or matchers a node
-            () => R.contains(pointHash, nodeHashes)
+            () => R.includes(pointHash, nodeHashes)
           )
         )(obj)
       )
@@ -581,7 +580,7 @@ export const cleanGeojson = feature => {
     tagsLens,
     mapKeys(
       R.when(
-        R.contains(':'),
+        R.includes(':'),
         R.replace(/:/g, '__')
       )
     ),
@@ -647,7 +646,7 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
   const wayMatches = R.concat(wayIds, wayNames);
   // Scores a featureName 100 if it matches a way name or id, else 0
   const wayMatchWeight = R.ifElse(
-    feature => R.contains(R.prop('name', feature), wayMatches),
+    feature => R.includes(R.prop('name', feature), wayMatches),
     R.always(1),
     R.always(0)
   );
@@ -667,7 +666,7 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
                 return R.concat(
                   acc,
                   Array.of(R.when(
-                    name => R.contains(name, acc),
+                    name => R.includes(name, acc),
                     // Add the id if we are on a second feature that is a duplicate name
                     // This doesn't cover the case where the 2nd and 3rd features have duplicate names
                     name => `${name}-${R.prop('id', feature)}`

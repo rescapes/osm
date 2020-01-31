@@ -24,6 +24,7 @@ import {
 import {
   chainObjToValues,
   compactEmpty,
+  composeWithChainMDeep,
   composeWithMapMDeep,
   mapMDeep,
   mapObjToValues,
@@ -54,7 +55,7 @@ import {
   nodeMatchesWayEnd
 } from './overpassFeatureHelpers';
 import * as R from 'ramda';
-import {of, waitAll} from 'folktale/concurrency/task';
+import {of, waitAll, task} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import fs from 'fs';
 import {scaleOrdinal} from 'd3-scale';
@@ -853,39 +854,89 @@ export const blockToGeojson = ({nodes, ways}) => {
   );
 };
 
-const generateFile = (filePath, body) => {
-  const stream = fs.createWriteStream(filePath, {encoding: 'utf-8'});
-  stream.write(body);
-  stream.on('finish', () => {
-    log.debug(`Finished writing to ${filePath}`);
+/**
+ * Writes a file
+ * @param filePath
+ * @param body
+ * @return {Task<void>} Task that resolves to undefined or rejects with the error
+ */
+const generateFileTask = (filePath, body) => {
+  return task(resolver => {
+    const stream = fs.createWriteStream(filePath, {encoding: 'utf-8'});
+    stream.write(body);
+    stream.end();
+    stream.on('finish', () => {
+      log.debug(`Finished writing to ${filePath}`);
+      resolver.resolve();
+    });
+    stream.on('error', error => {
+      log.warn(`Error writing to ${filePath}. Error: ${JSON.stringify(error)}`);
+      resolver.reject(error);
+    });
   });
 };
 
-
-export const locationsToGeojsonFile = (dir, filename, locations) => {
+/**
+ * Dumps the given locations to geojson as both ways and nodes and just nodes. This returns
+ * a Task Result that writes the files
+ * @param locations
+ * @return {Object>>} {geojsn, geojsonWays}
+ */
+export const locationsToGeojsonWaysAndBoth = (locations) => {
   log.debug(`Dumping geojson for ${R.length(locations)}`);
-  const geojson = locationsToGeojson(locations);
   const geojsonWays = locationsToGeojson(
-    R.over(
-      R.lensPath(['geojson', 'features']),
-      fs => R.filter(featuresOfOsmType('ways', fs)),
+    R.map(
+      location => {
+        return R.over(
+          R.lensPath(['geojson', 'features']),
+          fs => R.when(
+            fs => R.not(R.isNil(fs)),
+            fs => featuresOfOsmType('ways', fs)
+          )(fs),
+          location
+        );
+      },
       locations
     )
   );
-  const file = `${dir}/${filename}.json`;
-  // Write an html file to review the results
-  generateFile(
-    file,
-    geojson
-  );
-  const wayfile = `${dir}/way${filename}.json`;
-  // Write an html file to review the results
-  generateFile(
-    wayfile,
-    geojsonWays
-  );
-  return {geojson, file};
+  const geojson = locationsToGeojson(locations);
+  return {geojson, geojsonWays}
 };
+
+/**
+ * Dumps the given locations to geojson as both ways and nodes and just nodes. This returns
+ * a Task Result that writes the files
+ * @param dir
+ * @param filename
+ * @param locations
+ * @return {Task<Result<Object>>} The result of writing the files. You can ignore these results
+ */
+export const locationsToGeojsonFileResultTask = (dir, filename, locations) => {
+  const {geojson, geojsonWays} = locationsToGeojsonWaysAndBoth(locations);
+  const file = `${dir}/${filename}.json`;
+  const wayFile = `${dir}/way${filename}.json`;
+  return composeWithChainMDeep(2, [
+    ({geojson, geojsonWays}) => {
+      // Return these regardless of how the file writing results
+      return of(Result.Ok({geojson, geojsonWays}));
+    },
+    // Write an html file to review the results
+    mapToNamedResponseAndInputsMDeep(2, '_',
+      ({file, geojson}) => taskToResultTask(generateFileTask(
+        file,
+        geojson
+      ))
+    ),
+    // Write an html file to review the results
+    mapToNamedResponseAndInputsMDeep(2, '_',
+      ({wayFile, geojsonWays}) => taskToResultTask(generateFileTask(
+        wayFile,
+        geojsonWays
+      ))
+    )
+  ])({file, wayFile, geojson, geojsonWays});
+};
+
 
 /**
  * Dumps location features to geojson for debgging

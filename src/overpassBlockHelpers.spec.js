@@ -9,13 +9,13 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import moment from 'moment'
+import moment from 'moment';
 import {reqStrPathThrowing, defaultRunToResultConfig, omitDeep, chainObjToValues} from 'rescape-ramda';
 import * as R from 'ramda';
 import {
   blocksToGeojson,
   getFeaturesOfBlock,
-  locationsToGeojson, locationsToGeojsonFile,
+  locationsToGeojson, locationsToGeojsonFileResultTask, locationsToGeojsonWaysAndBoth,
   nodesAndIntersectionNodesForIncompleteWayResultTask
 } from './overpassBlockHelpers';
 
@@ -3830,7 +3830,7 @@ describe('overpassBlockHelpers', () => {
     expect(locationsToGeojson(locations)).toBeTruthy();
   });
 
-  test('locationsToGeojsonFile', done => {
+  test('locationsToGeojsonWaysAndBoth', () => {
     const locations = R.map(
       block => {
         return {
@@ -3842,6 +3842,26 @@ describe('overpassBlockHelpers', () => {
       },
       blocks
     );
-    expect(locationsToGeojsonFile('/tmp', `test_${moment().format('YYYY-MM-DD-HH-mm-SS')}`, locations)).toBeTruthy();
-  });
+    expect(locationsToGeojsonWaysAndBoth(locations)).toBeTruthy();
+  }, 10000);
+
+  test('locationsToGeojsonFileResultTask', done => {
+    const locations = R.map(
+      block => {
+        return {
+          geojson: {
+            "type": "FeatureCollection",
+            "features": chainObjToValues((feature, type) => feature, R.pick(['ways', 'nodes'], block))
+          }
+        };
+      },
+      blocks
+    );
+    const errors = [];
+    locationsToGeojsonFileResultTask('/tmp', `test_${moment().format('YYYY-MM-DD-HH-mm-SS')}`, locations).run().listen(defaultRunToResultConfig({
+      onResolved: values => {
+        expect(values).toBeTruthy();
+      }
+    }, errors, done));
+  }, 10000);
 });

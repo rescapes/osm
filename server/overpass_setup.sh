@@ -117,7 +117,7 @@ sudo apt-get update
 # TODO what is fpm for, apache?
 sudo apt-get install php7.0 php7.0-fpm php7.0-mysql -y
 sudo systemctl restart nginx
-sudo systemctl restart php7.0-fpm
+sudo systemctl restart fcgiwrap
 
 
 # Get rescape-osm so we can get its nginx.conf

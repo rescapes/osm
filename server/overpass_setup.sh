@@ -126,7 +126,12 @@ sshkeygen
 mkdir rescape
 cd rescape
 git clone git@github.com:calocan/rescape-osm.git
-# Move the original out of the way
+# Get the latest if changes were made since the clone
+git pull
+# Symlink the nginx.conf
+sudo ln -s /home/ubuntu/src/rescape/rescape-osm/server/nginx/nginx.conf /etc/nginx/sites-available/overpass.conf
+sudo ln -s /etc/nginx/sites-available/overpass.conf /etc/nginx/sites-enabled/overpass.conf
+
 sudo mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.original
 sudo cp server/nginx/nginx.conf /etc/nginx/
 # Edit /etc/nngix/nginx.conf in 2 places to contain the correct dns name at server name e.g.

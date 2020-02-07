@@ -94,6 +94,6 @@ export {
   nodeMatchesWayEnd
 } from './overpassFeatureHelpers';
 export {
-  blockToGeojson, blocksToGeojson, blocksWithLengths, lengthOfBlocks, locationsToGeojson, locationsToGeojsonWaysAndBoth
+  blockToGeojson, blocksToGeojson, blocksWithLengths, lengthOfBlocks, locationsToGeojson, locationsToGeojsonWaysAndBoth, generateFileTask
 } from './overpassBlockHelpers';
 

@@ -656,6 +656,6 @@ describe('LocationSelector', () => {
         ]
       }
     }
-    expect(R.length(featuresOfOsmType('ways', location.geojson.features))).toEqual(3)
+    expect(R.length(featuresOfOsmType('way', location.geojson.features))).toEqual(3)
   })
 });

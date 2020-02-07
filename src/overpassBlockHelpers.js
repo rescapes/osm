@@ -860,7 +860,7 @@ export const blockToGeojson = ({nodes, ways}) => {
  * @param body
  * @return {Task<void>} Task that resolves to undefined or rejects with the error
  */
-const generateFileTask = (filePath, body) => {
+export const generateFileTask = (filePath, body) => {
   return task(resolver => {
     const stream = fs.createWriteStream(filePath, {encoding: 'utf-8'});
     stream.write(body);
@@ -891,7 +891,7 @@ export const locationsToGeojsonWaysAndBoth = (locations) => {
           R.lensPath(['geojson', 'features']),
           fs => R.when(
             fs => R.not(R.isNil(fs)),
-            fs => featuresOfOsmType('ways', fs)
+            fs => featuresOfOsmType('way', fs)
           )(fs),
           location
         );

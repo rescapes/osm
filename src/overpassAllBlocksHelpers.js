@@ -229,15 +229,14 @@ const _partialBlocksToFeaturesResultsTask = (
     // Filter out fake blocks that are just street connectors.
     // This will be more sophisticated in the future.
     // For now just eliminate any block that is less than osmConfig.minimumWayLength meters long
-    // TODO we don't want to lose ways, so we should do this. We should instead figure out a way
-    // to incorporate these short segments into adjacent walks
+    // TODO we don't want to lose ways, so we don't do this until we can  incorporate these short into adjacent walks
     toNamedResponseAndInputs('blocks',
       ({blocks}) => {
         log.warn(`_partialBlocksToFeaturesResultsTask: Removing small ways on ${R.length(blocks)} blocks`);
         return R.filter(
           block => R.compose(
             // ways add up to at least 20 meters
-            R.lte(R.propOr(20, 'minimumWayLength', osmConfig)),
+            //R.lte(R.propOr(20, 'minimumWayLength', osmConfig)),
             // add up the ways
             ways => R.reduce(
               (accum, way) => R.add(accum, length(way, {units: 'meters'})),

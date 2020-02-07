@@ -63,7 +63,6 @@ source ~/.bashrc
 
 mkdir ~/src
 
-mv osm-3s_v0.7.55/ src
 
 cd src/osm-3s_v0.7.55/ src
 
@@ -77,7 +76,7 @@ bash ./bin/download_clone.sh --db-dir=db --source=http://dev.overpass-api.de/api
 
 #### Make sure all the cgi files are executable
 
-bash chmod 755 cgi-bin/*
+chmod 755 cgi-bin/*
 
 #### Start process to get diffs
 
@@ -108,22 +107,33 @@ nohup $EXEC_DIR/apply_osc_to_db.sh "diffs/" auto --meta=yes &
 # (you'll set up https below)
 
 sudo apt install nginx
+sudo apt install fcgiwrap
+sudo systemctl enable nginx
+sudo systemctl enable fcgiwrap
 
 sudo apt-get install python-software-properties software-properties-common
 sudo LC_ALL=C.UTF-8 add-apt-repository ppa:ondrej/php
 sudo apt-get update
+# TODO what is fpm for, apache?
 sudo apt-get install php7.0 php7.0-fpm php7.0-mysql -y
 sudo systemctl restart nginx
 sudo systemctl restart php7.0-fpm
 
-#### Setup the base conf fileG
+
+# Get rescape-osm so we can get its nginx.conf
+# generate ~/.ssh/id_rsa.pub, copy the file contents to your github ssh keys
+sshkeygen
+mkdir rescape
+cd rescape
+git clone git@github.com:calocan/rescape-osm.git
+# Move the original out of the way
+sudo mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.original
+sudo cp server/nginx/nginx.conf /etc/nginx/
+# Edit /etc/nngix/nginx.conf in 2 places to contain the correct dns name at server name e.g.
+    server_name osm1.rescapes.net;
+
 
 cd /etc/nginx
-
-#### The default one is useless.
-sudo mv nginx.conf nginx.conf.original
-#### Move the one from rescape-osm into place
-sudo mv ~/nginx.conf /etc/nginx/nginx.conf
 
 #### Open port 80 and 443 (HTTPS) on the EC2 instance: https://stackoverflow.com/questions/5004159/opening-port-80-ec2-amazon-web-services
 
@@ -155,7 +165,7 @@ nohup $EXEC_DIR/rules_loop.sh $DB_DIR &
 
 ps -ef | grep rules
 
-Take the task and run
+# Take the task and run
 renice -n 19 -p PID
 ionice -c 2 -n 7 -p PID
 
@@ -181,8 +191,6 @@ sudo apt-get install certbot python-certbot-nginx
 cd ~
 wget https://dl.eff.org/certbot-auto
 
-# E.g. to add sop_os_1.stateofplace.co when sop_os_0.stateofplace.co is already present
-
 sudo chown root:root ./certbot-auto
 sudo chmod a+x ./certbot-auto
 sudo mv ./certbot-auto /usr/local/bin
@@ -196,7 +204,8 @@ sudo /usr/local/bin/certbot-auto --cert-name osm.rescapes.net
 # Extras
 
 # To start all the scripts at once
-nohup $EXEC_DIR/dispatcher --osm-base --meta --db-dir=$DB_DIR &
+#The dispatcher has been successfully started if you find a line "Dispatcher just started." in the file transactions.log in the database directory with correct date (in UTC).
+nohup $EXEC_DIR/dispatcher --osm-base --meta --db-dir=$DB_DIR &> dispatcher-base.out&
 nohup $EXEC_DIR/dispatcher --areas --db-dir=$DB_DIR &> dispatcher-areas.out&
 nohup $EXEC_DIR/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" &> fetch_osc.out&
 nohup $EXEC_DIR/apply_osc_to_db.sh "diffs/" auto --meta=yes > apply_osc_to_db.out&

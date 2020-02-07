@@ -683,17 +683,24 @@ export const featuresByOsmType = v(features => {
 
 /***
  * Returns only features of the given OSM type from the feaatures
- * @type {[Object]}
+ * @param {String} osmType 'way' or 'node'
+ * @param {[Object]} The features to filter
+ * @type {[Object]} The matching features
  */
 export const featuresOfOsmType = v((osmType, features) => {
-  return R.propOr([], osmType, featuresByOsmType(features));
+  return R.propOr(
+    [],
+    // This needs an s
+    `${osmType}s`,
+    featuresByOsmType(features)
+  );
 }, [
   ['osmType', PropTypes.string.isRequired],
   ['features', PropTypes.arrayOf(PropTypes.shape({
       id: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
     }
   )).isRequired]
-], 'featuresOfOsmType');
+], 'featuresOfOsmType')
 
 /**
  * Indicates if loction has an array intersectionLocations with values, meaning it has lat/lon points which

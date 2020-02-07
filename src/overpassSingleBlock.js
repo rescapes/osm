@@ -116,12 +116,12 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
   ])(location)) {
     const features = reqStrPathThrowing('geojson.features', location);
     // We already have the geojson and intersections. Mimic the response from OSM
-    const nodes = featuresOfOsmType('nodes', features);
+    const nodes = featuresOfOsmType('node', features);
     const intersections = reqStrPathThrowing('intersections', location);
     return of(Result.Ok({
         location,
         block: {
-          ways: featuresOfOsmType('ways', features),
+          ways: featuresOfOsmType('way', features),
           nodes,
           nodesToIntersectingStreets: R.compose(
             R.fromPairs,
@@ -318,7 +318,7 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
     // points
     result => result.matchWith({
       Ok: ({value}) => {
-        return of({block: value, location});
+        return of(Result.Ok({block: value, location}));
       },
       Error: ({value: {errors, location}}) => {
         return R.ifElse(

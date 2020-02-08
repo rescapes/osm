@@ -636,39 +636,38 @@ const _resolveEndBlockNodeOfIncompleteWayResultTask = (osmConfig, {nodes, previo
   return composeWithChainMDeep(2, [
     // Find the node at the end of the way, whether or not it's an intersection node or not
     // Produce an extended block with the previous ways and nodes and the new trimmed way and end node
-    ({previousWays, way, nodes, nodesAndIntersectionNodesByWayIdResult}) => resultToTaskNeedingResult(
-      ({intersectionNodesByWayId, nodesByWayId}) => {
-        const endBlockNode = _resolveEndBlockNode(
-          way,
-          {intersectionNodesByWayId, nodesByWayId}
-        );
-        if (!endBlockNode) {
-          const error = `Something is wrong with this partially build block ${blockToGeojson({
-            ways: [way],
-            nodes
-          })}. Cannot find an endBlockNode. Giving up on it`;
-          log.warn(error);
-          return of(Result.Error(error));
-        }
-        return of({
-          // trim the way to the node
-          ways: R.concat(
-            // Keep the ways that aren't the final way
-            previousWays,
-            // Trim the final way
-            [trimWayToNode(endBlockNode, way)]
-          ),
-          nodes: R.concat(
-            nodes,
-            [endBlockNode]
-          ),
-          intersectionNodesByWayId
-        });
+    ({previousWays, way, nodes, nodesAndIntersectionNodesByWayId}) => {
+      const {intersectionNodesByWayId, nodesByWayId} = nodesAndIntersectionNodesByWayId;
+      const endBlockNode = _resolveEndBlockNode(
+        way,
+        {intersectionNodesByWayId, nodesByWayId}
+      );
+      if (!endBlockNode) {
+        const error = `Something is wrong with this partially build block ${blockToGeojson({
+          ways: [way],
+          nodes
+        })}. Cannot find an endBlockNode. Giving up on it`;
+        log.warn(error);
+        return of(Result.Error(error));
       }
-    )(nodesAndIntersectionNodesByWayIdResult),
+      return of(Result.Ok({
+        // trim the way to the node
+        ways: R.concat(
+          // Keep the ways that aren't the final way
+          previousWays,
+          // Trim the final way
+          [trimWayToNode(endBlockNode, way)]
+        ),
+        nodes: R.concat(
+          nodes,
+          [endBlockNode]
+        ),
+        intersectionNodesByWayId
+      }));
+    },
 
     // Query to find all nodes of the final way
-    mapToNamedResponseAndInputs('nodesAndIntersectionNodesByWayIdResult',
+    mapToNamedResponseAndInputsMDeep(2, 'nodesAndIntersectionNodesByWayId',
       ({way}) => {
         return nodesAndIntersectionNodesForIncompleteWayResultTask(
           osmConfig,

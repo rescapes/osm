@@ -64,11 +64,9 @@ source ~/.bashrc
 mkdir ~/src
 
 
-cd src/osm-3s_v0.7.55/ src
-
-./configure --prefix="`pwd`"
-
-make
+cd src/osm-3s_v0.7.55/
+./configure CXXFLAGS="-O2"  --prefix="`pwd`"
+make install
 
 bash ./bin/download_clone.sh --db-dir=db --source=http://dev.overpass-api.de/api_drolbr/ --meta=yes
 

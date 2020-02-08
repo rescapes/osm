@@ -557,7 +557,7 @@ const _nodesOfWayResultTask = (osmConfig, wayId) => {
       return {[wayId]: {query: nodesOfWayQuery, response: nodesOfWayResponse}};
     },
     // Find all nodes of the way, not just the intersections
-    mapToNamedResponseAndInputsMDeep(2, 'nodesOfWayResponseResult',
+    mapToNamedResponseAndInputsMDeep(2, 'nodesOfWayResponse',
       // Perform the task
       ({wayId, nodesOfWayQuery}) => osmResultTask({
           name: 'nodesOfWayQuery',

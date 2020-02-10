@@ -131,7 +131,6 @@ export const organizeResponseFeaturesResultsTask = (
 ) => {
 
   return R.composeK(
-    no => of(no),
     ({nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
       return _partialBlocksToFeaturesResultsTask(
         osmConfig,

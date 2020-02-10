@@ -55,7 +55,7 @@ import {
   nodeMatchesWayEnd
 } from './overpassFeatureHelpers';
 import * as R from 'ramda';
-import {of, waitAll, task} from 'folktale/concurrency/task';
+import {of, waitAll, task, rejected} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import fs from 'fs';
 import {scaleOrdinal} from 'd3-scale';
@@ -861,19 +861,27 @@ export const blockToGeojson = ({nodes, ways}) => {
  * @return {Task<void>} Task that resolves to undefined or rejects with the error
  */
 export const generateFileTask = (filePath, body) => {
-  return task(resolver => {
-    const stream = fs.createWriteStream(filePath, {encoding: 'utf-8'});
-    stream.write(body);
-    stream.end();
-    stream.on('finish', () => {
-      log.debug(`Finished writing to ${filePath}`);
-      resolver.resolve();
-    });
-    stream.on('error', error => {
-      log.warn(`Error writing to ${filePath}. Error: ${JSON.stringify(error)}`);
-      resolver.reject(error);
-    });
-  });
+  return R.chain(
+    filePath => {
+      return R.ifElse(
+        fp => fs.existsSync(fp),
+        fp => of(fp),
+        fp => rejected(`File at path ${fp} was not created!`)
+      )(filePath);
+    },
+    task(resolver => {
+      const stream = fs.createWriteStream(filePath, {encoding: 'utf-8'});
+      stream.write(body);
+      stream.end();
+      stream.on('finish', () => {
+        log.debug(`Finished writing to ${filePath}`);
+        resolver.resolve(filePath);
+      });
+      stream.on('error', error => {
+        log.warn(`Error writing to ${filePath}. Error: ${JSON.stringify(error)}`);
+        resolver.reject(error);
+      });
+    }));
 };
 
 /**
@@ -900,7 +908,7 @@ export const locationsToGeojsonWaysAndBoth = (locations) => {
     )
   );
   const geojson = locationsToGeojson(locations);
-  return {geojson, geojsonWays}
+  return {geojson, geojsonWays};
 };
 
 /**
@@ -922,17 +930,21 @@ export const locationsToGeojsonFileResultTask = (dir, filename, locations) => {
     },
     // Write an html file to review the results
     mapToNamedResponseAndInputsMDeep(2, '_',
-      ({file, geojson}) => taskToResultTask(generateFileTask(
-        file,
-        geojson
-      ))
+      ({file, geojson}) => {
+        return taskToResultTask(generateFileTask(
+          file,
+          geojson
+        ));
+      }
     ),
     // Write an html file to review the results
     mapToNamedResponseAndInputsMDeep(2, '_',
-      ({wayFile, geojsonWays}) => taskToResultTask(generateFileTask(
-        wayFile,
-        geojsonWays
-      ))
+      ({wayFile, geojsonWays}) => {
+        return taskToResultTask(generateFileTask(
+          wayFile,
+          geojsonWays
+        ));
+      }
     )
   ])({file, wayFile, geojson, geojsonWays});
 };

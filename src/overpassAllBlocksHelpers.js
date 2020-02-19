@@ -463,9 +463,7 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
             osmConfig,
             {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, hashToPartialBlocks},
             partialBlocks
-          ).map(wtf => {
-            return wtf
-          })
+          )
         );
       },
       of(Result.Ok({partialBlocks, blocks: [], errorBlocks: []})),

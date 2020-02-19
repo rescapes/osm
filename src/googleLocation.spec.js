@@ -83,7 +83,7 @@ describe('googleLocation', () => {
 
   test('geocodeAddressApproximate', done => {
       const errors = [];
-      // This request for a city returns an approximate location, which is ok. It's not okay for intersections
+      // This request for a city returns an approximate locationWithNominatimData, which is ok. It's not okay for intersections
       // to be approximate
       geocodeAddressResultTask({
         country: 'USA',
@@ -336,7 +336,7 @@ describe('googleLocation', () => {
 
   test('geocodeAddressWithLatLng', done => {
       const errors = [];
-      // Leave the location blank since we don't need it when we use a lat/lng
+      // Leave the locationWithNominatimData blank since we don't need it when we use a lat/lng
       const latLon = '60.004471, -44.663669';
       geocodeAddressResultTask({intersections: [latLon]}).run().listen(
         defaultRunConfig({

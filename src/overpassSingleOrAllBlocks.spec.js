@@ -1,7 +1,7 @@
 import {defaultRunConfig} from 'rescape-ramda';
 import * as R from 'ramda';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
-import {blocksToGeojson, blockToGeojson} from './overpassBlockHelpers';
+import {blocksToGeojson, blockToGeojson, locationsToGeojson} from './overpassBlockHelpers';
 
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -15,7 +15,7 @@ import {blocksToGeojson, blockToGeojson} from './overpassBlockHelpers';
  */
 describe('overpassSingleOrAllBlocks', () => {
 
-  test('Use street names to limit ways', done => {
+  test('queryLocationForOsmBlockOrAllResultsTask: Use street names to limit ways', done => {
     expect.assertions(1);
     const errors = [];
     const location = {
@@ -34,6 +34,26 @@ describe('overpassSingleOrAllBlocks', () => {
           // Paste the results of this into a geojson viewer for debugging
           blocksToGeojson(R.map(R.pick(['nodes', 'ways']), locationsWithBlocks));
           expect(R.length(locationsWithBlocks)).toEqual(1);
+        }
+      }, errors, done)
+    );
+  }, 200000);
+
+
+  test('queryLocationForOsmBlockOrAllResultsTask: Neighborhood', done => {
+    const errors = [];
+    queryLocationForOsmBlockOrAllResultsTask(
+      {}, {
+        "country": "USA",
+        "state": "NY",
+        "city": "New York",
+        "neighborhood": "Rose Hill",
+        "intersections": [],
+        "intersectionPoints": null
+      }
+    ).run().listen(defaultRunConfig({
+        onResolved: ({Ok: locationsWithBlocks, Error: errors}) => {
+          expect(R.length(locationsWithBlocks)).toEqual(41);
         }
       }, errors, done)
     );

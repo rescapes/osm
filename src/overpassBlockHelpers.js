@@ -193,23 +193,23 @@ const intersectionNodesOfWayQuery = (osmConfig, {wayFeature}, wayId) => {
 
 
 /***
- * Queries the location with the OverPass API for its given street block. Querying happens once or twice, first
+ * Queries the locationWithNominatimData with the OverPass API for its given street block. Querying happens once or twice, first
  * with the neighborhood specified (faster) and then without if no results return. The neighborhood is
- * also be omitted in a first and only query if the location doesn't have one
- * @param {Function<location>} queryLocationResultTask Called with each location variation and must return
+ * also be omitted in a first and only query if the locationWithNominatimData doesn't have one
+ * @param {Function<location>} queryLocationResultTask Called with each locationWithNominatimData variation and must return
  * a result task with the query results
- * @param {[Object]} locationVariationsOfOsm 1 or more of the same location with different osmIds
+ * @param {[Object]} locationVariationsOfOsm 1 or more of the same locationWithNominatimData with different osmIds
  * The first should be a neighborhood osmId if available, and the second is the city osmId. We hope to get
  * results with the neighborhood level osmId because it is faster, but if we get no results we query with the
- * city osmId. Alternatively this can be a location with lat/lons specified for the intersections.
+ * city osmId. Alternatively this can be a locationWithNominatimData with lat/lons specified for the intersections.
  * Having lat/lons is just as good as an osmId
- * @returns {Task<Result<Object>>} Result.Ok in the form {location, block} or a Result.Error in the form {location, error}
+ * @returns {Task<Result<Object>>} Result.Ok in the form {locationWithNominatimData, block} or a Result.Error in the form {locationWithNominatimData, error}
  * The block contain nodes and ways, where there are normally 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
  * Some blocks have more than two nodes if they have multiple divided ways.
  * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
  * the node. There is also an intersections array, which is also keyed by node id but valued by an array
- * of street names. The main street of the location's block is listed first followed by the rest (usually one)
+ * of street names. The main street of the locationWithNominatimData's block is listed first followed by the rest (usually one)
  * in alphabetical order
  */
 export const _queryLocationVariationsUntilFoundResultTask = R.curry((osmConfig, queryLocationResultTasks, locationVariationsOfOsm) => {
@@ -217,7 +217,7 @@ export const _queryLocationVariationsUntilFoundResultTask = R.curry((osmConfig, 
   return R.composeK(
     result => of(
       // If we had no results report the errors of each query
-      // We create this somewhat strange format so that we know what variation of the location was used for each
+      // We create this somewhat strange format so that we know what variation of the locationWithNominatimData was used for each
       // query. So the Result.Error looks like:
       // {
       //  errors: [
@@ -226,11 +226,11 @@ export const _queryLocationVariationsUntilFoundResultTask = R.curry((osmConfig, 
       //        { error: error message about the query, nodeQuery: the osm way query },
       //        { error: error message about the query, nodeQuery: the osm node query},
       //       ]
-      //       location: the variation of the location for this query
+      //       locationWithNominatimData: the variation of the locationWithNominatimData for this query
       //    },
-      //    ... other location variations that were tried
+      //    ... other locationWithNominatimData variations that were tried
       //  ]
-      //  location: arbitrary first variation of the location
+      //  locationWithNominatimData: arbitrary first variation of the locationWithNominatimData
       // }
       result.mapError(errors => ({
           errors: R.map(location => ({errors, location}), locationVariationsOfOsm),
@@ -644,8 +644,8 @@ export const createSingleBlockFeatures = (osmConfig, location, {wayFeatures, nod
 
 /***
  * Sorts the features by connecting them at their start/ends
- * @param {Object} location Location block used to identify the correct street names
- * @param {[[String]]} location.intersections Each set of strings represents an intersection of the location block
+ * @param {Object} locationWithNominatimData Location block used to identify the correct street names
+ * @param {[[String]]} locationWithNominatimData.intersections Each set of strings represents an intersection of the locationWithNominatimData block
  * @param {[Object]} wayFeatures List of way features to sort. This is 1 or more connected ways that might overlap the
  * block on one or both sides
  * @param {[Object]} nodeFeatures Two node features representing the block intersection
@@ -692,14 +692,14 @@ export const getFeaturesOfBlock = v((location, wayFeatures, nodeFeatures) => {
     -77.126258:38.8966612 = Object {last: (1 way) }
     -77.123075:38.8970315 = Object {head: (1 way) }
    */
-  // Remove any way features whose streets don't match those in the location
+  // Remove any way features whose streets don't match those in the locationWithNominatimData
   // If the wayFeatures don't have a name, leave them in in case they are needed
   const wayFeaturesOfStreet = R.filter(
     wayFeature => R.anyPass([
       R.isNil,
       // If any intersection is a lat lon than we can't filter by street name, so leave the feature alone
       () => R.any(isLatLng, strPathOr([], 'intersections', location)),
-      // If we have street names in location.intersections we can eliminate way features that don't match
+      // If we have street names in locationWithNominatimData.intersections we can eliminate way features that don't match
       // the street. TODO. This probably isn't 100% certain to work, but works in most cases. The danger
       // is we filter out a valid way feature that is named weird
       name => R.includes(
@@ -951,7 +951,7 @@ export const locationsToGeojsonFileResultTask = (dir, filename, locations) => {
 
 
 /**
- * Dumps location features to geojson for debgging
+ * Dumps locationWithNominatimData features to geojson for debgging
  * @param locations
  * @returns {f1}
  */

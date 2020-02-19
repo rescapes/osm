@@ -52,7 +52,7 @@ const log = loggers.get('rescapeDefault');
  */
 
 /**
- * Resolve the location and then query for the all of its blocks in overpass.
+ * Resolve the locationWithNominatimData and then query for the all of its blocks in overpass.
  * This process will first use nominatimResultTask to query nomatim.openstreetmap.org for the relationship
  * of the neighborhood of the city. If it fails it will try the entire city. With this result we
  * query overpass using the area representation of the neighborhood or city, which is the OpenStreetMap id
@@ -63,14 +63,14 @@ const log = loggers.get('rescapeDefault');
  * @param {Object} [osmConfig.allowFallbackToCity] Default false. Let's the nomanatim query fallback to the city
  * @param {Object} [osmConfig.minimumWayLength]. The minimum lengths of way features to return. Defaults to 20 meters.
  * if the neighborhood can't be found
- * @param {Object} location A location object
+ * @param {Object} locationWithNominatimData A locationWithNominatimData object
  * @returns {Task<{Ok: blocks, Error: errors>}>}
- * In Ok a list of results found in the form [{location,  results}]
- * Where each location represents a block and the results are the OSM geojson data
+ * In Ok a list of results found in the form [{locationWithNominatimData,  results}]
+ * Where each locationWithNominatimData represents a block and the results are the OSM geojson data
  * The results contain nodes and ways and intersections (the street intersections of each node)
- * Error contains Result.Errors in the form {errors: {errors, location}, location} where the internal
- * location are varieties of the original with an osm area id added. result.Error is only returned
- * if no variation of the location succeeds in returning a result
+ * Error contains Result.Errors in the form {errors: {errors, locationWithNominatimData}, locationWithNominatimData} where the internal
+ * locationWithNominatimData are varieties of the original with an osm area id added. result.Error is only returned
+ * if no variation of the locationWithNominatimData succeeds in returning a result
  */
 export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) => {
   return R.composeK(
@@ -88,8 +88,8 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
         })
       }));
     },
-    // The last step is to assign each location jurisdiction information if it doesn't already have it
-    // We check country and (city or county) of the location and only query for jurisdiction data if it lacks these fields
+    // The last step is to assign each locationWithNominatimData jurisdiction information if it doesn't already have it
+    // We check country and (city or county) of the locationWithNominatimData and only query for jurisdiction data if it lacks these fields
     result => resultToTaskWithResult(
       // Process Result Tasks locations, merging in jurisdiction data when needed
       // Task Result [Location] -> Task Result [Location]
@@ -111,7 +111,7 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                 },
                 // If we had a country or city, we already have jurisdiction data. Just rewrap in Result.Ok and task
                 obj => R.compose(of, Result.Ok)(obj),
-                // Reverse geocode and combine block, favoring keys already in location
+                // Reverse geocode and combine block, favoring keys already in locationWithNominatimData
                 ({block, location}) => {
                   // Task Result Object -> Task Result Object
                   return mapMDeep(2,
@@ -139,8 +139,8 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
         );
       }
     )(result),
-    // Use the results to create geojson for the location
-    // Task Result [<results, location>] -> Task Result [<results, location>]
+    // Use the results to create geojson for the locationWithNominatimData
+    // Task Result [<results, locationWithNominatimData>] -> Task Result [<results, locationWithNominatimData>]
     locationBlocksResult => of(mapMDeep(2,
       ({block, location}) => {
         return {
@@ -183,12 +183,12 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
  * Given 1 or more locationVariationsWithOsm returns a result task to query those places in order until
  * osm results are found. If 0 locationVariationsWithOsm are specified, returns a Result.Error
  * @param {Object} osmConfig
- * @param {Object} location The original location
+ * @param {Object} location The original locationWithNominatimData
  * @param {[Object]} locationVariationsWithOsm
- * @return {Task<Result<<Object>>} A task resolving to a Result.Ok with the successful location query or Result.Error
+ * @return {Task<Result<<Object>>} A task resolving to a Result.Ok with the successful locationWithNominatimData query or Result.Error
  * with the unsuccessful result;
  */
-const processJurisdictionOrGeojsonResponsesResultTask = (osmConfig, location, locationVariationsWithOsm) => {
+export const processJurisdictionOrGeojsonResponsesResultTask = (osmConfig, location, locationVariationsWithOsm) => {
   return R.cond([
     [R.length,
       // If we have variations, query then in order until a positive result is returned
@@ -213,7 +213,7 @@ const processJurisdictionOrGeojsonResponsesResultTask = (osmConfig, location, lo
     [R.T,
       () => of(Result.Error({
         errors: ({
-          errors: ['This location lacks jurisdiction or geojson properties to allow querying. The location must either have a country and city or geojson whose features all are shapes or have a radius property'],
+          errors: ['This locationWithNominatimData lacks jurisdiction or geojson properties to allow querying. The locationWithNominatimData must either have a country and city or geojson whose features all are shapes or have a radius property'],
           location
         }),
         location
@@ -223,10 +223,10 @@ const processJurisdictionOrGeojsonResponsesResultTask = (osmConfig, location, lo
 };
 
 /**
- * Resolves the jurisdiction geojson of a location.geojson.features[0] where a jurisdication is not specified
+ * Resolves the jurisdiction geojson of a locationWithNominatimData.geojson.features[0] where a jurisdication is not specified
  * @param {Object} osmConfig
  * @param {Object} location
- * @return {Task<Result<[Object]>>}  Returns 1 or more versions of the location, depending on whether nominatim
+ * @return {Task<Result<[Object]>>}  Returns 1 or more versions of the locationWithNominatimData, depending on whether nominatim
  * was allowed to fallback from a neighborhood query to a city query.
  */
 export const nominatimOrGoogleJurisdictionGeojsonResultTask = (osmConfig, location) => {
@@ -274,7 +274,7 @@ export const nominatimOrGoogleJurisdictionGeojsonResultTask = (osmConfig, locati
           }
         ],
         // nominatimLocation doesn't exist but googleLocation does. Use Google to set the feature of the
-        // original location, since we don't have an nominatimLocation
+        // original locationWithNominatimData, since we don't have an nominatimLocation
         [
           ({nominatimLocation, googleLocation}) => R.and(R.not(nominatimLocation), googleLocation),
           ({googleLocation}) => {
@@ -328,13 +328,13 @@ export const nominatimOrGoogleJurisdictionGeojsonResultTask = (osmConfig, locati
 };
 
 /**
- * Queries for all blocks matching the Osm area id in the given location
+ * Queries for all blocks matching the Osm area id in the given locationWithNominatimData
  * @param {Object} osmConfig The osm config
  * @param {Object} osmConfig.minimumWayLength. The minimum lengths of way features to return. Defaults to 20 meters.
  * @param {Object} locationWithOsm Location object with  bbox, osmId, placeId from
  * @private
- * @returns  {Task<Object>} { Ok: location blocks, Error: []
- * Each location block, and results containing: {node, way, nodesToIntersectingStreets} in the Ok array
+ * @returns  {Task<Object>} { Ok: locationWithNominatimData blocks, Error: []
+ * Each locationWithNominatimData block, and results containing: {node, way, nodesToIntersectingStreets} in the Ok array
  * node contains node features, way contains way features, and nodesToIntersectingStreets are keyed by node id
  * and contain one or more street names representing the intersection. It will be just the block name for
  * a dead end street, and contain the intersecting streets for non-deadends
@@ -347,7 +347,7 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (osmConfig, locationWi
       osmConfig,
       {location: locationWithOsm, way: wayQueries, node: nodeQueries}
     ),
-    // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
+    // Build an OSM query for the locationWithNominatimData. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
     locationWithOsm => of(
       R.fromPairs(R.map(
@@ -356,7 +356,7 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (osmConfig, locationWi
           _constructHighwayQueriesForType(
             osmConfig,
             {type},
-            // These are the only properties we might need from the location
+            // These are the only properties we might need from the locationWithNominatimData
             pickDeepPaths(['osmId', 'osmType', 'geojson'], locationWithOsm)
           )
         ],
@@ -383,13 +383,13 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (osmConfig, locationWi
  * @param {String} [location.osmId] OSM id to be used to constrain the area of the query. This id corresponds
  * to a neighborhood or city's boundaries or a center point.
  * @param {String} [location.osmType] Either 'relation' for a boundary or 'point' for a jurisdiction's center point.
- * If center point is specified there must be a feature present in the location.geojson.features that defines
+ * If center point is specified there must be a feature present in the locationWithNominatimData.geojson.features that defines
  * a radius to search
  * It can only be left undefined if geojson features are defined
- * @param {Object} [location.geojson] The location geojson features to query individually if the query is not based on jurisdiction
+ * @param {Object} [location.geojson] The locationWithNominatimData geojson features to query individually if the query is not based on jurisdiction
  * @param {Object} [location.osmOverrides] Optional overrides to force certain OSM way and node ids
  * @param {Object} [location.country] For radius queries based on jurisdiction
- * @returns {[string]} The queries for each feature of the location, or possibly more if the location features
+ * @returns {[string]} The queries for each feature of the locationWithNominatimData, or possibly more if the locationWithNominatimData features
  * are broken up into smaller bounding boxes
  */
 function _constructHighwayQueriesForType(osmConfig, {type}, location) {
@@ -429,11 +429,11 @@ function _constructHighwayQueriesForType(osmConfig, {type}, location) {
         );
       }
     ],
-    // Just put the location in an array since we'll search for it by areaId
+    // Just put the locationWithNominatimData in an array since we'll search for it by areaId
     [({areaId}) => areaId, Array.of],
     // This should never happen
     [R.T, () => {
-      throw new Error('Cannot query for a location that lacks both an areaId and geojson features with shapes or radii');
+      throw new Error('Cannot query for a locationWithNominatimData that lacks both an areaId and geojson features with shapes or radii');
     }]
   ])({areaId, geojson});
 

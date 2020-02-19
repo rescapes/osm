@@ -159,7 +159,7 @@ describe('LocationSelector', () => {
   });
   test('intersectionsByNodeIdToSortedIntersectionsLocationDecides', () => {
     // Case where same way leaves and comes back to a main one.
-    // We need to make sure the main one is treated as the block using location's context
+    // We need to make sure the main one is treated as the block using locationWithNominatimData's context
     expect(intersectionsByNodeIdToSortedIntersections({
         "country": "Canada",
         "state": "BC",

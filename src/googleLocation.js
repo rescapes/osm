@@ -56,7 +56,7 @@ const OK_STATUS = 200;
 const addGeojsonToGoogleResult = result => {
   return R.set(
     R.lensProp('geojson'),
-    // Convert result.geometry.location to a turf point.
+    // Convert result.geometry.locationWithNominatimData to a turf point.
     googleLocationToTurfPoint(result.geometry.location),
     result
   );
@@ -79,7 +79,7 @@ export const geocodeJursidictionResultTask = location => {
       address: jurisdictionalString
     }).asPromise();
     promise.then(
-      // Only accept exact results, not approximate, if the location search involves intersections
+      // Only accept exact results, not approximate, if the locationWithNominatimData search involves intersections
       response => {
         const results = response.json.results;
         if (R.compose(R.equals(1), R.length)(results)) {
@@ -94,7 +94,7 @@ export const geocodeJursidictionResultTask = location => {
           // Ambiguous or no results. We can potentially resolve ambiguous ones
           log.warn(`Failed to find exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${jurisdictionalString}. ${R.length(results)} results`);
           resolver.resolve(Result.Error({
-            error: 'Did not receive exactly one location',
+            error: 'Did not receive exactly one locationWithNominatimData',
             results: R.map(
               result => addGeojsonToGoogleResult(result),
               results
@@ -114,10 +114,10 @@ export const geocodeJursidictionResultTask = location => {
 };
 
 /**
- * Resolves the lat/lon from the given location
+ * Resolves the lat/lon from the given locationWithNominatimData
  * @param {Object} location Location object gives us context about the address. In the future we might just
- * accept a location an not an address, since we can derive the address from the location.
- * The location must be a single item array containing a lat,lon string
+ * accept a locationWithNominatimData an not an address, since we can derive the address from the locationWithNominatimData.
+ * The locationWithNominatimData must be a single item array containing a lat,lon string
  * we are resolving
  * @return {Task<Result<Object>} resolves with response in a Result if the status is OK,
  * else an Error with the error. Failed geocoding should be expected and handled. The Result
@@ -125,7 +125,7 @@ export const geocodeJursidictionResultTask = location => {
  * if the request goes through Google. If the address is already a lat,lon Google isn't used
  */
 export const geocodeAddressResultTask = location => {
-  // If the location intersections[0] is a lat/lon  don't bother to call Google's geocoder
+  // If the locationWithNominatimData intersections[0] is a lat/lon  don't bother to call Google's geocoder
   // Sometimes we have data where one of the intersection street names is the lat/lon of the intersection.
   // In this case just use that lat/lon for the intersection
   const latLng = locationIntersectionAsLatLng(strPathOr('', 'intersections.0', location));
@@ -143,7 +143,7 @@ export const geocodeAddressResultTask = location => {
       }).asPromise();
     }
     promise.then(
-      // Only accept exact results, not approximate, if the location search involves intersections
+      // Only accept exact results, not approximate, if the locationWithNominatimData search involves intersections
       response => {
         const results = R.ifElse(
           R.always(latLng),
@@ -153,7 +153,7 @@ export const geocodeAddressResultTask = location => {
             return {
               // Just use our lat lon for the geojson, not what Google found, which might be less accurate
               geojson: locationToTurfPoint(R.map(parseFloat, R.split(',', latLng))),
-              // Add this special property that can be used to modify our location later with
+              // Add this special property that can be used to modify our locationWithNominatimData later with
               // the jurisdictions found by Google
               locationWithJurisdictions: resolveJurisdictionFromGeocodeResult(location, results).matchWith({
                 Ok: ({value}) => value,
@@ -175,7 +175,7 @@ export const geocodeAddressResultTask = location => {
                   Ok: ({value}) => R.equals('intersection', value),
                   Error: R.F
                 }),
-                // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE location
+                // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE locationWithNominatimData
                 r => R.includes(r.geometry.location_type, ['GEOMETRIC_CENTER']),
                 // No partial matches allowed.
                 r => R.not(R.prop('partial_match', r)),
@@ -202,7 +202,7 @@ export const geocodeAddressResultTask = location => {
           // Ambiguous or no results. We can potentially resolve ambiguous ones
           log.warn(`Failed to find exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${address}. ${R.length(results)} results`);
           resolver.resolve(Result.Error({
-            error: 'Did not receive exactly one location',
+            error: 'Did not receive exactly one locationWithNominatimData',
             results: R.map(
               result => addGeojsonToGoogleResult(result),
               results
@@ -230,8 +230,8 @@ export const geocodeAddressResultTask = location => {
  * but we can almost always guess the correct block intersections.
  * This is needed for locations that didn't specifies cardinal directions like
  * NW, SW and thus result to two different places.
- * @param {object} location The location of the locationPair. In the future we might get rid of locationPair
- * and simply derive it from location
+ * @param {object} location The locationWithNominatimData of the locationPair. In the future we might get rid of locationPair
+ * and simply derive it from locationWithNominatimData
  * @returns {Task<[Result<Object>]>} Task to return the two matching geolocations
  * in a Result. Each object contains a geojson property which is a point. Other information might be in the
  * object if the address was resolved through Google, but don't count on it. If either intersection cannot
@@ -277,7 +277,7 @@ export const geocodeBlockAddressesResultTask = location => {
     },
     // Initial accumulation is an empty Result
     of(Result.of()),
-    // Each location is resolved to a Task<Result>, where the Result if a Ok if a single address was
+    // Each locationWithNominatimData is resolved to a Task<Result>, where the Result if a Ok if a single address was
     // resolved and an Error otherwise
     R.map(
       locationWithOneIntersection => geocodeAddressWithBothIntersectionOrdersTask(locationWithOneIntersection),
@@ -287,7 +287,7 @@ export const geocodeBlockAddressesResultTask = location => {
 };
 
 /**
- * Geocodes the location with the intersection streets in each order until one returns a result
+ * Geocodes the locationWithNominatimData with the intersection streets in each order until one returns a result
  * @param {Object} locationWithOneIntersectionPair Location with only one intersection pair
  * @param {[[String]|String]} locationWithOneIntersectionPair.intersections one item array with a pair of
  * intersections names or just a lat/lon string
@@ -332,11 +332,11 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
 
 
 /**
- * Returns the geographical center point of a location pair, meaning the center
+ * Returns the geographical center point of a locationWithNominatimData pair, meaning the center
  * point between the two interesections of a block. This is probably only used for map
  * centering
- * @param {object} location Location object of the location pair. Provides context for resolving the pair. In
- * the future we might just pass the location and derive the locationPair from it
+ * @param {object} location Location object of the locationWithNominatimData pair. Provides context for resolving the pair. In
+ * the future we might just pass the locationWithNominatimData and derive the locationPair from it
  * @returns {Task<Result>} Task to return the center points
  */
 export const geojsonCenterOfBlockAddress = location => R.composeK(
@@ -404,12 +404,12 @@ export const findClosest = (firstResultSet, secondResultSet) => {
 /**
  * Calculates the route using the Google API
  * @param {Object} directionsService Google API direction service
- * @param {Object} origin The origin location object
+ * @param {Object} origin The origin locationWithNominatimData object
  * @param {Object} origin.geometry The origin geometry object
- * @param {Object} origin.geometry.location The lat, lon origin
- * @param {Object} destination The destination location object
+ * @param {Object} origin.geometry.locationWithNominatimData The lat, lon origin
+ * @param {Object} destination The destination locationWithNominatimData object
  * @param {Object} origin.geometry The destination geometry object
- * @param {Object} destination.geometry.location The lat, lon origin
+ * @param {Object} destination.geometry.locationWithNominatimData The lat, lon origin
  * @return {Task} resolves with Google Directions Route Response if the status is OK, else rejects
  */
 export const calculateRouteTask = R.curry((directionsService, origin, destination) => {
@@ -436,12 +436,12 @@ export const calculateRouteTask = R.curry((directionsService, origin, destinatio
  * Create two tasks, one directions from the origin to destination and the reverse directions.
  * This matters for wide streets that have streetviews taken from both sides.
  * @param {Object} directionsService Google API direction service
- * @param {Object} origin The origin location object
+ * @param {Object} origin The origin locationWithNominatimData object
  * @param {Object} origin.geometry The origin geometry object
- * @param {Object} origin.geometry.location The lat, lon origin
- * @param {Object} destination The destination location object
+ * @param {Object} origin.geometry.locationWithNominatimData The lat, lon origin
+ * @param {Object} destination The destination locationWithNominatimData object
  * @param {Object} origin.geometry The destination geometry object
- * @param {Object} destination.geometry.location The lat, lon origin
+ * @param {Object} destination.geometry.locationWithNominatimData The lat, lon origin
  * @return {Task<Result<[Object]>>} resolves with two Google Directions Route Responses
  * if the status is OK. The response is wrapped in a Result.Ok. Task rejections send a Result.Error
  */
@@ -466,8 +466,8 @@ export const calculateOpposingRoutesTask = R.curry((directionsService, origin, d
 /***
  * Given an origin and destination street address, calculates a route using the Google API
  * @param {object} directionService Google Direction Service
- * @param {object} location The location to use as context. This is currently just used to help resolve the addresses.
- * If the origin destination pair spans more than a single location just specify minimum info like the country,
+ * @param {object} locationWithNominatimData The locationWithNominatimData to use as context. This is currently just used to help resolve the addresses.
+ * If the origin destination pair spans more than a single locationWithNominatimData just specify minimum info like the country,
  * state, city or a blank object.
  * @param {[String]} originDestinationPair
  * @return {Task<Result>} resolves with a Result of the calculated route if both
@@ -525,13 +525,13 @@ export const googleIntersectionTask = location => {
           (response, i) => R.merge({
             // Only parse the address_components if we have a real response
             // We'll have a real response unless we had a lat/lon intersection and didn't bother to geocode
-            // Otherwise just use each intersection from location that we already have
+            // Otherwise just use each intersection from locationWithNominatimData that we already have
             intersection: R.ifElse(
               response => R.propOr(false, 'address_components', response),
               // Get the long name version
               // Split at &
               response => R.split(' & ', reqStrPathThrowing('address_components.0.long_name', response)),
-              // Use the intersection from location instead
+              // Use the intersection from locationWithNominatimData instead
               () => reqPathThrowing(['intersections', i], location)
             )(response)
           }, response),
@@ -539,7 +539,7 @@ export const googleIntersectionTask = location => {
         )
       )
     ),
-    // Geocode the location
+    // Geocode the locationWithNominatimData
     location => geocodeBlockAddressesResultTask(location)
   )(location);
 };
@@ -553,13 +553,13 @@ export const googleIntersectionTask = location => {
  * @param {String} location.city
  * @param {[[String]]} location.intersections Zero, one or two arrays of two-item intersections:
  * e.g. [['Main St', 'Chestnut St'], ['Main St', 'Elm St']] or 0 or 1 of theses
- * @return {Task<Result<[Number, Number]>>} The resolved center latitude and longitude of the location in a Result
+ * @return {Task<Result<[Number, Number]>>} The resolved center latitude and longitude of the locationWithNominatimData in a Result
  * If nothing or too many results occur an Error is returned instead of a Result
  */
 export const resolveGeoLocationTask = location => {
   const latLng = R.props(['latitude', 'longitude'], location);
-  // If we have a lat/lon predefined on the location, just return it as a Task<Result> to match the other return values
-  // TODO We should get rid of this because a location is never a single point, rather two intersections
+  // If we have a lat/lon predefined on the locationWithNominatimData, just return it as a Task<Result> to match the other return values
+  // TODO We should get rid of this because a locationWithNominatimData is never a single point, rather two intersections
   if (R.all(R.is(Number), latLng)) {
     return of(Result.Ok(latLng));
   }
@@ -581,7 +581,7 @@ export const resolveGeoLocationTask = location => {
       )),
       // Task Result Object -> Task Result Object.
       responseResult => of(R.chain(
-        response => reqStrPath('geometry.location', response),
+        response => reqStrPath('geometry.locationWithNominatimData', response),
         responseResult
       )),
       // Task Object -> Task Result Object
@@ -591,7 +591,7 @@ export const resolveGeoLocationTask = location => {
           // We try the intersection name with both name orderings because sometimes Google only knows one
           // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
           ({location}) => R.equals(2, R.length(location.intersections)),
-          // Otherwise take whatever is in the location, maybe just country or also state, city, neighborhood, etc
+          // Otherwise take whatever is in the locationWithNominatimData, maybe just country or also state, city, neighborhood, etc
           // and give a center point. If we have a named intersection this task will try to resolve the intersection
           // by trying names in both orders until one resolves. E.g. it tries Main St and Elm St and then Elm St and Main St
           // if the former fails
@@ -639,11 +639,11 @@ export const resolveGeojsonTask = location => {
 
 /**
  * For new locations resolved with OSM and Google geocoding, this applies the geocoding address components
- * to the location to set country, (state), city, and neighborhood. There are some overrides below for
+ * to the locationWithNominatimData to set country, (state), city, and neighborhood. There are some overrides below for
  * special cases that should be extracted to an overrides file or similar
  * @param {OBject} location Location object needing country, state, city, and neighborhood
- * @param {[Object]} googleGeocodeResults The resolved Google geocode object for each intersection of the location
- * @param {Result Object} Result.Ok with the location with country, (state), city, and neighborhood. Or Result.Error
+ * @param {[Object]} googleGeocodeResults The resolved Google geocode object for each intersection of the locationWithNominatimData
+ * @param {Result Object} Result.Ok with the locationWithNominatimData with country, (state), city, and neighborhood. Or Result.Error
  * if either country or city are missing. state and neighborhood are optional unless overrides require them
  */
 export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResults) => {
@@ -674,7 +674,7 @@ export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResu
     county: obj => R.prop('long_name', obj),
     city: (obj, values) => {
       return R.cond([
-        // For some reason New York location locations don't return New York as a city,
+        // For some reason New York locationWithNominatimData locations don't return New York as a city,
         // I guess because the state equals the city. Seems like a bug
         [
           ({values}) => R.both(
@@ -719,20 +719,20 @@ export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResu
 
 /**
  * Use Google to resolve full jurisdiction names. If Google can't resolve either intersection a Result.Error
- * is returned. Otherwise a Result.Ok containing the location with the updated location.intersections
+ * is returned. Otherwise a Result.Ok containing the locationWithNominatimData with the updated locationWithNominatimData.intersections
  * also maintain the Google results. We can use either the intersections or the Google geojson to
  * resolve OSM data.
  * @param {Object} location Location object
- * @returns {Object} the resolved jurisdiction values: country, state, city, neighborhood merged into the location,
- * where any explicit location values get priority over what Google found. Also merges in an intersections property
- * which is arrays of intersection names. These get priority over location.intersections
+ * @returns {Object} the resolved jurisdiction values: country, state, city, neighborhood merged into the locationWithNominatimData,
+ * where any explicit locationWithNominatimData values get priority over what Google found. Also merges in an intersections property
+ * which is arrays of intersection names. These get priority over locationWithNominatimData.intersections
  * @private
  */
 export const _googleResolveJurisdictionResultTask = location => mapMDeep(2,
   // Replace the intersections with the fully qualified names
   googleIntersectionObjs => {
     // If either intersection was a lat/lon it will return a locationWithJurisdictions
-    // property. Use the first one we find to populate missing jurisdiction info in the location
+    // property. Use the first one we find to populate missing jurisdiction info in the locationWithNominatimData
     // if needed
     const jurisdiction = R.compose(
       R.ifElse(
@@ -744,7 +744,7 @@ export const _googleResolveJurisdictionResultTask = location => mapMDeep(2,
       R.find(R.has('locationWithJurisdictions'))
     )(googleIntersectionObjs);
 
-    // Add locationPoints to the location based on the googleIntersectionObjs if it doesn't have them yet
+    // Add locationPoints to the locationWithNominatimData based on the googleIntersectionObjs if it doesn't have them yet
     const locationWithGoogleAndLocationPoints = locationWithLocationPoints(
       R.merge(
         location,
@@ -752,7 +752,7 @@ export const _googleResolveJurisdictionResultTask = location => mapMDeep(2,
       )
     );
     return R.mergeAll([
-      // Any retrieved jurisdiction info gets lower priority than what is already in the location
+      // Any retrieved jurisdiction info gets lower priority than what is already in the locationWithNominatimData
       // That way if jurisdiction data with a lat/lon the Google jurisdiction won't trump
       jurisdiction,
       locationWithGoogleAndLocationPoints,

@@ -63,7 +63,7 @@ const log = loggers.get('rescapeDefault');
 
 
 /**
- * Calls queryLocationForOsmSingleBlockResultTask on each location
+ * Calls queryLocationForOsmSingleBlockResultTask on each locationWithNominatimData
  * @param {Object} osmConfig Currently unused
  * @param {[Object]} locations
  * @returns {Object} Object with Ok and Errors. Ok is a list of successfully processed with
@@ -85,14 +85,14 @@ export const queryLocationForOsmSingleBlocksResultsTask = (osmConfig, locations)
 
 /**
  *
- * Query the given block location
+ * Query the given block locationWithNominatimData
  * @param {Object} osmConfig
- * @param {Object} [osmConfig.forceOsmQuery] Default false, forces osm queries even if the location.geeojson
+ * @param {Object} [osmConfig.forceOsmQuery] Default false, forces osm queries even if the locationWithNominatimData.geeojson
  * was already set
  * @param {Object} location A Location object
  * @param {[String]} location.intersections Two pairs of strings representing the intersections cross-streets
- * @returns {Task<Result>} Result.Ok with the geojson results and the location in the form {blcok, location}
- * or a Result.Error in the form {error, location}. The location has a new property googleIntersctionObjs if Result.Ok,
+ * @returns {Task<Result>} Result.Ok with the geojson results and the locationWithNominatimData in the form {blcok, locationWithNominatimData}
+ * or a Result.Error in the form {error, locationWithNominatimData}. The locationWithNominatimData has a new property googleIntersctionObjs if Result.Ok,
  * which is the result of the google geocodings
  * The blocks contain nodes and ways, and nodesToIntersectingStreets ,
  * where there are normally 2 nodes for the two intersections.
@@ -100,14 +100,14 @@ export const queryLocationForOsmSingleBlocksResultsTask = (osmConfig, locations)
  * Some blocks have more than two nodes if they have multiple divided ways.
  * The results also contain nodesToIntersectingStreets, and object keyed by node ids and valued by the ways that intersect
  * the node. There is also an intersections array, which is also keyed by node id but valued by an array
- * of street names. The main street of the location's block is listed first followed by the rest (usually one)
+ * of street names. The main street of the locationWithNominatimData's block is listed first followed by the rest (usually one)
  * in alphabetical order
- * Otherwise Result.Error in the form {errors: {errors, location}, location} where the internal
- * location are varieties of the original with an osm area id added. Result.Error is only returned
- * if no variation of the location succeeds in returning a result
+ * Otherwise Result.Error in the form {errors: {errors, locationWithNominatimData}, locationWithNominatimData} where the internal
+ * locationWithNominatimData are varieties of the original with an osm area id added. Result.Error is only returned
+ * if no variation of the locationWithNominatimData succeeds in returning a result
  */
 export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) => {
-  // If the location already has geojson.features there's nothing to do.
+  // If the locationWithNominatimData already has geojson.features there's nothing to do.
   // If we forceOsmQuery then we query osm and get new geojson
   if (R.allPass([
     location => locationHasGeojsonFeatures(location),
@@ -159,7 +159,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
         [location => locationHasLocationPoints(location), R.compose(of, Result.Ok)],
         // Otherwise OSM needs full street names (Avenue not Ave), so use Google to resolve them
         // Use Google to resolve full names. If Google can't resolve either intersection a Result.Error
-        // is returned. Otherwise a Result.Ok containing the location with the updated location.intersections
+        // is returned. Otherwise a Result.Ok containing the locationWithNominatimData with the updated locationWithNominatimData.intersections
         // Also maintain the Google results. We can use either the intersections or the Google geojson to
         // resolve OSM data.
         [R.T, location => _googleResolveJurisdictionResultTask(location)]
@@ -170,8 +170,8 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
 
 
 /**
- * Given a location with an osmId included, query the Overpass API and cleanup the results to get a single block
- * of geojson representing the location's two intersections and the way(s) representing the block
+ * Given a locationWithNominatimData with an osmId included, query the Overpass API and cleanup the results to get a single block
+ * of geojson representing the locationWithNominatimData's two intersections and the way(s) representing the block
  * @param {Object} osmConfig
  * @param {Object} locationWithOsm A Location object that also has an osmId to limit the area of the queries.
  * @param {Object} locationWithOsm.data.osmOverrides Option overrides for the query
@@ -190,7 +190,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
  * Some blocks have more than two nodes if they have multiple divided ways.
  * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
  * the node. There is also an intersections array, which is also keyed by node id but valued by an array
- * of street names. The main street of the location's block is listed first followed by the rest (usually one)
+ * of street names. The main street of the locationWithNominatimData's block is listed first followed by the rest (usually one)
  * in alphabetical order
  */
 const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationWithOsm, geojsonPoints = null, intersections = null) => {
@@ -201,7 +201,7 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationW
       R.merge(locationWithOsm, {intersections}),
       {way: wayQuery, node: nodeQuery}
     ),
-    // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
+    // Build an OSM query for the locationWithNominatimData. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
     mapToNamedResponseAndInputs('queries',
       // Location l, String w, String n: l -> <way: w, node: n>
@@ -212,7 +212,7 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationW
             _constructInstersectionsQuery(
               osmConfig,
               {type},
-              // These are the only properties we might need from the location
+              // These are the only properties we might need from the locationWithNominatimData
               // We pass the intersections if available. We detached them earliser from locationWithOsm
               // So that we can update locationWithOsm with the intersections from Overpass
               R.merge({intersections}, pickDeepPaths(['osmId', 'data.osmOverrides'], locationWithOsm)),
@@ -227,7 +227,7 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationW
 };
 
 /**
- * Tries querying for the location based on the osm area id, osm city id, or intersections of the location
+ * Tries querying for the locationWithNominatimData based on the osm area id, osm city id, or intersections of the locationWithNominatimData
  * @param {Object} osmConfig
  * @param blockLocation
  * @returns {[Task<Result<Object>>[]} List of task with Result.Ok or a Result.Error in the form {error}
@@ -236,12 +236,12 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationW
  * Some blocks have more than two nodes if they have multiple divided ways.
  * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
  * the node. There is also an intersections array, which is also keyed by node id but valued by an array
- * of street names. The main street of the location's block is listed first followed by the rest (usually one)
+ * of street names. The main street of the locationWithNominatimData's block is listed first followed by the rest (usually one)
  * in alphabetical order
  * @private
  */
 const _queryOverpassBasedLocationPropsForSingleBlockResultTasks = (osmConfig, blockLocation) => {
-  // Get geojson points representing the  block location
+  // Get geojson points representing the  block locationWithNominatimData
   const geojsonPoints = R.prop('locationPoints', blockLocation);
 
   return R.compose(
@@ -263,7 +263,7 @@ const _queryOverpassBasedLocationPropsForSingleBlockResultTasks = (osmConfig, bl
         // Else use intersections and possible google points
         blockLocation => R.concat(
           [
-            // First try to find the location using intersections
+            // First try to find the locationWithNominatimData using intersections
             _queryOverpassWithLocationForSingleBlockResultTask(osmConfig, blockLocation)
           ],
           R.unless(
@@ -285,7 +285,7 @@ const _queryOverpassBasedLocationPropsForSingleBlockResultTasks = (osmConfig, bl
 };
 
 /**
- * Resolve the location and then query for the block in overpass.
+ * Resolve the locationWithNominatimData and then query for the block in overpass.
  * Overpass can't give precise blocks back so we get more than we need and clean it with getFeaturesOfBlock.
  * This process will first use nominatimResultTask to query nomatim.openstreetmap.org for the relationship
  * of the neighborhood of the city. If it fails it will try the entire city. With this result we
@@ -293,17 +293,17 @@ const _queryOverpassBasedLocationPropsForSingleBlockResultTasks = (osmConfig, bl
  * plus a magic number defined by Overpass. If the neighborhood area query fails to give us the results we want,
  * we retry with the city area
  * @param {Object} osmConfig
- * @param {Object} location A location object
- * @returns {Task<Result<Object>>} Result.Ok in the form {location, block} if data is found,
- * otherwise Result.Error in the form {errors: {errors, location}, location} where the internal
- * location are varieties of the original with an osm area id added. Result.Error is only returned
- * if no variation of the location succeeds in returning a result
+ * @param {Object} location A locationWithNominatimData object
+ * @returns {Task<Result<Object>>} Result.Ok in the form {locationWithNominatimData, block} if data is found,
+ * otherwise Result.Error in the form {errors: {errors, locationWithNominatimData}, locationWithNominatimData} where the internal
+ * locationWithNominatimData are varieties of the original with an osm area id added. Result.Error is only returned
+ * if no variation of the locationWithNominatimData succeeds in returning a result
  * The results contain nodes and ways, where there are normally 2 nodes for the two intersections.
  * There must be at least on way and possibly more, depending on where two ways meet.
  * Some blocks have more than two nodes if they have multiple divided ways.
  * The results also contain waysByNodeId, and object keyed by node ids and valued by the ways that intersect
  * the node. There is also an intersections array, which is also keyed by node id but valued by an array
- * of street names. The main street of the location's block is listed first followed by the rest (usually one)
+ * of street names. The main street of the locationWithNominatimData's block is listed first followed by the rest (usually one)
  * in alphabetical order
  */
 const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
@@ -314,7 +314,7 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
 
   // Sort LineStrings (ways) so we know how they are connected
   return R.composeK(
-    // If we get a Result.Error, it means our query failed. Try next with a bounding box query using the two location
+    // If we get a Result.Error, it means our query failed. Try next with a bounding box query using the two locationWithNominatimData
     // points
     result => result.matchWith({
       Ok: ({value}) => {
@@ -342,7 +342,7 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
     resultToTaskWithResult(
       // Chain our queries until we get a result or fail
       locationVariationsWithOsm => R.cond([
-        // If the location has location points we don't need an osm area id because we already know were the block is
+        // If the locationWithNominatimData has locationWithNominatimData points we don't need an osm area id because we already know were the block is
         [() => locationHasLocationPoints(location),
           () => queryOverpassForSingleBlockUntilFoundResultTask([location])
         ],
@@ -354,7 +354,7 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
         [R.T,
           () => of(Result.Error({
             errors: ({
-              errors: ['OSM Nominatim query could not resolve a neighborhood or city for this location. Check spelling'],
+              errors: ['OSM Nominatim query could not resolve a neighborhood or city for this locationWithNominatimData. Check spelling'],
               location
             }),
             location
@@ -363,13 +363,13 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
       ])(locationVariationsWithOsm)
     ),
     // Use OSM Nominatim to get relation of the neighborhood (if it exists) or failig that the city
-    // Only neeeded if location.locationPoints is empty, meaning we don't know where the block is geospatially
+    // Only neeeded if locationWithNominatimData.locationPoints is empty, meaning we don't know where the block is geospatially
     location => locationBlocksLatLonsOrNominatimLocationResultTask(location)
   )(location);
 };
 
 /**
- * Queries for a single block using a bounds query. The bounds are the box around the two location.locationPoints
+ * Queries for a single block using a bounds query. The bounds are the box around the two locationWithNominatimData.locationPoints
  * with a buffer to make sure the street in question and it's neighbors are queried
  * @param osmConfig
  * @param location
@@ -401,7 +401,7 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
 const _locationToOsmSingleBlockBoundsResolve = (location, {Ok: locationsWithBlocks, Errors: errors}) => {
   // Debug
   //blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
-  // Find the block that has nodes within an acceptable tolerance of location.locationPoints to be
+  // Find the block that has nodes within an acceptable tolerance of locationWithNominatimData.locationPoints to be
   // considered the correct block
   const matchingLocationsWithBlocks = compact(
     R.map(
@@ -439,26 +439,26 @@ const _locationToOsmSingleBlockBoundsResolve = (location, {Ok: locationsWithBloc
 };
 
 /**
- * Calls nominatimLocationResultTask if a block location doesn't have lat/lon info in
+ * Calls nominatimLocationResultTask if a block locationWithNominatimData doesn't have lat/lon info in
  * locationPoints. If it does then nominatimLocationResultTask if not needed because we can query
  * OSM with a small buffer around the pointIntersections instead of using the osmId from nominatim
  * @param {Object} location
- * @returns {Task<Result.Ok<Object>>} location variations with osmId and osmType added if nominatimLocationResultTask is called
- * Otherwise location in an array
+ * @returns {Task<Result.Ok<Object>>} locationWithNominatimData variations with osmId and osmType added if nominatimLocationResultTask is called
+ * Otherwise locationWithNominatimData in an array
  */
 const locationBlocksLatLonsOrNominatimLocationResultTask = location => R.ifElse(
   locationHasLocationPoints,
   location => of(Result.Ok([location])),
   // Use OSM Nominatim to get relation of the neighborhood (if it exists) and the city
   // We'll use one of these to query an area in Overpass.
-  // If we have a new location that only has lat/lon this will fail and we'll process the lat/lons above
+  // If we have a new locationWithNominatimData that only has lat/lon this will fail and we'll process the lat/lons above
   location => nominatimLocationResultTask({allowFallbackToCity: true, listSuccessfulResult: true}, location)
 )(location);
 
 
 /**
- * Given a location with an osmId included, query the Overpass API and cleanup the results to get a single block
- * of geojson representing the location's two intersections and the block
+ * Given a locationWithNominatimData with an osmId included, query the Overpass API and cleanup the results to get a single block
+ * of geojson representing the locationWithNominatimData's two intersections and the block
  * @param {Object} osmConfig
  * @param {Object} location only used for context in mock tests
  * @param {[String]} queries Queries generated by _queryOverpassForBlockWithOptionalOsmOverrides

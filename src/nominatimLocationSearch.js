@@ -105,8 +105,8 @@ const nominatimResultTaskTries = ({tries, name}, taskFunc) => {
   );
 };
 /*
- * Uses the nominatim service to find a relation representing the given location.
- * Currently this supports neighborhoods and cities. If a neighborhood is specified in the location and that
+ * Uses the nominatim service to find a relation representing the given locationWithNominatimData.
+ * Currently this supports neighborhoods and cities. If a neighborhood is specified in the locationWithNominatimData and that
  * query fails, the city without the neighborhood is queried. So this query is as precise as possible but
  * will not give up until it fails at the city-wide level. TODO in the future we can support other jurisdictions
  * like counties
@@ -117,10 +117,10 @@ const nominatimResultTaskTries = ({tries, name}, taskFunc) => {
  * @param {Object} [config.listSuccessfulResult] When true, returns the first successful result as a Result.Ok
  * with a single item list. Otherwise the Result.Ok is an empty array. If false, the default, returns the
  * first success Result.Ok or the errors array as a Result.Error
- * @param {Object} location Must contain country, city, and optionally state and neighborhood
- * @param {Object} location.country Required the country to search in
- * @param {Object} [location.state] Optional state of state, provinces, etc.
- * @param {Object} [location.neighborhood] Optional neighborhood to search for the neighborhood relation
+ * @param {Object} locationWithNominatimData Must contain country, city, and optionally state and neighborhood
+ * @param {Object} locationWithNominatimData.country Required the country to search in
+ * @param {Object} [locationWithNominatimData.state] Optional state of state, provinces, etc.
+ * @param {Object} [locationWithNominatimData.neighborhood] Optional neighborhood to search for the neighborhood relation
  * @returns {Task<Result<[Object]>} A task containing a Result.Ok or a Result.Error. If the query finds a relation
  * The Result.Ok returns that an and array with a single object with bbox (the bounding box), osmId (the OSM relation id), osmType (always 'relation')
  * and placeId (unused). If it doesn't a Result.Ok([]) is returned for further processing. If there's a problem
@@ -164,7 +164,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
           R.always([['country', 'state', 'city', 'neighborhood']]),
           R.always([])
         )(location),
-        // This will either have country, state, city or country, city or nothing if it's a location
+        // This will either have country, state, city or country, city or nothing if it's a locationWithNominatimData
         // with just a lot/long
         // If we have don't have a neighbhorhood or have one and allow fallback to city, this
         // gives us a query for the country, state, and, city
@@ -188,7 +188,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
           return nominatimResultTask(locationProps).map(responseResult => responseResult.map(value => {
               // bounding box comes as two lats, then two lon, so fix
               return R.merge(
-                // Create a geojson center point feature for the location if it has
+                // Create a geojson center point feature for the locationWithNominatimData if it has
                 // features with properties but no geometry
                 // TODO this is a special case of filling in empty features that might be replaced in the future
                 R.over(
@@ -238,7 +238,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
 
 /***
  * Resolves a city or neighborhood OSM boundary relation
- * @param {Object} location. Contains location props
+ * @param {Object} location. Contains locationWithNominatimData props
  * @param {String} location.country Required country
  * @param {String} location.state Optional. The state, province, canton, etc
  * @param {String} location.city Required city
@@ -254,7 +254,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
  *  placeId: Internal nominatim id, ignore
  */
 export const nominatimResultTask = location => {
-  // Create a location string with the country, state (if exists), and city
+  // Create a locationWithNominatimData string with the country, state (if exists), and city
   // Note I tried to pass city, state, country to the API but it doesn't work, New York City returns York
   // So leaving this as a query string which does work
   const query = R.compose(
@@ -313,10 +313,10 @@ export const nominatimResultTask = location => {
 };
 
 /**
- * Reverse geocode and flatten the address segment to match our location format.
+ * Reverse geocode and flatten the address segment to match our locationWithNominatimData format.
  * This function is designed to resolve to the granularity of a single block, not a single point
  * TODO if we want this information fro point-based reverse geocoding, we should have another function
- * TODO The OSM format is better than our location format because it separates address, so we should copy
+ * TODO The OSM format is better than our locationWithNominatimData format because it separates address, so we should copy
  * the OSM format and get rid of our flat address format
  * @param lat
  * @param lon

@@ -53,7 +53,7 @@ export BASE_OSM_DIR=~/src/osm-3s_v0.7.55
 export EXEC_DIR=$BASE_OSM_DIR/bin
 export DB_DIR="$BASE_OSM_DIR/db"
 export DIFF_DIR="$BASE_OSM_DIR/diffs"
-export OSM_SERVER='osm.rescapes.net'
+export OSM_SERVER='YOURSERVERHOSTNAME'
 export NOMINATIM_USERNAME=nominatim
 export NOMINATIM_USERHOME=/srv/nominatim
 
@@ -204,36 +204,61 @@ sudo mv ./certbot-auto /usr/local/bin
 sudo /usr/local/bin/certbot-auto --cert-name osm.rescapes.net
 # This asks which subdomain to use and updates /etc/nginx/sites-enabled/sop to point to the security certificate
 
-# Extras
+# Reboot script. Copy from rescape-osm
+~local: scp server/sop_reboot.sh ubuntu@SERVER_NAME:~/src/osm-3s_v0.7.55/bin
 
-# To start all the scripts at once
-#The dispatcher has been successfully started if you find a line "Dispatcher just started." in the file transactions.log in the database directory with correct date (in UTC).
-nohup $EXEC_DIR/dispatcher --osm-base --meta --db-dir=$DB_DIR &> dispatcher-base.out&
-nohup $EXEC_DIR/dispatcher --areas --db-dir=$DB_DIR &> dispatcher-areas.out&
-nohup $EXEC_DIR/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" &> fetch_osc.out&
-nohup $EXEC_DIR/apply_osc_to_db.sh "diffs/" auto --meta=yes > apply_osc_to_db.out&
-nohup $EXEC_DIR/rules_loop.sh $DB_DIR > rules_loop.out&
+# On the server make a log dir
+chmod 755  ~/osm-3s_v0.7.55/bin/sop_reboot.sh
+sudo mkdir -p /var/log/overpass
+sudo chown ubuntu:ubuntu /var/log/overpass
+sudo chmod -R 755 /var/log/overpass
 
-# To kill the dispatchers
+crontab -e
+# Paste the following in the crontab file
+@reboot nohup /home/ubuntu/src/osm-3s_v0.7.55/bin/sop_reboot.sh
+# Edit the cron config to log somewhere useful
+vi sudo /etc/rsyslog.d/50-default.conf
+# Find the line that starts with and uncomment
+#cron.*
+sudo service rsyslog restart
+
+
+# To kill the dispatchers manually
 $EXEC_DIR/dispatcher --osm-base --terminate
-# manual
 # If you have problems because of a previous run, delete the following marker files
-# rm  /dev/shm/osm3s_v0.7.55_osm_base
-# rm  $DB_DIR/osm3s_v0.7.55_osm_base
+rm -f  /dev/shm/osm3s_v0.7.55_osm_base
+rm -f $DB_DIR/osm3s_v0.7.55_osm_base
+# Area dispatcher
 $EXEC_DIR/dispatcher --areas --terminate
+# To start all the scripts at once
+# The dispatcher has been successfully started if you find a line "Dispatcher just started." in the file transactions.log in the database directory with correct date (in UTC).
 
+
+# Manual commands (same as $EXEC_DIR/sop_reboot.sh commands)
+nohup $EXEC_DIR/dispatcher --osm-base --meta --db-dir=$DB_DIR >>/var/log/overpass/dispatcher-base.out &
+nohup $EXEC_DIR/dispatcher --areas --db-dir=$DB_DIR >>/var/log/overpass/dispatcher-areas.out &
+nohup $EXEC_DIR/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" >>/var/log/overpass/fetch_osc.out&
+nohup $EXEC_DIR/apply_osc_to_db.sh "diffs/" auto --meta=yes >>/var/log/overpass/apply_osc_to_db.out&
+# TODO This isn't in reboot.sh. Do I need it?
+nohup $EXEC_DIR/rules_loop.sh $DB_DIR >>/var/log/overpass/rules_loop.out&
 
 # To test the server quickly
+# official server
 wget -q -O - "$@" "https://overpass-api.de/api/interpreter?data=%3Cprint%20mode=%22body%22/%3E"
-wget -q -O - "$@" "https://osm.rescapes.net/api/interpreter?data=%3Cprint%20mode=%22body%22/%3E"
+# your server
+wget -q -O - "$@" "https://$OSM_SERVER/api/interpreter?data=%3Cprint%20mode=%22body%22/%3E"
+# or to see results
+wget -q -O - "%@" "https://$OSM_SERVER/cgi-bin/interpreter?data=%3Cosm-script%20output%3D%22json%22%20output-config%3D%22%22%3E%0A%20%20%3Cid-query%20type%3D%22node%22%20ref%3D%2253049873%22%20into%3D%22matchingNode%22%2F%3E%0A%20%20%3Cquery%20into%3D%22matchingWays%22%20type%3D%22way%22%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22highway%22%20modv%3D%22%22%20v%3D%22%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22highway%22%20modv%3D%22not%22%20v%3D%22driveway%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22footway%22%20modv%3D%22not%22%20v%3D%22crossing%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22footway%22%20modv%3D%22not%22%20v%3D%22sidewalk%22%2F%3E%0A%20%20%20%20%3Crecurse%20from%3D%22matchingNode%22%20type%3D%22node-way%22%2F%3E%0A%20%20%3C%2Fquery%3E%0A%20%20%3Cprint%20e%3D%22%22%20from%3D%22matchingWays%22%20geometry%3D%22full%22%20ids%3D%22yes%22%20limit%3D%22%22%20mode%3D%22body%22%20n%3D%22%22%20order%3D%22id%22%20s%3D%22%22%20w%3D%22%22%2F%3E%0A%3C%2Fosm-script%3E"
 # If the dispatcher isn't working, terminate it and test the installation vi the bin command:
 $EXEC_DIR/osm3s_query --db-dir=$DB_DIR
 paste: <query type="node"><bbox-query n="51.0" s="50.9" w="6.9" e="7.0"/><has-kv k="amenity" v="pub"/></query><print/>
 CTRL+D
 
-
 # If you need to increase the size of the volume on EC2:
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/recognize-expanded-volume-linux.html
+
+# Start/Stop the server instructions
+https://aws.amazon.com/premiumsupport/knowledge-center/start-stop-lambda-cloudwatch/
 
 
 # Nomanatim installation
@@ -291,11 +316,11 @@ EOF
 
 # Alternative Nginx for nomanatim. Add the following to /etc/nginx/nginx.conf
 # TODO this doesn't work, but would with some tweeks
-        location /nomanatim/ {
+        locationWithNominatimData /nomanatim/ {
           root /srv/nominatim/build/website;
           try_files \$uri \$uri/ @php;
         }
-        location @php {
+        locationWithNominatimData @php {
             fastcgi_param SCRIPT_FILENAME "\$document_root\$uri.php";
             fastcgi_param PATH_TRANSLATED "\$document_root\$uri.php";
             fastcgi_param QUERY_STRING    \$args;
@@ -303,7 +328,7 @@ EOF
             fastcgi_index index.php;
             include fastcgi_params;
         }
-        location ~ [^/]\.php(/|$) {
+        locationWithNominatimData ~ [^/]\.php(/|$) {
             fastcgi_split_path_info ^(.+?\.php)(/.*)$;
             if (!-f \$document_root\$fastcgi_script_name) {
                 return 404;

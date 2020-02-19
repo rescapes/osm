@@ -99,13 +99,13 @@ export const partialBlocksFromNonOsmWayFeatures = wayFeatures => {
   ])(wayFeatures);
 };
 /**
- * Converts geojsonLines from a nonOSM source, like ESRI files to location blocks.
+ * Converts geojsonLines from a nonOSM source, like ESRI files to locationWithNominatimData blocks.
  * TODO To convert ESRI files, use online tools or integrate a library that property converts here
  * @param {Object} config
  * @param {Object} config.osmConfig The OSM Config. This will be merged with disableNodesOfWayQueries: true to prevent
  * querying OpenStreetMap for missing way information about the lines, since the lines aren't from OSM
  * @param {Object} featureConfig
- * @param {Object} featureConfig.location The location info to merge into each street. This is normally
+ * @param {Object} featureConfig.location The locationWithNominatimData info to merge into each street. This is normally
  * {country:, [state:], city:} TODO If using geojson that comes from different jurisdictions, this property needs
  * to be updated to be a function that accepts each feature and extracts juridiction information from the feature
  * properties

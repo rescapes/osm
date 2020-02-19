@@ -345,7 +345,9 @@ export const osmResultTask = ({tries, name, context}, taskFunc) => {
             context: context
           };
         })
-      ).map(v => v.mapError(e => ({value: e, server})));
+      ).map(v => {
+        return v.mapError(e => ({value: e, server}));
+      });
     }, attempts)
   );
 };
@@ -367,8 +369,10 @@ export const queryTask = (options, query) => {
         log.debug(`\n\nRequesting OSM query:\n${query}\n\n`);
         queryOverpass(query, (error, data) => {
           if (!error) {
+            log.debug(`\n\nSuccessful Response from OSM query:\n${query}\n\n`);
             resolver.resolve(data);
           } else {
+            log.warn(`\n\nFailure Response from OSM query:\n${query}\n\n`);
             resolver.reject({error, query});
           }
         }, options);

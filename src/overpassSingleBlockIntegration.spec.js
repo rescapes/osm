@@ -51,7 +51,7 @@ describe('overpassIntegration', () => {
   }, 50000);
 
   // Query multiple locations and combine results. Expect one result in Ok and one in Errors
-  // Currently the second location here doesn't resolve because of a weird highway intersection. It might
+  // Currently the second locationWithNominatimData here doesn't resolve because of a weird highway intersection. It might
   // work in the future though when the query code is improved
   test('queryLocationForOsmSingleBlocksResultsTask', done => {
     expect.assertions(1);

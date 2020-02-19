@@ -361,7 +361,7 @@ export function _choicePointProcessPartialBlockResultTask(
       ({firstFoundNodeOfFinalWay}) => R.isNil(firstFoundNodeOfFinalWay),
       // Find the dead-end node or intersection node outside the query results
       () => {
-        log.debug(`_choicePointProcessPartialBlockResultTask: resolving incomplete way for block calling ${
+        log.debug(`_choicePointProcessPartialBlockResultTask: resolving incomplete way for block with way ids ${
             JSON.stringify(R.map(R.prop('id'), ways))
           }.`
         );

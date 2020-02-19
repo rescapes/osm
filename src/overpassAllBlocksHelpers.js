@@ -55,8 +55,8 @@ const log = loggers.get('rescapeDefault');
  * for efficiency for large areas and the results are uniquely combined
  * @param {String} nodeQueries The overpass node queries. Like way queries, queries are broken up
  * for efficiency for large areas and the results are uniquely combined
- * @returns {Task<Object>} { Ok: location blocks, Error: []
- * Each location block, and results containing: {node, way, nodesToIntersectingStreets} in the Ok array
+ * @returns {Task<Object>} { Ok: locationWithNominatimData blocks, Error: []
+ * Each locationWithNominatimData block, and results containing: {node, way, nodesToIntersectingStreets} in the Ok array
  * node contains node features, way contains way features, and nodesToIntersectingStreets are keyed by node id
  * and contain one or more street names representing the intersection. It will be just the block name for
  * a dead end street, and contain the intersecting streets for non-deadends
@@ -116,7 +116,7 @@ export const _queryOverpassForAllBlocksResultsTask = (
  * It should be set to 0 if all segments are needed for routing algorithms
  * @param {Object} osmConfig.disableNodesOfWayQueries. Don't allow OSM queries to find nodes of incomplete ways
  * We do this when we node the way/node set is complete and/or we have ways/nodes that aren't from OSM
- * @param {Object} location Used for context to help resolve the blocks. This location represents the geojson
+ * @param {Object} location Used for context to help resolve the blocks. This locationWithNominatimData represents the geojson
  * or jurisdiction data used to create the way and node queries
  * @param {Object} features {ways, nodes} way features and node features
  * @param {Object} [features.ways] Required unless partialBlocks is specified
@@ -173,7 +173,7 @@ export const organizeResponseFeaturesResultsTask = (
  * Builds partial blocks to features One or more partial blocks can result in a features.
  * @param {Object} osmConfig
  * @param {Object} osmConfig.disableNodesOfWayQueries
- * @param {Object} location The original location that was searched for to create these blocks
+ * @param {Object} location The original locationWithNominatimData that was searched for to create these blocks
  * @param {Object} locationConfig
  * @param locationConfig.nodeIdToWays
  * @param locationConfig.wayIdToNodes
@@ -184,7 +184,7 @@ export const organizeResponseFeaturesResultsTask = (
  * and blocks that failes
  * @private
  */
-const _partialBlocksToFeaturesResultsTask = (
+export const _partialBlocksToFeaturesResultsTask = (
   osmConfig,
   location,
   {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
@@ -211,7 +211,7 @@ const _partialBlocksToFeaturesResultsTask = (
             nodesToIntersectingStreets => ({
               // Put the OSM results together
               block: R.merge(block, {nodesToIntersectingStreets}),
-              // Add the intersections to the location and return it
+              // Add the intersections to the locationWithNominatimData and return it
               location: R.merge(
                 location,
                 {
@@ -340,7 +340,7 @@ const _removeOpposingDuplicateBlocks = blocks => {
           } else {
             // Choose the block direction to use based on which starts with the lowest node id or failing
             // that for loops which has the lowest first way's second point
-            // This is determinative so we can detect geojson changes when updating the location
+            // This is determinative so we can detect geojson changes when updating the locationWithNominatimData
             // but otherwise arbitrary.
             return R.head(_sortOppositeBlocksByNodeOrdering([otherBlock, block]));
           }
@@ -420,7 +420,8 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
     traverseReduceWhileBucketedTasks(
       {
         accumulateAfterPredicateFail: false,
-        predicate: ({value: {partialBlocks}}, x) => {
+        predicate: (result, x) => {
+          const {value: {partialBlocks}} = result;
           // Quit if we have no more partial blocks
           log.debug(`_traversePartialBlocksToBuildBlocksResultTask: Predicate. ${R.length(partialBlocks)} remaining`);
           return R.length(partialBlocks);
@@ -462,7 +463,9 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
             osmConfig,
             {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, hashToPartialBlocks},
             partialBlocks
-          )
+          ).map(wtf => {
+            return wtf
+          })
         );
       },
       of(Result.Ok({partialBlocks, blocks: [], errorBlocks: []})),

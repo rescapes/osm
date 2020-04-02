@@ -166,7 +166,7 @@ export const locationIntersectionAsLatLng = intersection => R.cond([
  * @param {String} state Optional state or province
  * @param {String} city The city
  * @param {String} neighborhood Optional the neighborhood
- * @param {String} blockname Optional specify if there is a blockname but not intersections yet known
+ * @param {String} street Optional specify if there is a street but not intersections yet known
  * @param {[[String]]} intersections Optional array of one pair of street names.
  * This matches the Location object when it only has one of its locations
  * If intersections is specified neighborhood is omitted from the search, since the former is more precise
@@ -174,7 +174,7 @@ export const locationIntersectionAsLatLng = intersection => R.cond([
  * Example: Main St and Chestnut St, Anytown, Anystate, USA which will resolve to an intersection
  * or Downtown District, Anytown, Anystate, USA, which will resolve to a district/neighborhood center point
  */
-export const addressString = ({country, state, city, neighborhood, blockname, intersections}) => {
+export const addressString = ({country, state, city, neighborhood, street, intersections}) => {
 
   // If it's a lat/lon return it
   // We take the first intersection of intersections because we're only resolving single point address here.
@@ -199,8 +199,8 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
       intersectionPair => R.length(intersectionPair || []),
       // If so we can put it between &, like 'Maple St & Chestnut St'
       R.join(' & '),
-      // Otherwise put the blockname and/or neighborhood. If this is null it's filtered out
-      R.always(blockname ? `${blockname}, ${neighborhood}` : neighborhood)
+      // Otherwise put the street and/or neighborhood. If this is null it's filtered out
+      R.always(street ? `${street}, ${neighborhood}` : neighborhood)
     )(resolvedIntersectionPair),
     city,
     state,
@@ -213,13 +213,13 @@ export const addressString = ({country, state, city, neighborhood, blockname, in
  * @param {String} country The country
  * @param {String} state Optional state or province
  * @param {String} city The city
- * @param {String} blockname Optional specify if there is a blockname but not intersections yet known
+ * @param {String} street Optional specify if there is a street but not intersections yet known
  * @param {[[String]]} intersections Array of two pairs of street names.
  * If intersections are specified neighborhood is omitted from the search, since the former is more precise
  * @returns {String} The address string with neighborhood and state optional
  * Example: Main St & Chestnut St to Main St & Elm St, Anytown, Anystate, USA which will resolve to an intersection
  */
-export const addressStringForBlock = ({country, state, city, neighborhood, blockname, intersections}) => {
+export const addressStringForBlock = ({country, state, city, neighborhood, street, intersections}) => {
 
   // If it's a lat/lon return it
   // We take the first intersection of intersections because we're only resolving single point address here.
@@ -249,8 +249,8 @@ export const addressStringForBlock = ({country, state, city, neighborhood, block
           intersectionPair => R.length(intersectionPair || []),
           // If so we can put it between &, like 'Maple St & Chestnut St'
           R.join(' & '),
-          // Otherwise put the blockname and/or neighborhood. If this is null it's filtered out
-          R.always(blockname ? `${blockname}, ${neighborhood}` : neighborhood)
+          // Otherwise put the street and/or neighborhood. If this is null it's filtered out
+          R.always(street ? `${street}, ${neighborhood}` : neighborhood)
         )(resolvedIntersectionPair);
       }, resolvedIntersectionPairs)
     ),
@@ -283,20 +283,20 @@ export const oneLocationIntersectionsFromLocation = location => {
 };
 
 /**
- * Returns the jurisdiction with optional blockname e.g. Perkins Ave, Oakland, CA, USA
+ * Returns the jurisdiction with optional street e.g. Perkins Ave, Oakland, CA, USA
  * @param {String} country Required, the country
  * @param {String} state Optional depending on the country
  * @param {String} city Required
- * @param {String} blockname Required, the street to create the address for
- * @return {String} blockname, city, [state], country
+ * @param {String} street Required, the street to create the address for
+ * @return {String} street, city, [state], country
  */
-export const jurisdictionString = ({country, state, city, blockname}) => {
+export const jurisdictionString = ({country, state, city, street}) => {
   return R.compose(
     R.join(', '),
     // Remove nulls and empty strings
     compactEmpty
   )([
-    blockname,
+    street,
     city,
     state,
     country]
@@ -398,7 +398,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
     originalStreetIntersectionSets => R.concat(originalStreetIntersectionSets, originalStreetIntersectionSets)
   )(originalStreetIntersectionSets);
 
-  const blockname = commonStreetOfLocation(location, modifiedStreetIntersectionSets);
+  const street = commonStreetOfLocation(location, modifiedStreetIntersectionSets);
 
   // If we only have one node in streetIntersectionSets then we need to add the dead-end
   const streetIntersectionSets = R.when(
@@ -407,7 +407,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
       // Find the locationWithNominatimData geojson feature node that doesn't occur in nodesToIntersectingStreets.
       // This must be our dead-end node. Grab it's id and use that as it's street name
       [
-        blockname,
+        street,
         // dead-end node id
         R.find(
           featureId => R.both(
@@ -435,11 +435,11 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
     R.map(R.length)
   )(streetIntersectionSets);
 
-  const blocknameThenAlphabetical = [
+  const streetThenAlphabetical = [
     // First sort by the common street
     R.ascend(
       R.ifElse(
-        s => R.equals(blockname, s),
+        s => R.equals(street, s),
         R.always(0),
         R.always(1)
       )
@@ -448,11 +448,11 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
     R.ascend(R.identity)
   ];
   return R.sortWith(
-    // Sort the sets by which has the most alphabetical non-blockname street(s)
+    // Sort the sets by which has the most alphabetical non-street street(s)
     ascends,
     R.map(
-      // Sort each set placing the blockname first followed by alphabetical
-      R.sortWith(blocknameThenAlphabetical),
+      // Sort each set placing the street first followed by alphabetical
+      R.sortWith(streetThenAlphabetical),
       streetIntersectionSets
     )
   );
@@ -621,11 +621,14 @@ export const locationHasGeojsonFeatures = location => {
  * Combines a locationWithNominatimData with the ways and nodes that came back from OSM queries, putting them in the locationWithNominatimData's
  * geojson property as a FeatureCollection
  * @param {Object} location A locationWithNominatimData object with intersections set matching the given ways and nodes
- * @param {[Object]} List of way features
- * @param {[Object]} nodes List of node features
+ * @param {Object} block OSM features. Must contain ways and nodes keys, relations are optional
+ * @param {[Object]} block.ways List of one or more ways of the block
+ * @param {[Object]} block.nodes List of two or more nodes of the block
+ * @param {[Object]} [block.relations] Optional list of relation features of the block, currently never used
  * @returns {f2|f1}
  */
-export const locationAndOsmBlocksToLocationWithGeojson = (location, {ways, nodes, relations}) => {
+export const locationAndOsmBlocksToLocationWithGeojson = v((location, block) => {
+  const {ways, nodes, relations} = block;
   return R.set(
     R.lensProp('geojson'),
     {
@@ -637,7 +640,13 @@ export const locationAndOsmBlocksToLocationWithGeojson = (location, {ways, nodes
     },
     location
   );
-};
+}, [
+  ['location', PropTypes.shape().isRequired],
+  ['block', PropTypes.shape({
+    ways: PropTypes.arrayOf(PropTypes.shape()).isRequired,
+    nodes: PropTypes.arrayOf(PropTypes.shape()).isRequired,
+  }).isRequired],
+], 'locationAndOsmBlocksToLocationWithGeojson');
 
 /**
  * Given a locationWithNominatimData and componentLocations that are locations geospatially within locationWithNominatimData, create a single
@@ -666,7 +675,7 @@ export const aggregateLocation = ({preserveLocationGeojson}, location, component
 
 /**
  * Organizes features by their types into 'ways', 'nodes', and 'relationships'
- * @param features
+ * @param {[Object]} features A list of geojson features
  * @returns {Object}
  */
 export const featuresByOsmType = v(features => {

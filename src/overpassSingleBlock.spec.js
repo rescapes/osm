@@ -232,5 +232,32 @@ describe('overpassSingleBlock', () => {
       }, errors, done));
   }, 2000000);
 
+  test('testUseBoundsQueryForSingleLocationsQuery', done => {
+    const errors = [];
+    expect.assertions(1);
+    const osmConfig = {};
+    _locationToOsmSingleBlockBoundsQueryResultTask(osmConfig, locationWithLocationPoints({
+      intersections: ['47.5473, 7.5847', '47.5458, 7.5897']
+    })).run().listen(defaultRunToResultConfig(
+      {
+        onResolved: ({result}) => {
+          blockToGeojson(result);
+          const {ways, nodes} = result;
+          expect({ways: R.map(R.pick(['id']), ways), nodes: R.map(R.pick(['id']), nodes)}).toEqual({
+            nodes: [
+              {id: "node/1506798015"},
+              {id: "node/3972984803"}
+            ],
+            ways: [
+              {id: "way/109731333"},
+              {id: "way/321723178"},
+              {id: "way/706164905"},
+              {id: "way/423408062"}
+            ]
+          });
+        }
+      }, errors, done));
+  }, 2000000);
+
 });
 

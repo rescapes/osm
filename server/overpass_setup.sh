@@ -6,6 +6,7 @@
 #### Source documents:
 #### https://overpass-api.de/full_installation.html
 #### https://wiki.openstreetmap.org/wiki/Overpass_API/Installation#Setting_up_the_Web_API
+#### Technial overview: http://overpass-api.de/technical_overview.html
 
 #### Create ec2 instance, I used t2.xlarge with a 500GB drive
 
@@ -169,8 +170,8 @@ nohup $EXEC_DIR/rules_loop.sh $DB_DIR &
 ps -ef | grep rules
 
 # Take the task and run
-renice -n 19 -p PID
-ionice -c 2 -n 7 -p PID
+renice -n 19 -p $(pgrep -f rules_loop.sh)
+ionice -c 2 -n 7 -p $(pgrep -f rules_loop.sh)
 
 ### Environmental variables ###
 # Figure out a dns entry that can point to the server. You need a domain name so you can setup https
@@ -216,7 +217,7 @@ sudo chmod -R 755 /var/log/overpass
 crontab -e
 # Paste the following in the crontab file
 @reboot nohup /home/ubuntu/src/osm-3s_v0.7.55/bin/sop_reboot.sh
-# Edit the cron config to log somewhere useful
+# Edit the cron config to log somewhere useful: /var/log/cron.log
 vi sudo /etc/rsyslog.d/50-default.conf
 # Find the line that starts with and uncomment
 #cron.*
@@ -230,17 +231,21 @@ rm -f  /dev/shm/osm3s_v0.7.55_osm_base
 rm -f $DB_DIR/osm3s_v0.7.55_osm_base
 # Area dispatcher
 $EXEC_DIR/dispatcher --areas --terminate
+rm -f $DB_DIR/osm3s_v0.7.55_areas
 # To start all the scripts at once
 # The dispatcher has been successfully started if you find a line "Dispatcher just started." in the file transactions.log in the database directory with correct date (in UTC).
-
-
+pkill -f fetch_osc
+pkill -f rules_loop
+pkill -f apply_osc_to_db
+pkill -f update_from_dir
+pkill -f './osm3s_query --progress --rules'
 # Manual commands (same as $EXEC_DIR/sop_reboot.sh commands)
 nohup $EXEC_DIR/dispatcher --osm-base --meta --db-dir=$DB_DIR >>/var/log/overpass/dispatcher-base.out &
 nohup $EXEC_DIR/dispatcher --areas --db-dir=$DB_DIR >>/var/log/overpass/dispatcher-areas.out &
 nohup $EXEC_DIR/fetch_osc.sh id "https://planet.osm.org/replication/day/" "diffs/" >>/var/log/overpass/fetch_osc.out&
 nohup $EXEC_DIR/apply_osc_to_db.sh "diffs/" auto --meta=yes >>/var/log/overpass/apply_osc_to_db.out&
-# TODO This isn't in reboot.sh. Do I need it?
 nohup $EXEC_DIR/rules_loop.sh $DB_DIR >>/var/log/overpass/rules_loop.out&
+# TODO This rules_loop isn't in reboot.sh. Do I need it?
 
 # To test the server quickly
 # official server
@@ -251,6 +256,11 @@ wget -q -O - "$@" "https://$OSM_SERVER/api/interpreter?data=%3Cprint%20mode=%22b
 wget -q -O - "%@" "https://$OSM_SERVER/cgi-bin/interpreter?data=%3Cosm-script%20output%3D%22json%22%20output-config%3D%22%22%3E%0A%20%20%3Cid-query%20type%3D%22node%22%20ref%3D%2253049873%22%20into%3D%22matchingNode%22%2F%3E%0A%20%20%3Cquery%20into%3D%22matchingWays%22%20type%3D%22way%22%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22highway%22%20modv%3D%22%22%20v%3D%22%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22highway%22%20modv%3D%22not%22%20v%3D%22driveway%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22footway%22%20modv%3D%22not%22%20v%3D%22crossing%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22footway%22%20modv%3D%22not%22%20v%3D%22sidewalk%22%2F%3E%0A%20%20%20%20%3Crecurse%20from%3D%22matchingNode%22%20type%3D%22node-way%22%2F%3E%0A%20%20%3C%2Fquery%3E%0A%20%20%3Cprint%20e%3D%22%22%20from%3D%22matchingWays%22%20geometry%3D%22full%22%20ids%3D%22yes%22%20limit%3D%22%22%20mode%3D%22body%22%20n%3D%22%22%20order%3D%22id%22%20s%3D%22%22%20w%3D%22%22%2F%3E%0A%3C%2Fosm-script%3E"
 # If the dispatcher isn't working, terminate it and test the installation vi the bin command:
 $EXEC_DIR/osm3s_query --db-dir=$DB_DIR
+[timeout:900][maxsize:1073741824][out:json];way(area:3608398123)["area" != "yes"][highway]["building" != "yes"]["highway" != "elevator"]["highway" != "driveway"]["highway" != "cycleway"]["highway" != "steps"]["highway" != "proposed"]["footway" != "crossing"]["footway" != "sidewalk"]["service" != "parking_aisle"]["service" != "driveway"]["service" != "drive-through"](if: t["highway"] != "service" || t["access"] != "private")(if: t["highway"] != "footway" || t["indoor"] != "yes") -> .allWays;
+way.allWays["name" = "Chambers Street"] -> .ways;
+(.allWays; - .ways;) -> .otherWays;
+node(w.ways)(w.otherWays) -> .nodes;
+.nodes out geom;
 paste: <query type="node"><bbox-query n="51.0" s="50.9" w="6.9" e="7.0"/><has-kv k="amenity" v="pub"/></query><print/>
 CTRL+D
 

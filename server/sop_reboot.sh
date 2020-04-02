@@ -27,27 +27,31 @@ if [[ -z $DB_DIR || -z $EXEC_DIR || -z $DIFF_DIR ]]; then
   exit 0
 fi
 
+# Kill stray processes
+pkill -f './osm3s_query --progress --rules'
+pkill -f update_from_dir
+
 rm -f $DB_DIR/osm3s_v0.7.55_osm_base
 rm -f  /dev/shm/osm3s_v0.7.55_osm_base
-#nohup "$EXEC_DIR/dispatcher" --osm-base --attic --rate-limit=2 --space=10737418240 "--db-dir=$DB_DIR" >>"$EXEC_DIR/osm_base.out" &
 $EXEC_DIR/dispatcher --osm-base --terminate || true
 nohup $EXEC_DIR/dispatcher --osm-base --meta --rate-limit=2 --space=10737418240 --db-dir=$DB_DIR >>/var/log/overpass/osm_base.out &
 
 if [[ -s "$DB_DIR/replicate_id" ]]; then
-  #nohup "$EXEC_DIR/fetch_osc.sh" `cat "$DB_DIR/replicate_id"` "https://planet.openstreetmap.org/replication/minute/" "$DIFF_DIR" >>"$EXEC_DIR/fetch_osc.out" &
-
-  nohup "$EXEC_DIR/fetch_osc.sh" `cat "$DB_DIR/replicate_id"` "https://planet.openstreetmap.org/replication/day/" "$DIFF_DIR" >>/var/log/overpass/fetch_osc.out &
-
-  #nohup "$EXEC_DIR/apply_osc_to_db.sh" "$DIFF_DIR" auto --meta=attic >>"$EXEC_DIR/apply_osc_to_db.out" &
-  nohup "$EXEC_DIR/apply_osc_to_db.sh" "$DIFF_DIR" auto --meta=yes >>/var/log/overpass/apply_osc_to_db.out &
-
+  # To start all the scripts at once
+  # The dispatcher has been successfully started if you find a line "Dispatcher just started." in the file transactions.log in the database directory with correct date (in UTC).
+  pkill -f fetch_osc
+  pkill -f rules_loop
+  pkill -f apply_osc_to_db
+  nohup "$EXEC_DIR/fetch_osc.sh" `cat "$DB_DIR/replicate_id"` "https://planet.openstreetmap.org/replication/minute/" "$DIFF_DIR" >>/var/log/overpass/fetch_osc.out &
+  nohup "$EXEC_DIR/apply_osc_to_db.sh" "$DIFF_DIR" auto --meta >>/var/log/overpass/apply_osc_to_db.out &
   # TODO this wasn't here. I added it. Don't know if I need it
   nohup $EXEC_DIR/rules_loop.sh $DB_DIR >>/var/log/overpass/rules_loop.out&
+  renice -n 19 -p $(pgrep -f rules_loop.sh)
+  ionice -c 2 -n 7 -p $(pgrep -f rules_loop.sh)
 fi
 
 if [[ -s "$DB_DIR/areas.bin" ]]; then
-  $EXEC_DIR/dispatcher --areas --terminate || true
-  rm -f "$DB_DIR/osm3s_v0.7.55_areas"
-  #nohup "$EXEC_DIR/dispatcher" --areas "--db-dir=$DB_DIR" >>"$EXEC_DIR/areas.out" &
+  $EXEC_DIR/dispatcher --osm-areas --terminate || true
+  rm -f $DB_DIR/osm3s_v0.7.55_areas
   nohup $EXEC_DIR/dispatcher --areas --db-dir=$DB_DIR >>/var/log/overpass/dispatcher-areas.out &
 fi

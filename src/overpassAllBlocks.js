@@ -1,13 +1,14 @@
 import {loggers} from 'rescape-log';
 import {
-  composeWithChainMDeep,
+  composeWithChain,
+  composeWithChainMDeep, composeWithMapMDeep,
   mapMDeep,
-  mapToNamedResponseAndInputsMDeep,
+  mapToNamedResponseAndInputsMDeep, mergeDeepWithConcatArrays,
   pickDeepPaths,
   reqStrPathThrowing,
   resultToTaskWithResult,
   strPathOr,
-  toArrayIfNot,
+  toArrayIfNot, traverseReduce,
   traverseReduceDeep
 } from 'rescape-ramda';
 import distance from '@turf/distance';
@@ -37,6 +38,7 @@ import {v} from 'rescape-validate';
 import PropTypes from 'prop-types';
 import {geocodeJursidictionResultTask} from './googleLocation';
 import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers';
+import buffer from '@turf/buffer';
 
 const log = loggers.get('rescapeDefault');
 
@@ -367,12 +369,6 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (osmConfig, locationWi
 };
 
 
-
-
-
-
-
-
 /**
  * Construct one or more Overpass queries to get all eligible highway ways or nodes for area of the given osmId or optionally
  * geojsonBOunds
@@ -562,4 +558,51 @@ const _createQueryOutput = type => {
       throw Error('type argument must specified and be "way" or "node"');
     }]
   ])(type);
+};
+
+/**
+ * Given geojson buffers all features by the given radius and units and queries OSM to create blocks.
+ * @param {Number} radius The radius of the buffer
+ * @param {String} units Any unit supported by turf, such as 'meters'
+ * @param {Object} geojson Any geojson supported by buffer. The features that result from buffering are put into
+ * a FeatureCollection that is then used to query for OSM blocks. Duplicate blocks returned due to overlapping
+ * features are removed as well as possible
+ * @return {Task<{Ok: [], Error: []}>} A task that resolves to a list of Ok items. Each item is {location, block}
+ * where location is the location object respresenting the block and the block is the same geojson
+ * at location.geojson. TODO block will probably go away in the future since it is redundant
+ */
+export const bufferedFeaturesToOsmAllBlocksQueryResultsTask = ({radius, units}, geojson) => {
+  const result = buffer(geojson, radius, {units});
+  // TODO can we create an intersection of each feature's buffer to prevent redundant querying
+  const featureCollections = R.map(feature => ({type: 'FeatureCollection', features: [feature]}), result.features);
+  return composeWithMapMDeep(1, [
+    results => {
+      return R.over(
+        R.lensProp('Ok'),
+        ok => {
+          // Unique the blocks by the first way id
+          return R.uniqBy(
+            blockAndLocation => R.compose(
+              R.join(':'),
+              R.map(id => id.toString()),
+              R.sortBy(R.identity),
+              R.map(way => R.prop('id', way)),
+              blockAndLocation => strPathOr([], 'block.ways', blockAndLocation)
+            )(blockAndLocation),
+            ok
+          );
+        },
+        results
+      );
+    },
+    featureCollections => {
+      return traverseReduce(
+        (acc, results) => {
+          return mergeDeepWithConcatArrays(acc, results);
+        },
+        of({Ok: [], Error: []}),
+        R.map(featureCollection => locationToOsmAllBlocksQueryResultsTask({}, {geojson: featureCollection}), featureCollections)
+      );
+    }
+  ])(featureCollections);
 };

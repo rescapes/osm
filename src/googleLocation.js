@@ -56,7 +56,7 @@ const OK_STATUS = 200;
 const addGeojsonToGoogleResult = result => {
   return R.set(
     R.lensProp('geojson'),
-    // Convert result.geometry.locationWithNominatimData to a turf point.
+    // Convert result.geometry.location to a turf point.
     googleLocationToTurfPoint(result.geometry.location),
     result
   );
@@ -404,12 +404,12 @@ export const findClosest = (firstResultSet, secondResultSet) => {
 /**
  * Calculates the route using the Google API
  * @param {Object} directionsService Google API direction service
- * @param {Object} origin The origin locationWithNominatimData object
+ * @param {Object} origin The origin location object
  * @param {Object} origin.geometry The origin geometry object
- * @param {Object} origin.geometry.locationWithNominatimData The lat, lon origin
- * @param {Object} destination The destination locationWithNominatimData object
+ * @param {Object} origin.geometry.location The lat, lon origin
+ * @param {Object} destination The destination location object
  * @param {Object} origin.geometry The destination geometry object
- * @param {Object} destination.geometry.locationWithNominatimData The lat, lon origin
+ * @param {Object} destination.geometry.location The lat, lon origin
  * @return {Task} resolves with Google Directions Route Response if the status is OK, else rejects
  */
 export const calculateRouteTask = R.curry((directionsService, origin, destination) => {
@@ -436,12 +436,12 @@ export const calculateRouteTask = R.curry((directionsService, origin, destinatio
  * Create two tasks, one directions from the origin to destination and the reverse directions.
  * This matters for wide streets that have streetviews taken from both sides.
  * @param {Object} directionsService Google API direction service
- * @param {Object} origin The origin locationWithNominatimData object
+ * @param {Object} origin The origin location object
  * @param {Object} origin.geometry The origin geometry object
- * @param {Object} origin.geometry.locationWithNominatimData The lat, lon origin
- * @param {Object} destination The destination locationWithNominatimData object
+ * @param {[Number]} origin.geometry.location The lat, lon origin
+ * @param {Object} destination The destination location object
  * @param {Object} origin.geometry The destination geometry object
- * @param {Object} destination.geometry.locationWithNominatimData The lat, lon origin
+ * @param {[Number]} destination.geometry.location The lat, lon origin
  * @return {Task<Result<[Object]>>} resolves with two Google Directions Route Responses
  * if the status is OK. The response is wrapped in a Result.Ok. Task rejections send a Result.Error
  */
@@ -581,7 +581,7 @@ export const resolveGeoLocationTask = location => {
       )),
       // Task Result Object -> Task Result Object.
       responseResult => of(R.chain(
-        response => reqStrPath('geometry.locationWithNominatimData', response),
+        response => reqStrPath('geometry.location', response),
         responseResult
       )),
       // Task Object -> Task Result Object

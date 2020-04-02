@@ -9,13 +9,13 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import 'regenerator-runtime';
-import {isLatLng} from './locationHelpers';
+import {featuresByOsmType, isLatLng} from './locationHelpers';
 import {
   reqStrPathThrowing,
   taskToResultTask,
   toNamedResponseAndInputs,
   traverseReduceWhile,
-  toMergedResponseAndInputs
+  toMergedResponseAndInputs, strPathOr
 } from 'rescape-ramda';
 import {loggers} from 'rescape-log';
 import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers';
@@ -369,7 +369,9 @@ export const queryTask = (options, query) => {
         log.debug(`\n\nRequesting OSM query:\n${query}\n\n`);
         queryOverpass(query, (error, data) => {
           if (!error) {
-            log.debug(`\n\nSuccessful Response from OSM query:\n${query}\n\n`);
+            log.debug(`\n\nSuccessful Response from OSM query:\n${query}\nGot the following feature counts: ${
+              JSON.stringify(R.map(R.length, featuresByOsmType(strPathOr([], 'features', data))))
+            } features`);
             resolver.resolve(data);
           } else {
             log.warn(`\n\nFailure Response from OSM query:\n${query}\n\n`);

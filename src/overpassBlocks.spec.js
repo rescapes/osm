@@ -9,7 +9,7 @@ import {osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResult
 import * as R from 'ramda';
 import {queryOverpassWithLocationForStreetResultTask} from './overpassBlocks';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
-import {of} from 'folktale/concurrency/task'
+import {of} from 'folktale/concurrency/task';
 
 /**
  * Created by Andy Likuski on 2019.09.23
@@ -116,7 +116,7 @@ describe('overpassBlocks', () => {
     }, errors, done));
   }, 200000);
 
-  test('osmLocationToRelationshipGeojsonResultTaskStreet', done => {
+  test('osmLocationToRelationshipGeojsonResultTaskStreet1', done => {
     expect.assertions(1);
     const errors = [];
 
@@ -126,6 +126,23 @@ describe('overpassBlocks', () => {
       city: 'New York',
       neighborhood: 'Battery Park City',
       street: 'Chambers Street'
+    }).run().listen(defaultRunToResultConfig({
+      onResolved: location => {
+        expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(13);
+      }
+    }, errors, done));
+  }, 200000);
+
+  test('osmLocationToRelationshipGeojsonResultTaskStreet2', done => {
+    expect.assertions(1);
+    const errors = [];
+
+    osmLocationToLocationWithGeojsonResultTask({}, [], {
+      country: "Norway",
+      state: "",
+      city: "Alesund",
+      neighborhood: "Downtown",
+      street: "Grimmergata"
     }).run().listen(defaultRunToResultConfig({
       onResolved: location => {
         expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(13);

@@ -266,7 +266,7 @@ describe('overpassIntegration', () => {
       "country": "Norway",
       "city": "Stavanger",
       "neighborhood": "Stavanger Sentrum",
-      "blockname": "Hetlandsgata",
+      "street": "Hetlandsgata",
       "intersections": [
         [
           "Hetlandsgata",

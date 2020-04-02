@@ -383,7 +383,7 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
     points => bboxPolygon(points),
     // Get the bounds
     features => bbox(features),
-    // Make a feature collection of point
+    // Make a feature collection of points
     points => featureCollection(points),
     // Buffer the points by 20 meters so we don't miss the intersection nodes at the corners of the bounding box
     points => R.map(point => buffer(point, 20, {units: 'meters'}), points),
@@ -588,7 +588,7 @@ const _validateOsmResults = ({way, node, waysByNodeId}) => {
  * @param {Number} areaId Represents an OSM neighborhood or city
  * @param {[String]} [explicitWayIds] Way ids if known ahead of time. Otherwise we'll query by the ordered blocks
  * @param {Object} [explicitExtraWayIds] Extra way ids if known ahead of time to add to the ways that the query finds.
- * Object can have any of 3 keys 'blockname', 'intersection1', 'intersection2' where each contains a list of extra
+ * Object can have any of 3 keys 'street', 'intersection1', 'intersection2' where each contains a list of extra
  * way ids to use for that street
  * @param {[[String]]} [orderedBlocks] Two pairs of street intersections used if we don't have way ids.
  * These are optional if geojson points will be used to instead find the nodes of all possible ways
@@ -598,9 +598,9 @@ const _validateOsmResults = ({way, node, waysByNodeId}) => {
  */
 const _createIntersectionQueryWaysDeclarations = (osmConfig, areaId, explicitWayIds, explicitExtraWayIds, orderedBlocks) => {
   // Convert extra ways to a 3 item array, each containing a list of extra way ids
-  // The extraBlockname accounts for the rare case where the blockname is different for each intersection,
+  // The extrastreet accounts for the rare case where the street is different for each intersection,
   // like E Main St to W Main St
-  const extraWaysForBlocks = R.props(['blockname', 'intersection1', 'intersection2', 'extraBlockname'], R.defaultTo({}, explicitExtraWayIds));
+  const extraWaysForBlocks = R.props(['street', 'intersection1', 'intersection2', 'extrastreet'], R.defaultTo({}, explicitExtraWayIds));
   return R.cond([
     // We have hard-coded way ids, just set the first and last to a variable, we don't need w3 because
     // we know for sure that these two ways touch our intersection nodes
@@ -671,7 +671,7 @@ const _constructInstersectionsQuery = (osmConfig, {type}, {intersections, osmId,
   // Object of nodes to add. Keyed with 'intersection1' and 'intersection2' to add nodes to the respective intersection that
   // OSM can't find itself. 0, 1, or both of the keys can be specified
   const explictExtraNodeIds = R.view(R.lensPath(['osmOverrides', 'extraNodes']), data);
-  // Object of ways to add. Keyed with 'blockname', 'intersection1' and 'intersection2' to add ways to the respective
+  // Object of ways to add. Keyed with 'street', 'intersection1' and 'intersection2' to add ways to the respective
   // roads that OSM can't find itself. 0, 1, or both of the keys can be specified. This was created because sometimes
   // at an intersection two different streets are the meeting and often one is an unnamed road like a service road
   // or foot path. Since our data collection only supports one street name for an intersection, this allows us to
@@ -733,7 +733,7 @@ export const _extractOrderedStreetsFromIntersections = intersections => {
     {},
     R.flatten(intersections)
   );
-  // This happens when the block name changes at one intersection. As long as the first blockname of each
+  // This happens when the block name changes at one intersection. As long as the first street of each
   // intersection is the common block, this will still work with OSM
   if (!R.find(R.equals(2), R.values(streetCount))) {
     log.warn(`No common block in intersections: ${JSON.stringify(intersections)}. Will return all four streets`);

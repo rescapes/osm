@@ -41,9 +41,9 @@ const log = loggers.get('rescapeDefault');
 export const queryOverpassWithLocationForStreetResultTask = (osmConfig, locationWithOsm) => {
   return R.composeK(
     // Take the positive results and combine them with the locationWithNominatimData, which has corresponding intersections
-    ({Ok: locationsAndResults}) => of(Result.Ok(R.map(
-      ({location, results}) => locationAndOsmBlocksToLocationWithGeojson(location, results),
-      locationsAndResults
+    ({Ok: locationsAndBlock}) => of(Result.Ok(R.map(
+      ({location, block}) => locationAndOsmBlocksToLocationWithGeojson(location, block),
+      locationsAndBlock
     ))),
     // Query for all blocks matching the street
     ({locationWithOsm, queries: {way, node}}) => _queryOverpassForAllBlocksResultsTask(
@@ -100,9 +100,9 @@ const _constructStreetQuery = (osmConfig, {type}, locationWithOsm) => {
 
   const {street, intersections, osmId} = locationWithOsm;
   // If a street is specified, use it. Otherwise extract the common street from the intersections
-  const blockname = street || commonStreetOfLocation(locationWithOsm, intersections);
+  const streetOrCommonStreet = street || commonStreetOfLocation(locationWithOsm, intersections);
 
-  if (R.isNil(blockname)) {
+  if (R.isNil(streetOrCommonStreet)) {
     throw Error("Improper configuration. Street or intersections must be non-null");
   }
 
@@ -111,7 +111,7 @@ const _constructStreetQuery = (osmConfig, {type}, locationWithOsm) => {
   // Query for all the ways and just the ways of the street
   // Nodes must intersect a street from .ways and one from the other ways
   return `way(area:${areaId})${configuredHighwayWayFilters(osmConfig)} -> .allWays;
-way.allWays${osmEquals('name', blockname)} -> .ways;
+way.allWays${osmEquals('name', streetOrCommonStreet)} -> .ways;
 (.allWays; - .ways;) -> .otherWays;
 node(w.ways)(w.otherWays) -> .nodes;
 .${type}s out geom;

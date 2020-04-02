@@ -611,7 +611,7 @@ export const cleanGeojson = feature => {
  * (i.e. the block name) and the remaining are alphabetical. If a way has no name the way's id string is used
  * (e.g. 'way/12345').
  * TODO for future wayfinding visualizations it might be better to return these keyed by degrees from the block,
- * such as {0: blockname, 24: street name 24 degrees clockwise or counterclockwise from block, 180:..., etc }
+ * such as {0: street, 24: street name 24 degrees clockwise or counterclockwise from block, 180:..., etc }
  * Returns Result.Error if anything goes wrong
  * @private
  */

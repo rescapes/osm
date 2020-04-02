@@ -126,76 +126,78 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
     // In the future we need to handle way areas like plazas and parks
     resultToTaskWithResult(
       // Relationships
-      ({osmId}) => R.cond([
-        [
-          // Just get the relation for neighborhoods and above
-          () => R.equals('rel', locationType),
-          osmId => R.composeK(
-            resultToTaskNeedingResult(
-              // Here we always discard locationWithNominatimData's geojson, since the geojson result represents the entire
-              // locationWithNominatimData, not components of it
-              geojson => of(R.merge(filterLocation, {geojson}))
-            ),
-            osmId => osmResultTask(
-              {name: 'fetchOsmRawTask', context: {osmId}},
-              options => fetchOsmRawTask(options, `${locationType}(id:${osmId}) -> .${locationType};
+      ({osmId}) => {
+        return R.cond([
+          [
+            // Just get the relation for neighborhoods and above
+            () => R.equals('rel', locationType),
+            osmId => R.composeK(
+              resultToTaskNeedingResult(
+                // Here we always discard locationWithNominatimData's geojson, since the geojson result represents the entire
+                // locationWithNominatimData, not components of it
+                geojson => of(R.merge(filterLocation, {geojson}))
+              ),
+              osmId => osmResultTask(
+                {name: 'fetchOsmRawTask', context: {osmId}},
+                options => fetchOsmRawTask(options, `${locationType}(id:${osmId}) -> .${locationType};
 .${locationType} out geom;`)
-            )
-          )(osmId)
-        ],
-        // Single Block
-        [
-          () => R.compose(R.length, R.prop('intersections'))(filterLocation),
-          osmId => of(R.ifElse(
-            // Do we have a component locationWithNominatimData that matches the block?
-            ({blockLocations}) => R.length(blockLocations),
-            // If so just use that locationWithNominatimData's geojson
-            ({blockLocations}) => Result.Ok(
-              R.head(blockLocations)
-            ),
-            // Otherwise error, we don't want to query single blocks here. Matching blocks should by supplied
-            // in componentLocations
-            ({locationWithOsm}) => Result.Error({
-              location: locationWithOsm,
-              message: 'No matching componentLocations found for this block locationWithNominatimData'
-            })
-          )({
-            locationWithOsm: R.merge(filterLocation, {osmId}),
-            blockLocations: _matchingComponentLocations(componentLocations, filterLocation)
-          }))
-        ],
-        // Streets
-        [
-          // Query for all blocks of the street.
-          R.T,
-          osmId => R.composeK(
-            // Aggregate the geojson of all block features into a street-scope locationWithNominatimData
-            ({locationWithOsm, blockLocationsResult}) => resultToTaskNeedingResult(
-              blockLocations => of(aggregateLocation(osmConfig, locationWithOsm, blockLocations))
-            )(blockLocationsResult),
+              )
+            )(osmId)
+          ],
+          // Single Block
+          [
+            () => R.compose(R.length, R.prop('intersections'))(filterLocation),
+            osmId => of(R.ifElse(
+              // Do we have a component locationWithNominatimData that matches the block?
+              ({blockLocations}) => R.length(blockLocations),
+              // If so just use that locationWithNominatimData's geojson
+              ({blockLocations}) => Result.Ok(
+                R.head(blockLocations)
+              ),
+              // Otherwise error, we don't want to query single blocks here. Matching blocks should by supplied
+              // in componentLocations
+              ({locationWithOsm}) => Result.Error({
+                location: locationWithOsm,
+                message: 'No matching componentLocations found for this block locationWithNominatimData'
+              })
+            )({
+              locationWithOsm: R.merge(filterLocation, {osmId}),
+              blockLocations: _matchingComponentLocations(componentLocations, filterLocation)
+            }))
+          ],
+          // Streets
+          [
+            // Query for all blocks of the street.
+            R.T,
+            osmId => R.composeK(
+              // Aggregate the geojson of all block features into a street-scope locationWithNominatimData
+              ({locationWithOsm, blockLocationsResult}) => resultToTaskNeedingResult(
+                blockLocations => of(aggregateLocation(osmConfig, locationWithOsm, blockLocations))
+              )(blockLocationsResult),
 
-            // Collect blocks from the matching componentLocations or by querying OSM
-            mapToNamedResponseAndInputs('blockLocationsResult',
-              ({locationWithOsm, blockLocations}) => R.ifElse(
-                // Do we have component locations that match the street?
-                R.length,
-                // If so just use those locations geojson, hoping we have all we need
-                matchingComponentLocations => of(Result.Ok(
-                  matchingComponentLocations
-                )),
-                // Otherwise query OSM and create the blockLocations
-                () => queryOverpassWithLocationForStreetResultTask(osmConfig, locationWithOsm)
-              )(blockLocations)
-            )
-          )({
-            locationWithOsm: R.merge(filterLocation, {osmId}),
-            blockLocations: _matchingComponentLocations(componentLocations, filterLocation)
-          })
-        ]
-      ])(osmId)
+              // Collect blocks from the matching componentLocations or by querying OSM
+              mapToNamedResponseAndInputs('blockLocationsResult',
+                ({locationWithOsm, blockLocations}) => R.ifElse(
+                  // Do we have component locations that match the street?
+                  R.length,
+                  // If so just use those locations geojson, hoping we have all we need
+                  matchingComponentLocations => of(Result.Ok(
+                    matchingComponentLocations
+                  )),
+                  // Otherwise query OSM and create the blockLocations
+                  () => queryOverpassWithLocationForStreetResultTask(osmConfig, locationWithOsm)
+                )(blockLocations)
+              )
+            )({
+              locationWithOsm: R.merge(filterLocation, {osmId}),
+              blockLocations: _matchingComponentLocations(componentLocations, filterLocation)
+            })
+          ]
+        ])(osmId);
+      }
     ),
 
-    // This logic says, if we have a blockname or more specific, allow us to fallback to the city without the
+    // This logic says, if we have a street or more specific, allow us to fallback to the city without the
     // neighborhood is querying with the neighborhood fails. Sometimes the neighborhood isn't known and hides results
     // We can only query nomanatim up the neighborhood level. It gives garbage results for blocks
     R.unless(
@@ -203,7 +205,7 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
       R.prop('osmId'),
       location => nominatimLocationResultTask(
         {
-          allowFallbackToCity: R.not(R.isNil(R.prop('blockname', location)))
+          allowFallbackToCity: R.not(R.isNil(R.prop('street', location)))
         },
         location
       )

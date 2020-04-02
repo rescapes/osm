@@ -30,7 +30,7 @@ import {
   mapObjToValues,
   mapToNamedResponseAndInputs,
   mapToNamedResponseAndInputsMDeep,
-  mergeAllWithKey,
+  mergeAllWithKey, omitDeep,
   reqStrPathThrowing,
   resultsToResultObj,
   splitAtInclusive,
@@ -856,8 +856,8 @@ export const blockToGeojson = ({nodes, ways}) => {
 
 /**
  * Writes a file
- * @param filePath
- * @param body
+ * @param {String} filePath
+ * @param {String} body
  * @return {Task<void>} Task that resolves to undefined or rejects with the error
  */
 export const generateFileTask = (filePath, body) => {
@@ -888,10 +888,11 @@ export const generateFileTask = (filePath, body) => {
  * Dumps the given locations to geojson as both ways and nodes and just nodes. This returns
  * a Task Result that writes the files
  * @param locations
- * @return {Object>>} {geojsn, geojsonWays}
+ * @return {Object} {geojsn, geojsonWays}
  */
 export const locationsToGeojsonWaysAndBoth = (locations) => {
   log.debug(`Dumping geojson for ${R.length(locations)}`);
+  const locationsCleaned = R.map(omitDeep(['__typename']), locations);
   const geojsonWays = locationsToGeojson(
     R.map(
       location => {
@@ -904,10 +905,10 @@ export const locationsToGeojsonWaysAndBoth = (locations) => {
           location
         );
       },
-      locations
+      locationsCleaned
     )
   );
-  const geojson = locationsToGeojson(locations);
+  const geojson = locationsToGeojson(locationsCleaned);
   return {geojson, geojsonWays};
 };
 
@@ -933,7 +934,7 @@ export const locationsToGeojsonFileResultTask = (dir, filename, locations) => {
       ({file, geojson}) => {
         return taskToResultTask(generateFileTask(
           file,
-          geojson
+          JSON.stringify(geojson, null, '\t')
         ));
       }
     ),
@@ -942,7 +943,7 @@ export const locationsToGeojsonFileResultTask = (dir, filename, locations) => {
       ({wayFile, geojsonWays}) => {
         return taskToResultTask(generateFileTask(
           wayFile,
-          geojsonWays
+          JSON.stringify(geojsonWays, null, '\t')
         ));
       }
     )
@@ -952,8 +953,24 @@ export const locationsToGeojsonFileResultTask = (dir, filename, locations) => {
 
 /**
  * Dumps locationWithNominatimData features to geojson for debgging
+ * This also puts the location id into feature properties so that we know what location it was.
+ * It also puts the dimension in the geojson properties the former are defined
  * @param locations
- * @returns {f1}
+ * @returns {string}
+ */
+export const locationsToGeojsonString = locations => {
+  return R.compose(
+    blocks => JSON.stringify(blocks, null, '\t'),
+    locations => locationsToGeojson(locations)
+  )(locations);
+};
+
+/**
+ * Dumps locationWithNominatimData features to geojson for debgging
+ * This also puts the location id into feature properties so that we know what location it was.
+ * It also puts the dimension in the geojson properties the former are defined
+ * @param locations
+ * @returns {Object}
  */
 export const locationsToGeojson = locations => {
   return R.compose(
@@ -981,10 +998,18 @@ export const locationsToGeojson = locations => {
 };
 
 /**
- * Same as blockToGeojson, but with lists of blocks
+ * Dumps blocks to a geojson string
  * @param blocks Blocks in the form
  * @returns {string}
- * @private
+ */
+export const blocksToGeojsonString = blocks => {
+  return JSON.stringify(blocksToGeojson(blocks), null, '\t');
+};
+
+/**
+ * Dumps blocks to geojson
+ * @param blocks Blocks in the form
+ * @returns {Object}
  */
 export const blocksToGeojson = blocks => {
   const color = scaleOrdinal(schemeCategory10);
@@ -1029,20 +1054,19 @@ export const blocksToGeojson = blocks => {
     blocks
   );
 
-  return JSON.stringify({
-      "type": "FeatureCollection",
-      "generator": "overpass-ide",
-      "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
-      "timestamp": "",
-      "features": R.reduce(
-        (acc, {nodes, ways}) => {
-          return R.concat(acc, R.concat(ways, nodes));
-        },
-        [],
-        styledBlocks
-      )
-    }, null, '\t'
-  );
+  return {
+    "type": "FeatureCollection",
+    "generator": "overpass-ide",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
+    "timestamp": "",
+    "features": R.reduce(
+      (acc, {nodes, ways}) => {
+        return R.concat(acc, R.concat(ways, nodes));
+      },
+      [],
+      styledBlocks
+    )
+  };
 };
 
 /**

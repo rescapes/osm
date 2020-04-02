@@ -1,20 +1,23 @@
 import * as R from 'ramda';
-import {featureCollection} from '@turf/helpers';
 import {
   addressPair,
-  addressStrings,
-  intersectionsByNodeIdToSortedIntersections,
-  fixWordsThatTripUpGoogle,
-  aggregateLocation,
-  locationWithIntersectionInBothOrders,
-  isResolvableAllBlocksLocation,
-  normalizedIntersectionNames,
   addressStringForBlock,
-  osmFeaturesOfLocationForType,
+  addressStrings,
+  aggregateLocation,
+  featuresOfOsmType,
+  fixWordsThatTripUpGoogle,
+  geojsonFeaturesHaveRadii,
+  intersectionsByNodeIdToSortedIntersections,
+  isResolvableAllBlocksLocation,
+  locationWithIntersectionInBothOrders,
   locationWithLocationPoints,
-  geojsonFeaturesHaveRadii, mapGeojsonFeaturesHaveRadiiToPolygon, featuresOfOsmType
+  mapGeojsonFeaturesHaveRadiiToPolygon,
+  normalizedIntersectionNames,
+  osmFeaturesOfLocationForType
 } from './locationHelpers';
-import {reqStrPathThrowing} from 'rescape-ramda';
+import {defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {blocksToGeojson} from './overpassBlockHelpers';
+import {bufferedFeaturesToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 
 const sampleCityLocations = [
   {
@@ -55,7 +58,7 @@ const sampleCityLocations = [
   }
 ];
 
-describe('LocationSelector', () => {
+describe('LocationHeleprs', () => {
   const location = {
     country: 'USA',
     state: 'Anystate',
@@ -264,9 +267,8 @@ describe('LocationSelector', () => {
       "state": "",
       "city": "Auckland",
       "neighborhood": "Viaduct Basin",
-      "blockname": "High St",
-      "intersections": [],
       "street": "High St",
+      "intersections": [],
       "osmId": 665064256
     };
     const componentLocationWithoutGeojson = [{
@@ -275,50 +277,46 @@ describe('LocationSelector', () => {
       "city": "Auckland",
       "country": "New Zealand",
       "neighborhood": "Viaduct Basin",
-      "blockname": "High St",
+      "street": "High St",
       "intersc1": "Durham St E",
       "intersc2": "Victoria St E",
       "geojson": null,
-      "intersections": ["-36.848499, 174.766344", "-36.849247, 147.766100"],
-      "street": "High St"
+      "intersections": ["-36.848499, 174.766344", "-36.849247, 147.766100"]
     }, {
       "id": 2229955,
       "state": "",
       "city": "Auckland",
       "country": "New Zealand",
       "neighborhood": "Viaduct Basin",
-      "blockname": "High St",
+      "street": "High St",
       "intersc1": "Durham St E",
       "intersc2": "Victoria St E",
       "geojson": null,
-      "intersections": ["-36.848499, 174.766344", "-36.849247, 174.766100'"],
-      "street": "High St"
+      "intersections": ["-36.848499, 174.766344", "-36.849247, 174.766100'"]
     }, {
       "id": 2229945,
       "state": "",
       "city": "Auckland",
       "country": "New Zealand",
       "neighborhood": "Viaduct Basin",
-      "blockname": "High St",
+      "street": "High St",
       "intersc1": "Shortland St",
       "intersc2": "Vulcan Ln",
       "point_of_interest": "",
       "point_of_interest_location": "",
       "geojson": null,
-      "intersections": ["-36.846571, 174.766872", "-36.847199, 174.766720"],
-      "street": "High St"
+      "intersections": ["-36.846571, 174.766872", "-36.847199, 174.766720"]
     }, {
       "id": 2229947,
       "state": "",
       "city": "Auckland",
       "country": "New Zealand",
       "neighborhood": "Viaduct Basin",
-      "blockname": "High St",
+      "street": "High St",
       "intersc1": "Vulcan Ln",
       "intersc2": "Durham St E",
       "geojson": null,
-      "intersections": ["-36.847199, 174.766720", "-36.848499, 174.766344"],
-      "street": "High St"
+      "intersections": ["-36.847199, 174.766720", "-36.848499, 174.766344"]
     }];
 
     expect(aggregateLocation({}, location, componentLocationWithoutGeojson)).toEqual(
@@ -343,7 +341,7 @@ describe('LocationSelector', () => {
         "-36.849247, 174.766100"
       ],
       "id": 2229955,
-      "blockname": "High St",
+      "street": "High St",
       "intersc1": "Durham St E",
       "intersc2": "Victoria St E",
       "intersection1Location": "-36.848499, 174.766344",
@@ -367,7 +365,7 @@ describe('LocationSelector', () => {
         ['High St', 'Durham St E'], ['High St', 'Victoria St E']
       ],
       "id": 2229955,
-      "blockname": "High St",
+      "street": "High St",
       "intersc1": "Durham St E",
       "intersc2": "Victoria St E",
       "intersection1Location": "-36.848499, 174.766344",
@@ -652,10 +650,60 @@ describe('LocationSelector', () => {
           {id: 'way/1'},
           {id: 'way/2'},
           {id: 'way/3'},
-          {id: 'node/1'},
+          {id: 'node/1'}
         ]
       }
-    }
-    expect(R.length(featuresOfOsmType('way', location.geojson.features))).toEqual(3)
-  })
+    };
+    expect(R.length(featuresOfOsmType('way', location.geojson.features))).toEqual(3);
+  });
+
+  test('bufferedFeaturesToOsmAllBlocksQueryResultsTask', done => {
+    const geojson = {
+      "type": "FeatureCollection",
+      "name": "Untitled layer",
+      "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
+      "features": [
+        /* Commented out to save time {
+          "type": "Feature",
+          "properties": {"Name": "Line 1", "description": null, "tessellate": 1},
+          "geometry": {"type": "LineString", "coordinates": [[-114.1412794, 51.0378554], [-114.1134703, 51.0378015]]}
+        },
+        {
+          "type": "Feature",
+          "properties": {"Name": "Line 2", "description": null, "tessellate": 1},
+          "geometry": {"type": "LineString", "coordinates": [[-114.1412756, 51.0451478], [-114.1412756, 51.0224241]]}
+        },
+        {
+          "type": "Feature",
+          "properties": {"Name": "Line 3", "description": null, "tessellate": 1},
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [[-114.1708005, 51.0773893], [-114.1677535, 51.0753401], [-114.1651356, 51.075421], [-114.1639769, 51.0751244], [-114.1542351, 51.0678976]]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {"Name": "Line 4", "description": null, "tessellate": 1},
+          "geometry": {"type": "LineString", "coordinates": [[-114.117886, 51.0239661], [-114.0947546, 51.0239931]]}
+        },
+         */
+        {
+          "type": "Feature",
+          "properties": {"Name": "Line 5", "description": null, "tessellate": 1},
+          "geometry": {"type": "LineString", "coordinates": [[-114.0517016, 51.0532901], [-114.0450283, 51.0532699]]}
+        }
+      ]
+    };
+    const errors = [];
+    const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({radius: 50, units: 'meters'}, geojson);
+
+    resultsTask.run().listen(
+      defaultRunConfig({
+        onResolved: ({Error, Ok}) => {
+          blocksToGeojson(R.map(R.prop('block'), Ok));
+          expect(Ok).toBeTruthy();
+        }
+      }, errors, done)
+    );
+  }, 10000000);
 });

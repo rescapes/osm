@@ -171,7 +171,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
         R.ifElse(
           location => R.either(R.complement(R.prop)('neighborhood'), () => R.defaultTo(true, allowFallbackToCity))(location),
           location => [
-            R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city', 'blockname'])
+            R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city', 'street'])
           ],
           // Otherwise no query
           () => []
@@ -243,7 +243,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
  * @param {String} location.state Optional. The state, province, canton, etc
  * @param {String} location.city Required city
  * @param {String} location.neighborhood Optional. It's quicker to resolve a relation for a neighborhood and
- * @param {String} location.blockname. Optional. Will return a line if this is defined and found
+ * @param {String} location.street. Optional. Will return a line if this is defined and found
  * then query within a neighborhood. However if there is no neighborhood or nothing is found it can be omitted
  * @return {Task<Result<Object>>} A Task that resolves the relation id in a Result.Ok or returns a Result.Error if no
  * qualifying results are found. Task rejects with a Result.Error() if the query fails. The returned value has the
@@ -260,7 +260,7 @@ export const nominatimResultTask = location => {
   const query = R.compose(
     R.join(','),
     compactEmpty,
-    R.props(['blockname', 'neighborhood', 'city', 'state', 'country'])
+    R.props(['street', 'neighborhood', 'city', 'state', 'country'])
   )(location);
 
   // Task Result
@@ -268,8 +268,8 @@ export const nominatimResultTask = location => {
     // Object -> Task Result [Object]
     responses => {
       const filter = R.ifElse(
-        R.prop('blockname'),
-        // If we have a blockname lookup for ways,
+        R.prop('street'),
+        // If we have a street lookup for ways,
         () => value => {
           return R.propEq('osm_type', 'way', value);
         },
@@ -321,7 +321,7 @@ export const nominatimResultTask = location => {
  * @param lat
  * @param lon
  * @returns {Task<Result<Object>>} locatoin with the osm top level keys and address object flattened. We change
- * the name of road to blockname to match our format
+ * the name of road to street to match our format
  */
 export const nominatimReverseGeocodeToLocationResultTask = ({lat, lon}) => {
   return mapMDeep(2,
@@ -354,8 +354,8 @@ export const nominatimReverseGeocodeToLocationResultTask = ({lat, lon}) => {
             state => stateCodeLookup(state)
           ),
           duplicateKey(R.lensPath([]), 'state', 'state_long'),
-          // TODO we should use road not blockname
-          renameKey(R.lensPath([]), 'road', 'blockname'),
+          // TODO we should use road not street
+          renameKey(R.lensPath([]), 'road', 'street'),
           // Remove address* keys
           obj => filterWithKeys((value, key) => R.complement(R.startsWith)('address', key), obj),
           R.prop('address')

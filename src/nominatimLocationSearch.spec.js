@@ -40,14 +40,14 @@ describe('nominatimLocationSearch', () => {
     );
   }, 100000);
 
-  test('nominatimResultTaskBlockname', done => {
+  test('nominatimResultTaskstreet', done => {
     const errors = [];
     nominatimResultTask({
       country: 'USA',
       state: 'New York',
       city: 'New York City',
       neighborhood: 'Battery Park City',
-      blockname: '1st Place'
+      street: '1st Place'
     }).orElse(reason => {
       // Our task reject handler takes the reason and pushes it too, then rejects again
       errors.push(reason);

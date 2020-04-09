@@ -1,4 +1,6 @@
 import * as R from 'ramda';
+import buffer from '@turf/buffer';
+import {point} from '@turf/helpers';
 import {
   addressPair,
   addressStringForBlock,
@@ -15,7 +17,7 @@ import {
   normalizedIntersectionNames,
   osmFeaturesOfLocationForType
 } from './locationHelpers';
-import {defaultRunConfig, reqStrPathThrowing} from 'rescape-ramda';
+import {defaultRunConfig, mergeDeepWithConcatArrays, reqStrPathThrowing} from 'rescape-ramda';
 import {blocksToGeojson} from './overpassBlockHelpers';
 import {bufferedFeaturesToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 
@@ -657,13 +659,15 @@ describe('LocationHeleprs', () => {
     expect(R.length(featuresOfOsmType('way', location.geojson.features))).toEqual(3);
   });
 
-  test('bufferedFeaturesToOsmAllBlocksQueryResultsTask', done => {
+  test('bufferedFeaturesToOsmAllBlocksQueryResultsTaskForLines', done => {
     const geojson = {
       "type": "FeatureCollection",
       "name": "Untitled layer",
       "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
       "features": [
-        /* Commented out to save time {
+        /*
+        Takes too long, so just do one
+        {
           "type": "Feature",
           "properties": {"Name": "Line 1", "description": null, "tessellate": 1},
           "geometry": {"type": "LineString", "coordinates": [[-114.1412794, 51.0378554], [-114.1134703, 51.0378015]]}
@@ -695,12 +699,62 @@ describe('LocationHeleprs', () => {
       ]
     };
     const errors = [];
-    const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({radius: 50, units: 'meters'}, geojson);
+    const radius = 402.336;
+    const units = 'meters';
+    const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({radius, units}, geojson);
 
     resultsTask.run().listen(
       defaultRunConfig({
         onResolved: ({Error, Ok}) => {
-          blocksToGeojson(R.map(R.prop('block'), Ok));
+          mergeDeepWithConcatArrays(
+            buffer(geojson, radius, {units}),
+            blocksToGeojson(R.map(
+              res => R.compose(
+                r => R.prop('block', r),
+                r => R.over(R.lensProp('block'), ({ways}) => ({ways}), r)
+              )(res)
+            )(Ok))
+          );
+          expect(Ok).toBeTruthy();
+        }
+      }, errors, done)
+    );
+  }, 10000000);
+
+  test('bufferedFeaturesToOsmAllBlocksQueryResultsTaskForPoints', done => {
+    const radius = 70;
+    const units = 'meters';
+    const circleFeatures = R.map(
+      pnt => point(R.reverse(pnt)),
+      [
+        [22.369978, 114.113525],
+        [22.246151, 114.169610]
+      ]);
+
+    const geojson = {
+      "type": "FeatureCollection",
+      "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
+      "features": circleFeatures
+    };
+    const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({radius, units}, geojson);
+    const errors = [];
+
+    resultsTask.run().listen(
+      defaultRunConfig({
+        onResolved: ({Error, Ok}) => {
+          mergeDeepWithConcatArrays(
+            {features: circleFeatures},
+            blocksToGeojson(R.map(
+              res => R.compose(
+                r => R.prop('block', r),
+                r => R.over(
+                  R.lensProp('block'),
+                  ({ways}) => ({ways}),
+                  r
+                )
+              )(res)
+            )(Ok))
+          );
           expect(Ok).toBeTruthy();
         }
       }, errors, done)

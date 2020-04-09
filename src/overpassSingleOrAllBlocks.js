@@ -42,41 +42,7 @@ export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) =>
       location => isResolvableSingleBlockLocation(location),
       location => {
         log.debug(`queryLocationForOsmBlockOrAllResultsTask: Found single block location: ${addressString(location)}`);
-        return R.map(
-          result => {
-            // Match the format of locationToOsmAllBlocksQueryResultsTask
-            return result.matchWith({
-              Ok: ({value}) => ({
-                Ok: R.map(
-                  value => {
-                    // Create the geojson fro the locationWithNominatimData
-                    const {block: {ways, nodes, nodesToIntersectingStreets}} = value;
-                    return {
-                      block: {nodesToIntersectingStreets},
-                      // Assign the geojson to the locationWithNominatimData if it hasn't been assigned yet or is forced
-                      location: R.when(
-                        R.either(
-                          () => strPathOr(false, 'forceOsmQuery', osmConfig),
-                          location => R.complement(locationHasGeojsonFeatures)(location)
-                        ),
-                        location => locationAndOsmBlocksToLocationWithGeojson(location, {ways, nodes})
-                      )(location)
-                    };
-                  },
-                  toArrayIfNot(value))
-              }),
-              Error: ({value}) => ({
-                Error: R.map(
-                  value => ({
-                    result: value,
-                    location
-                  }),
-                  toArrayIfNot(value))
-              })
-            });
-          },
-          queryLocationForOsmSingleBlockResultTask(osmConfig, location)
-        );
+        return _queryLocationForOsmSingleBlockAllResultsTask(osmConfig, location);
       }
     ],
     [
@@ -93,4 +59,50 @@ export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) =>
       }
     ]
   ])(location);
+};
+
+/**
+ * Queries for a single locations and returns the result as results matching what locationToOsmAllBlocksQueryResultsTask
+ * @param osmConfig
+ * @param location
+ * @return {f1}
+ * @private
+ */
+const _queryLocationForOsmSingleBlockAllResultsTask = (osmConfig, location) => {
+  return R.map(
+    result => {
+      // Match the format of locationToOsmAllBlocksQueryResultsTask
+      // TODO Generalize this in rescape-ramda with something like resultToResults
+      return result.matchWith({
+        Ok: ({value}) => ({
+          Ok: R.map(
+            value => {
+              // Create the geojson fro the locationWithNominatimData
+              const {block: {ways, nodes, nodesToIntersectingStreets}} = value;
+              return {
+                block: {nodesToIntersectingStreets},
+                // Assign the geojson to the locationWithNominatimData if it hasn't been assigned yet or is forced
+                location: R.when(
+                  R.either(
+                    () => strPathOr(false, 'forceOsmQuery', osmConfig),
+                    location => R.complement(locationHasGeojsonFeatures)(location)
+                  ),
+                  location => locationAndOsmBlocksToLocationWithGeojson(location, {ways, nodes})
+                )(location)
+              };
+            },
+            toArrayIfNot(value))
+        }),
+        Error: ({value}) => ({
+          Error: R.map(
+            value => ({
+              result: value,
+              location
+            }),
+            toArrayIfNot(value))
+        })
+      });
+    },
+    queryLocationForOsmSingleBlockResultTask(osmConfig, location)
+  );
 };

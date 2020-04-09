@@ -67,13 +67,14 @@ export {
   geojsonFeaturesIsPoint,
   isLatLng,
   isNominatimEligible,
-  locationHasGeojsonFeatures
+  locationHasGeojsonFeatures,
+
 } from './locationHelpers';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';
 export {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 export {
-  locationToOsmAllBlocksQueryResultsTask, nominatimOrGoogleJurisdictionGeojsonResultTask
+  locationToOsmAllBlocksQueryResultsTask, nominatimOrGoogleJurisdictionGeojsonResultTask, bufferedFeaturesToOsmAllBlocksQueryResultsTask
 } from './overpassAllBlocks';
 export {
   osmLocationToLocationWithGeojsonResultTask,

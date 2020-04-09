@@ -1,7 +1,7 @@
 import {loggers} from 'rescape-log';
 import {
   composeWithChain,
-  composeWithChainMDeep, composeWithMapMDeep,
+  composeWithChainMDeep, composeWithMapExceptChainDeepestMDeep, composeWithMapMDeep,
   mapMDeep,
   mapToNamedResponseAndInputsMDeep, mergeDeepWithConcatArrays,
   pickDeepPaths,
@@ -31,7 +31,7 @@ import {
   geojsonFeaturesHaveShape,
   geojsonFeaturesHaveShapeOrRadii,
   geojsonFeaturesIsPoint,
-  isNominatimEligible,
+  isNominatimEligible, isOsmType,
   locationAndOsmBlocksToLocationWithGeojson
 } from './locationHelpers';
 import {v} from 'rescape-validate';
@@ -115,24 +115,59 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                 obj => R.compose(of, Result.Ok)(obj),
                 // Reverse geocode and combine block, favoring keys already in locationWithNominatimData
                 ({block, location}) => {
+                  // Convert the geojson line into a {lat, lon} center point
+                  const searchLatLon = R.compose(
+                    latLon => R.fromPairs(R.zip(['lat', 'lon'], latLon)),
+                    point => turfPointToLocation(point),
+                    geojson => center(geojson),
+                    location => R.prop('geojson', location)
+                  )(location);
                   // Task Result Object -> Task Result Object
-                  return mapMDeep(2,
-                    l => {
+                  return composeWithChainMDeep(2, [
+                    nominatimProperties => {
+                      // If we didn't get a street name from OSM, use that from nominatim
+                      const checkStreet = reqStrPathThrowing('intersections.0.0', location);
+                      const updatedStreet = R.when(
+                        checkStreet => isOsmType('way', {id: checkStreet}),
+                        checkStreet => strPathOr(checkStreet, 'street', nominatimProperties)
+                      )(checkStreet);
+                      // Update the nodesToIntersectingStreets
+                      const updatedBlock = R.over(
+                        R.lensProp('nodesToIntersectingStreets'),
+                        obj => R.map(
+                          obj => R.over(
+                            R.lensIndex(0),
+                            () => updatedStreet,
+                            obj
+                          ),
+                          obj
+                        ),
+                        block
+                      );
+                      // Update the location.intersections
+                      const updatedLocation = R.over(
+                        R.lensProp('intersections'),
+                        obj => R.map(
+                          obj => R.over(
+                            R.lensIndex(0),
+                            () => updatedStreet,
+                            obj
+                          )
+                        )(obj),
+                        location
+                      );
                       // Merge the block of the reverse goecoding. We'll keep our geojson since it represents
                       // the block and the reverse geocode just represents the center point
-                      return {block, location: R.merge(l, location)};
+                      return of(Result.Ok({
+                        block: updatedBlock,
+                        location: R.merge(nominatimProperties, updatedLocation)
+                      }));
                     },
                     // Reverse geocode the center of the block to get missing jurisdiction data
-                    nominatimReverseGeocodeToLocationResultTask(
-                      // Convert the geojson line into a {lat, lon} center point
-                      R.compose(
-                        latLon => R.fromPairs(R.zip(['lat', 'lon'], latLon)),
-                        point => turfPointToLocation(point),
-                        geojson => center(geojson),
-                        location => R.prop('geojson', location)
-                      )(location)
+                    location => nominatimReverseGeocodeToLocationResultTask(
+                      searchLatLon
                     )
-                  );
+                  ])(location);
                 }
               )({block, location});
             },
@@ -587,7 +622,7 @@ export const bufferedFeaturesToOsmAllBlocksQueryResultsTask = ({radius, units}, 
               R.map(id => id.toString()),
               R.sortBy(R.identity),
               R.map(way => R.prop('id', way)),
-              blockAndLocation => strPathOr([], 'block.ways', blockAndLocation)
+              blockAndLocation => R.chain(type => strPathOr([], `block.${type}`, blockAndLocation), ['ways', 'nodes'])
             )(blockAndLocation),
             ok
           );

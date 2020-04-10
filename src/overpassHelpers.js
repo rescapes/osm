@@ -189,7 +189,7 @@ export const aroundPointDeclaration = (radius, point) => {
 
 const highwayWayFilters = [
   osmAlways('highway'),
-
+  osmNever('building'),
   osmNotEqual('highway', 'path'),
   osmNotEqual('highway', 'footway'),
   // temporary for Hong Kong highway!=path. TODO This should be configurable depending on what we want

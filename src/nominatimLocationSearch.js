@@ -33,7 +33,8 @@ import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
 import {addressString, stateCodeLookup} from './locationHelpers';
-
+import area from '@turf/area';
+import bboxPolygon from '@turf/bbox-polygon';
 import {loggers} from 'rescape-log';
 import {nominatimServers, roundRobinNoimnatimServers} from './overpassHelpers';
 
@@ -171,7 +172,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
         R.ifElse(
           location => R.either(R.complement(R.prop)('neighborhood'), () => R.defaultTo(true, allowFallbackToCity))(location),
           location => [
-            R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city', 'street'])
+            R.filter(prop => R.propOr(false, prop, location), ['country', 'state', 'city'])
           ],
           // Otherwise no query
           () => []
@@ -243,8 +244,6 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
  * @param {String} location.state Optional. The state, province, canton, etc
  * @param {String} location.city Required city
  * @param {String} location.neighborhood Optional. It's quicker to resolve a relation for a neighborhood and
- * @param {String} location.street. Optional. Will return a line if this is defined and found
- * then query within a neighborhood. However if there is no neighborhood or nothing is found it can be omitted
  * @return {Task<Result<Object>>} A Task that resolves the relation id in a Result.Ok or returns a Result.Error if no
  * qualifying results are found. Task rejects with a Result.Error() if the query fails. The returned value has the
  * following props:
@@ -260,43 +259,54 @@ export const nominatimResultTask = location => {
   const query = R.compose(
     R.join(','),
     compactEmpty,
-    R.props(['street', 'neighborhood', 'city', 'state', 'country'])
+    R.props(['neighborhood', 'city', 'state', 'country'])
   )(location);
 
   // Task Result
   return composeWithMapExceptChainDeepestMDeep(2, [
     // Object -> Task Result [Object]
     responses => {
-      const filter = R.ifElse(
-        R.prop('street'),
-        // If we have a street lookup for ways,
-        () => value => {
-          return R.propEq('osm_type', 'way', value);
-        },
-        // If we have a country, state, city, neighborhood, accept a relation or a city/town point
-        () => value => {
-          return R.both(
-            value => R.compose(
-              value => R.includes(value, ['administrative', 'village', 'suburb', 'town', 'city', 'island']),
-              value => R.propOr(null, 'type', value)
-            )(value),
-            // The boundary or center point,
-            // The boundary will be preferred over the center point.
-            value => R.compose(
-              value => R.includes(value, ['relation', 'node']),
-              value => R.propOr(null, 'osm_type', value)
-            )(value)
-          )(value);
-        }
-      )(location);
+      // If we have a country, state, city, neighborhood, accept a relation or a city/town point
+      const filter = value => R.both(
+        value => R.compose(
+          value => R.includes(value, ['administrative', 'village', 'suburb', 'town', 'city', 'island']),
+          value => R.propOr(null, 'type', value)
+        )(value),
+        // The boundary or center point,
+        // The boundary will be preferred over the center point.
+        value => R.compose(
+          value => R.includes(value, ['relation', 'node']),
+          value => R.propOr(null, 'osm_type', value)
+        )(value)
+      )(value);
       const matches = R.filter(
         filter,
         responses
       );
       if (R.length(matches)) {
         log.debug(`Nominatim query response ${JSON.stringify(matches)}`);
+        const typeRating = {relation: 2, point: 1};
         // Assume the first match is the best since responses are ordered by importance
-        return (Result.Ok(R.head(matches)));
+        // Prefer relationships over points, and prefer the relatonship with the smallest bounding box
+        return R.compose(
+          Result.Ok,
+          R.head,
+          R.sortWith([
+            // Prefer relationship over node
+            R.descend(match => R.propOr(0, R.prop('osm_type', match), typeRating)),
+            // Prefer small areas
+            R.ascend(match => R.compose(
+              area,
+              nominatimBbox => bboxPolygon(
+                R.map(
+                  i => parseFloat(nominatimBbox[i]), [2, 0, 3, 1]
+                )
+              ),
+              R.prop('boundingbox')
+              )(match)
+            )
+          ])
+        )(matches);
       } else {
         log.debug(`Nominatim no matches for query ${query}`);
         return (Result.Error({error: "No qualifying respones", results: responses, query}));
@@ -378,7 +388,7 @@ export const nominatimReverseGeocodeResultTask = ({lat, lon}) => {
       {nominatimUrl},
       'reverse',
       {lat, lon}
-    )
+    );
   });
 };
 
@@ -398,7 +408,7 @@ export const jsonToUrlParams = json => {
 };
 
 /**
- * Queryie nominatim for a place or lat/lon
+ * Query nominatim for a place or lat/lon
  * @param {Object} config
  * @param {String} config.nominatimUrl The nominatim host url
  * @param {String} host default to 'nominatim.openstreetmap.org';

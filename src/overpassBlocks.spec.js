@@ -1,13 +1,12 @@
 import {
   defaultRunToResultConfig,
-  reqStrPathThrowing,
+  mapResultTaskWithOtherInputs,
   mapToNamedResponseAndInputs,
-  resultToTaskWithResult,
-  mapResultTaskWithOtherInputs
+  reqStrPathThrowing
 } from 'rescape-ramda';
 import {osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks';
 import * as R from 'ramda';
-import {queryOverpassWithLocationForStreetResultTask} from './overpassBlocks';
+import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {of} from 'folktale/concurrency/task';
 
@@ -36,12 +35,11 @@ describe('overpassBlocks', () => {
     }, errors, done));
   });
 
-  test('osmLocationToRelationshipGeojsonBlockTaskStreet', done => {
+  test('osmLocationToRelationshipGeojsonBlockTaskBlock', done => {
     expect.assertions(1);
     const errors = [];
 
     const componentLocations = [
-
       {
         "id": 2231909,
         "intersections": [['Chambers Street', 'Hudson River Greenway'], ['Chambers Street', 'North End Avenue']],
@@ -115,85 +113,6 @@ describe('overpassBlocks', () => {
       }
     }, errors, done));
   }, 200000);
-
-  test('osmLocationToRelationshipGeojsonResultTaskStreet1', done => {
-    expect.assertions(1);
-    const errors = [];
-
-    osmLocationToLocationWithGeojsonResultTask({}, [], {
-      country: 'USA',
-      state: 'NY',
-      city: 'New York',
-      neighborhood: 'Battery Park City',
-      street: 'Chambers Street'
-    }).run().listen(defaultRunToResultConfig({
-      onResolved: location => {
-        expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(13);
-      }
-    }, errors, done));
-  }, 200000);
-
-  test('osmLocationToRelationshipGeojsonResultTaskStreet2', done => {
-    expect.assertions(1);
-    const errors = [];
-
-    osmLocationToLocationWithGeojsonResultTask({}, [], {
-      country: "Norway",
-      state: "",
-      city: "Alesund",
-      neighborhood: "Downtown",
-      street: "Grimmergata"
-    }).run().listen(defaultRunToResultConfig({
-      onResolved: location => {
-        expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(13);
-      }
-    }, errors, done));
-  }, 200000);
-
-  // osmLocationToRelationshipGeojsonResultTaskStreet with component locations selected to be used for geojson
-  // We do this test by fetching the component locationWithNominatimData from OSM first
-  test('osmLocationToRelationshipGeojsonResultTaskStreetWithComponentLocations', done => {
-    expect.assertions(1);
-    const errors = [];
-
-    R.composeK(
-      ({locationWithGeojsonResult}) => of(locationWithGeojsonResult),
-      // Call with blocks.
-      mapResultTaskWithOtherInputs(
-        {resultInputKey: 'componentLocationsResult', resultOutputKey: 'locationWithGeojsonResult'},
-        ({filterLocation, componentLocations}) => osmLocationToLocationWithGeojsonResultTask(
-          {},
-          componentLocations,
-          filterLocation
-        )
-      ),
-      // Get the blocks
-      mapResultTaskWithOtherInputs(
-        {resultInputKey: 'locationWithOsmResult', resultOutputKey: 'componentLocationsResult'},
-        ({locationWithOsm}) => queryOverpassWithLocationForStreetResultTask({}, locationWithOsm)
-      ),
-      // Get the osmId
-      mapToNamedResponseAndInputs('locationWithOsmResult',
-        ({filterLocation}) => nominatimLocationResultTask(
-          {},
-          filterLocation
-        )
-      )
-    )({
-      filterLocation: {
-        country: 'USA',
-        state: 'NY',
-        city: 'New York',
-        neighborhood: 'Battery Park City',
-        street: 'Chambers Street'
-      }
-    }).run().listen(defaultRunToResultConfig({
-      onResolved: location => {
-        expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(11);
-      }
-    }, errors, done));
-  }, 200000);
-
 
   test('osmLocationToRelationshipGeojsonResultTaskStreetBatteryPlace', done => {
     expect.assertions(1);

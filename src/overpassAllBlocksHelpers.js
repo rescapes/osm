@@ -71,40 +71,44 @@ export const _queryOverpassForAllBlocksResultsTask = (
     // Take the Result.Ok with responses and organize the features into blocks
     // Or put them in an Error array
     // Task Result [<way, node>] -> Task <Ok: [Location], Error: [<way, node>]>
-    result => result.matchWith({
-      Ok: ({value: {way, node}}) => R.composeK(
-        ({Ok: {way, node, waysByNodeId}, Error: errors}) => {
-          if (R.length(errors)) {
-            log.warn(`Some waysByNodeId could not be queried ${JSON.stringify(errors)}`);
-          }
-          // Get the features from the response
-          const [ways, nodes] = R.map(reqStrPathThrowing('response.features'), [way, node]);
-          return R.map(
-            ({Ok: oks, Error: errs}) => {
-              return {Ok: oks, Error: R.concat(errors, errs || [])};
-            },
-            organizeResponseFeaturesResultsTask(osmConfig, location, {
-              ways,
-              nodes
-            })
-          );
-        },
-        // If we are doing a narrow street query we need to get waysByNode so we know which nodes of the street are real intersections
-        // TODO we aren't using these results
-        ({way, node}) => R.ifElse(
-          ({osmConfig}) => R.propOr(false, 'forceWaysOfNodeQueries', osmConfig),
-          // Produces {Ok: {way, node, waysByNodeId: {...}}, Error: []}
-          // waysByNodeId contain the query results by node id. If any errors occur they are stored in Error.
-          ({way, node}) => waysByNodeIdResultsTask(osmConfig, {way, node}),
-          // Otherwise we don't need waysByNode because our query was comprehensive
-          ({way, node}) => of({Ok: {way, node, waysByNodeId: {}}, Error: []})
-        )({osmConfig, way, node})
-      )({way, node}),
-      // Create a Results object with the one error
-      Error: ({value}) => of({Ok: [], Error: [value]})
-    }),
+    result => {
+      return result.matchWith({
+        Ok: ({value: {way, node}}) => R.composeK(
+          ({Ok: {way, node, waysByNodeId}, Error: errors}) => {
+            if (R.length(errors)) {
+              log.warn(`Some waysByNodeId could not be queried ${JSON.stringify(errors)}`);
+            }
+            // Get the features from the response
+            const [ways, nodes] = R.map(reqStrPathThrowing('response.features'), [way, node]);
+            return R.map(
+              ({Ok: oks, Error: errs}) => {
+                return {Ok: oks, Error: R.concat(errors, errs || [])};
+              },
+              organizeResponseFeaturesResultsTask(osmConfig, location, {
+                ways,
+                nodes
+              })
+            );
+          },
+          // If we are doing a narrow street query we need to get waysByNode so we know which nodes of the street are real intersections
+          // TODO we aren't using these results
+          ({way, node}) => R.ifElse(
+            ({osmConfig}) => R.propOr(false, 'forceWaysOfNodeQueries', osmConfig),
+            // Produces {Ok: {way, node, waysByNodeId: {...}}, Error: []}
+            // waysByNodeId contain the query results by node id. If any errors occur they are stored in Error.
+            ({way, node}) => waysByNodeIdResultsTask(osmConfig, {way, node}),
+            // Otherwise we don't need waysByNode because our query was comprehensive
+            ({way, node}) => of({Ok: {way, node, waysByNodeId: {}}, Error: []})
+          )({osmConfig, way, node})
+        )({way, node}),
+        // Create a Results object with the one error
+        Error: ({value}) => of({Ok: [], Error: [value]})
+      });
+    },
     // Query for the ways and nodes in parallel
-    queries => parallelWayNodeQueriesResultTask(osmConfig, location, queries)
+    queries => {
+      return parallelWayNodeQueriesResultTask(osmConfig, location, queries);
+    }
   )({way: wayQueries, node: nodeQueries});
 };
 

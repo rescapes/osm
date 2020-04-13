@@ -213,8 +213,8 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationW
               osmConfig,
               {type},
               // These are the only properties we might need from the locationWithNominatimData
-              // We pass the intersections if available. We detached them earliser from locationWithOsm
-              // So that we can update locationWithOsm with the intersections from Overpass
+              // We pass the intersections if available. We detached them earliser from location
+              // So that we can update location with the intersections from Overpass
               R.merge({intersections}, pickDeepPaths(['osmId', 'data.osmOverrides'], locationWithOsm)),
               geojsonPoints
             )

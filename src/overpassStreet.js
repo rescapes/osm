@@ -9,21 +9,15 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {
-  configuredHighwayWayFilters,
-  osmEquals,
-  osmIdToAreaId
-} from './overpassHelpers';
+import {configuredHighwayWayFilters, osmEquals, osmIdToAreaId, osmLike} from './overpassHelpers';
 import * as R from 'ramda';
-import {
-  pickDeepPaths,
-  mapToNamedResponseAndInputs
-} from 'rescape-ramda';
+import {composeWithChainMDeep, mapToNamedResponseAndInputs, mapToNamedResponseAndInputsMDeep} from 'rescape-ramda';
 import {of} from 'folktale/concurrency/task';
 import * as Result from 'folktale/result';
 import {loggers} from 'rescape-log';
 import {commonStreetOfLocation, locationAndOsmBlocksToLocationWithGeojson} from './locationHelpers';
 import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers';
+import {nominatimLocationResultTask} from './nominatimLocationSearch';
 
 const log = loggers.get('rescapeDefault');
 
@@ -32,52 +26,74 @@ const log = loggers.get('rescapeDefault');
  * for the given street for the part of the street in the given neighborhood, city, state, country, etc.
  * @param {Object} osmConfig The osm config
  * @param {Object} osmConfig.minimumWayLength. The minimum lengths of way features to return. Defaults to 20 meters.
- * @param {Object} locationWithOsm A Location object that also has an osmId to limit the area of the queries.
+ * @param {Object} location A Location object.
+ * @param {Number} [location.osmId], Optional osmId to limit the area of the queries. If this isn't defined then nominatm is queried to get it
  * @returns {Task<Result<[Object]>>} Result.Ok with the successful locationWithNominatimData blocks containing geojson
  * The results contain nodes and ways of the streets, where nodes are where intersections occur
  * There must be at least on way and possibly more
  * Some blocks have more than two nodes if they have multiple divided ways.
  */
-export const queryOverpassWithLocationForStreetResultTask = (osmConfig, locationWithOsm) => {
-  return R.composeK(
+export const queryOverpassWithLocationForStreetResultTask = (osmConfig, location) => {
+  return composeWithChainMDeep(2, [
     // Take the positive results and combine them with the locationWithNominatimData, which has corresponding intersections
-    ({Ok: locationsAndBlock}) => of(Result.Ok(R.map(
-      ({location, block}) => locationAndOsmBlocksToLocationWithGeojson(location, block),
-      locationsAndBlock
-    ))),
+    ({locationsAndBlock}) => {
+      return of(Result.Ok(R.map(
+        ({location, block}) => {
+          return locationAndOsmBlocksToLocationWithGeojson(location, block);
+        },
+        locationsAndBlock
+      )));
+    },
     // Query for all blocks matching the street
-    ({locationWithOsm, queries: {way, node}}) => _queryOverpassForAllBlocksResultsTask(
-
-      // forceWaysOfNodesQueries  is needed for the street query because we don't get all the ways connected to each
-      // node of the street. We need to know how many ways each node has so we know if it's really an intersection node,
-      // rather than just a point where the way changes.
-      R.merge({forceWaysOfNodeQueries: true}, osmConfig),
-      {location: locationWithOsm, way, node}
+    mapToNamedResponseAndInputsMDeep(2, 'locationsAndBlock',
+      ({locationWithOsm, queries: {way, node}}) => {
+        return _queryOverpassForAllBlocksResultsTask(
+          // forceWaysOfNodesQueries  is needed for the street query because we don't get all the ways connected to each
+          // node of the street. We need to know how many ways each node has so we know if it's really an intersection node,
+          // rather than just a point where the way changes.
+          R.merge({forceWaysOfNodeQueries: true}, osmConfig),
+          {location: locationWithOsm, way, node}
+        ).map(results => Result.Ok(results.Ok));
+      }
     ),
     // Build an OSM query for the locationWithNominatimData. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
-    mapToNamedResponseAndInputs('queries',
+    mapToNamedResponseAndInputsMDeep(2, 'queries',
       // Location l, String w, String n: l -> <way: w, node: n>
-      ({locationWithOsm}) => of(
-        R.fromPairs(R.map(
-          type => [
-            type,
-            // We put this in an array since _queryOverpassForAllBlocksResultsTask expects
-            // way and node to have an array of queries. It needs arrays of queries for breaking up large
-            // areas into small queries. We don't do that here since we're trying to find a single street
-            [
-              _constructStreetQuery(
-                osmConfig,
-                {type},
-                locationWithOsm
-              )
-            ]
-          ],
-          ['way', 'node']
-        ))
-      )
+      ({locationWithOsm}) => {
+        return of(Result.Ok(
+          R.fromPairs(R.map(
+            type => [
+              type,
+              // We put this in an array since _queryOverpassForAllBlocksResultsTask expects
+              // way and node to have an array of queries. It needs arrays of queries for breaking up large
+              // areas into small queries. We don't do that here since we're trying to find a single street
+              [
+                _constructStreetQuery(
+                  osmConfig,
+                  {type},
+                  locationWithOsm
+                )
+              ]
+            ],
+            ['way', 'node']
+          ))
+        ));
+      }
+    ),
+    // Get the osmId if not yet present
+    mapToNamedResponseAndInputsMDeep(2, 'locationWithOsm',
+      ({location}) => {
+        return R.ifElse(
+          R.prop('osmId'),
+          location => of(Result.Ok(location)),
+          location => {
+            return nominatimLocationResultTask({}, location);
+          }
+        )(location);
+      }
     )
-  )({locationWithOsm});
+  ])({location});
 };
 
 /**
@@ -111,9 +127,9 @@ const _constructStreetQuery = (osmConfig, {type}, locationWithOsm) => {
   // Query for all the ways and just the ways of the street
   // Nodes must intersect a street from .ways and one from the other ways
   return `way(area:${areaId})${configuredHighwayWayFilters(osmConfig)} -> .allWays;
-way.allWays${osmEquals('name', streetOrCommonStreet)} -> .ways;
+way.allWays${osmLike('name', streetOrCommonStreet)} -> .ways;
 (.allWays; - .ways;) -> .otherWays;
 node(w.ways)(w.otherWays) -> .nodes;
 .${type}s out geom;
-      `;
+`;
 };

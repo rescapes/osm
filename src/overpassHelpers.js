@@ -111,6 +111,14 @@ export const osmEqualWithTag = (prop, value) => osmTCondition('==', prop, value)
 export const osmEquals = (prop, value) => osmCondition('=', prop, value);
 
 /**
+ * Translates to OSM like condition
+ * @param prop
+ * @param value
+ * @return {string}
+ */
+export const osmLike = (prop, value) => osmCondition('~', prop, value);
+
+/**
  * Translates to OSM equals condition
  * @param {object} id The id to match
  * @return {string} '(id)'
@@ -190,6 +198,7 @@ export const aroundPointDeclaration = (radius, point) => {
 const highwayWayFilters = [
   osmAlways('highway'),
   osmNever('building'),
+  osmNotEqual('access', 'delivery'),
   osmNotEqual('highway', 'path'),
   osmNotEqual('highway', 'footway'),
   // temporary for Hong Kong highway!=path. TODO This should be configurable depending on what we want

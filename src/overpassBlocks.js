@@ -20,7 +20,7 @@ import {
   eqStrPathsAll,
   mapToNamedResponseAndInputs,
   resultToTaskNeedingResult,
-  resultToTaskWithResult
+  resultToTaskWithResult, strPathOr
 } from 'rescape-ramda';
 import {loggers} from 'rescape-log';
 import * as R from 'ramda';
@@ -171,9 +171,11 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
             R.T,
             osmId => R.composeK(
               // Aggregate the geojson of all block features into a street-scope locationWithNominatimData
-              ({locationWithOsm, blockLocationsResult}) => resultToTaskNeedingResult(
-                blockLocations => of(aggregateLocation(osmConfig, locationWithOsm, blockLocations))
-              )(blockLocationsResult),
+              ({locationWithOsm, blockLocationsResult}) => {
+                return resultToTaskNeedingResult(
+                  blockLocations => of(aggregateLocation(osmConfig, locationWithOsm, blockLocations))
+                )(blockLocationsResult);
+              },
 
               // Collect blocks from the matching componentLocations or by querying OSM
               mapToNamedResponseAndInputs('blockLocationsResult',
@@ -185,7 +187,9 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
                     matchingComponentLocations
                   )),
                   // Otherwise query OSM and create the blockLocations
-                  () => queryOverpassWithLocationForStreetResultTask(osmConfig, locationWithOsm)
+                  () => {
+                    return queryOverpassWithLocationForStreetResultTask(osmConfig, locationWithOsm);
+                  }
                 )(blockLocations)
               )
             )({

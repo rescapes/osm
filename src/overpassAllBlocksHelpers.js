@@ -25,7 +25,7 @@ import * as Result from 'folktale/result';
 import {
   _buildPartialBlocks,
   _hashBlock,
-  _sortOppositeBlocksByNodeOrdering,
+  _sortOppositeBlocksByNodeOrdering, blocksToGeojson, blockToGeojson,
   parallelWayNodeQueriesResultTask,
   waysByNodeIdResultsTask
 } from './overpassBlockHelpers';
@@ -232,10 +232,13 @@ export const _partialBlocksToFeaturesResultsTask = (
     // Filter out fake blocks that are just street connectors.
     // This will be more sophisticated in the future.
     // For now just eliminate any block that is less than osmConfig.minimumWayLength meters long
-    // TODO we don't want to lose ways, so we don't do this until we can  incorporate these short into adjacent walks
+    // TODO we don't want to lose ways, so we don't do this until we can incorporate these short into adjacent walks
     toNamedResponseAndInputs('blocks',
       ({blocks}) => {
         log.warn(`_partialBlocksToFeaturesResultsTask: Removing small ways on ${R.length(blocks)} blocks`);
+        if (process.env.NODE_ENV !== 'production') {
+          blocksToGeojson(blocks);
+        }
         return R.filter(
           block => R.compose(
             // ways add up to at least 20 meters
@@ -400,7 +403,9 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
   const hashToPartialBlocks = R.reduceBy(
     (a, b) => R.concat(a, [b]),
     [],
-    block => _hashBlock(R.over(R.lensProp('nodes'), () => [], block)),
+    block => {
+      return _hashBlock(R.over(R.lensProp('nodes'), () => [], block));
+    },
     partialBlocks
   );
   // Block b:: [b] -> Task Result [b]
@@ -443,9 +448,17 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
           result => result.matchWith({
             Ok: ({value: {partialBlocks, block}}) => {
               log.debug(`_traversePartialBlocksToBuildBlocksResultTask: finished block. ${R.length(partialBlocks)} remaining`);
+              const processedBlocks = R.concat(blocks, [block]);
+              if (process.env.NODE_ENV !== 'production') {
+                // Debugging help will eventually be used for visual feedback of the processing on a website
+                log.debug('Geojson of processed blocks');
+                blocksToGeojson(processedBlocks);
+                log.debug('Geojson of remaining partial blocks');
+                blocksToGeojson(partialBlocks);
+              }
               return Result.Ok({
                 partialBlocks,
-                blocks: R.concat(blocks, [block]),
+                blocks: processedBlocks,
                 errorBlocks
               });
             },

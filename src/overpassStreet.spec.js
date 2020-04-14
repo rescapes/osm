@@ -3,13 +3,15 @@ import {
   reqStrPathThrowing,
   mapToNamedResponseAndInputs,
   resultToTaskWithResult,
-  mapResultTaskWithOtherInputs
+  mapResultTaskWithOtherInputs, defaultRunConfig
 } from 'rescape-ramda';
 import {osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks';
 import * as R from 'ramda';
 import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {of} from 'folktale/concurrency/task';
+import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
+import {locationsToGeojson} from './overpassBlockHelpers';
 
 /**
  * Created by Andy Likuski on 2019.09.23
@@ -103,18 +105,20 @@ describe('overpassStreet', () => {
 
   // osmLocationToRelationshipGeojsonResultTaskStreet with component locations selected to be used for geojson
   // We do this test by fetching the component locationWithNominatimData from OSM first
-  test('queryOverpassWithLocationForStreetResultTask', done => {
+  test('_constructStreetQuery', done => {
     expect.assertions(1);
     const errors = [];
 
-    queryOverpassWithLocationForStreetResultTask({}, {
+    // This calls _constructStreetQuery indirectlly
+    locationToOsmAllBlocksQueryResultsTask({}, {
         country: 'China 中国',
         city: '香港 Hong Kong',
         street: 'Theatre Lane'
       }
-    ).run().listen(defaultRunToResultConfig({
-      onResolved: componentLocations => {
-        expect(R.length(componentLocations)).toEqual(2);
+    ).run().listen(defaultRunConfig({
+      onResolved: ({Ok: componentLocationResponses}) => {
+        locationsToGeojson(R.map(R.prop('location'), componentLocationResponses))
+        expect(R.length(componentLocationResponses)).toEqual(2);
       }
     }, errors, done));
   }, 200000);

@@ -584,43 +584,45 @@ export const _calculateNodeAndWayRelationships = ({ways, nodes}) => {
  * @param nodePointToNode
  * @private
  */
-export const _wayEndPointToDirectionalWays = ({ways, wayIdToWayPoints, nodePointToNode}) => R.compose(
-  // way end points will usually be unique, but some will match two ways when two ways meet at a place
-  // that is not an intersection
-  // This produces {wayEndPoint: [...ways with that end point], ...}
-  endPointToWayPair => R.reduceBy(
-    (acc, [endPoint, way]) => R.concat(acc, [way]),
-    [],
-    ([endPoint]) => endPoint,
-    endPointToWayPair
-  ),
-  R.chain(
-    wayFeature => {
-      const wayCoordinates = reqStrPathThrowing(R.prop('id', wayFeature), wayIdToWayPoints);
-      return R.compose(
-        endPointObjs => R.map(({endPoint, way}) => [endPoint, way], endPointObjs),
-        // Filter out points that are already nodes
-        endPointObjs => R.filter(
-          ({endPoint}) => R.not(R.propOr(false, endPoint, nodePointToNode)),
-          endPointObjs
-        ),
-        // Get the first and last point of the way
-        wayCoordinates => R.map(
-          prop => (
-            {
-              endPoint: R[prop](wayCoordinates),
-              way: R.when(
-                () => R.equals('tail', prop),
-                // For the tail end point, created a copy of the wayFeature with the coordinates reversed
-                // This makes it easy to traverse the ways from their endPoints.
-                // Since we hash ways independent of directions, we'll still detect ways we've already traversed
-                wayFeature => R.over(R.lensPath(['geometry', 'coordinates']), R.reverse, wayFeature)
-              )(wayFeature)
-            }
+export const _wayEndPointToDirectionalWays = ({ways, wayIdToWayPoints, nodePointToNode}) => {
+  return R.compose(
+    // way end points will usually be unique, but some will match two ways when two ways meet at a place
+    // that is not an intersection
+    // This produces {wayEndPoint: [...ways with that end point], ...}
+    endPointToWayPair => R.reduceBy(
+      (acc, [endPoint, way]) => R.concat(acc, [way]),
+      [],
+      ([endPoint]) => endPoint,
+      endPointToWayPair
+    ),
+    R.chain(
+      wayFeature => {
+        const wayCoordinates = reqStrPathThrowing(R.prop('id', wayFeature), wayIdToWayPoints);
+        return R.compose(
+          endPointObjs => R.map(({endPoint, way}) => [endPoint, way], endPointObjs),
+          // Filter out points that are already nodes
+          endPointObjs => R.filter(
+            ({endPoint}) => R.not(R.propOr(false, endPoint, nodePointToNode)),
+            endPointObjs
           ),
-          ['head', 'last']
-        )
-      )(wayCoordinates);
-    }
-  )
-)(ways);
+          // Get the first and last point of the way
+          wayCoordinates => R.map(
+            prop => (
+              {
+                endPoint: R[prop](wayCoordinates),
+                way: R.when(
+                  () => R.equals('tail', prop),
+                  // For the tail end point, created a copy of the wayFeature with the coordinates reversed
+                  // This makes it easy to traverse the ways from their endPoints.
+                  // Since we hash ways independent of directions, we'll still detect ways we've already traversed
+                  wayFeature => R.over(R.lensPath(['geometry', 'coordinates']), R.reverse, wayFeature)
+                )(wayFeature)
+              }
+            ),
+            ['head', 'last']
+          )
+        )(wayCoordinates);
+      }
+    )
+  )(ways);
+};

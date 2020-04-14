@@ -63,6 +63,7 @@ import {schemeCategory10} from 'd3-scale-chromatic';
 import {length} from '@turf/turf';
 import {v} from 'rescape-validate';
 import PropTypes from 'prop-types';
+import {composeWithMap} from 'rescape-ramda';
 
 const log = loggers.get('rescapeDefault');
 
@@ -277,85 +278,105 @@ export const _queryLocationVariationsUntilFoundResultTask = R.curry((osmConfig, 
  * If one of the queries fail then a Result.Error object is returned with the errors instead
  * @sig parallelWayNodeQueriesResultTask:: String query, Object response <way: <query, node: <query> -> Task <way: <query, response>, node: <query, response>>>
  */
-export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) => R.compose(
-  // This converts failed tasks to a Result.Error and success to Result.Ok
-  taskToResultTask,
-  // Produce the two Result Tasks.
-  // TODO If either Result is an Error the whole thing should be a Result Error
-  queries => R.map(
-    // If both results are Result.Ok, combine them. Otherwise create a result
-    // Just combine the results to get {way: {query, response}, node: {query, response}}
-    objResults => R.ifElse(
-      objResults => R.all(r => Result.Ok.hasInstance(r), objResults),
-      // Merge them into a Result.Ok
-      objResults => traverseReduce(R.merge, Result.Ok({}), objResults),
-      // When there is a Result.Error from Overpass it's in the form Result.Error[{value, server}]. So
-      // we concat these errors
-      objResults => traverseReduceResultError(
-        (accum, errors) => {
-          return R.over(
-            R.lensProp('error'), error => R.concat(error, errors), accum
-          );
-        },
-        Result.Error({location, error: []}),
-        objResults
-      )
-    )(objResults),
-    waitAll(
-      // mapObjToValues removes the way and node keys from query
-      mapObjToValues(
-        (queries, type) => R.composeK(
-          // Then map the task response to include the queries for debugging/error resolution
-          // if the OSM can't be resolved
-          // Maps Result.Ok to a {
-          // way|node: {query: original query, response: unique features}
-          //}
-          result => of(
-            R.map(
-              response => ({
-                [type]: {
-                  queries,
-                  response
-                }
-              }),
-              result
-            )
-          ),
-          // For each type, way and node, combine the unique features of all the queries
-          results => of(
-            traverseReduce(
-              (accum, response) => R.over(
-                R.lensProp('features'),
-                features => R.compose(
-                  R.uniqBy(R.prop('id')),
-                  features => R.concat(features, strPathOr([], 'features', response))
-                )(features),
-                accum
-              ),
-              Result.Ok({type: 'FeatureCollection', features: []}),
-              results
-            )
-          ),
-          // Perform the tasks in parallel
-          ({queries, type}) => waitAllBucketed(
-            R.map(
-              query => osmResultTask({
-                  name: `parallelWayNodeQueriesResultTask: ${type}`,
-                  context: R.merge({type}, location)
+export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) => {
+  return R.compose(
+    // This converts failed tasks to a Result.Error and success to Result.Ok
+    taskToResultTask,
+    // Produce the two Result Tasks.
+    // TODO If either Result is an Error the whole thing should be a Result Error
+    queries => {
+      return R.map(
+        // If both results are Result.Ok, combine them. Otherwise create a result
+        // Just combine the results to get {way: {query, response}, node: {query, response}}
+        objResults => {
+          return R.ifElse(
+            objResults => {
+              return R.all(r => Result.Ok.hasInstance(r), objResults);
+            },
+            // Merge them into a Result.Ok
+            objResults => {
+              return traverseReduce(R.merge, Result.Ok({}), objResults);
+            },
+            // When there is a Result.Error from Overpass it's in the form Result.Error[{value, server}]. So
+            // we concat these errors
+            objResults => {
+              return traverseReduceResultError(
+                (accum, errors) => {
+                  return R.over(
+                    R.lensProp('error'), error => R.concat(error, errors), accum
+                  );
                 },
-                options => {
-                  return fetchOsmRawTask(options, query);
+                Result.Error({location, error: []}),
+                objResults
+              );
+            }
+          )(objResults);
+        },
+        waitAll(
+          // mapObjToValues removes the way and node keys from query
+          mapObjToValues(
+            (queries, type) => {
+              return R.composeK(
+                // Then map the task response to include the queries for debugging/error resolution
+                // if the OSM can't be resolved
+                // Maps Result.Ok to a {
+                // way|node: {query: original query, response: unique features}
+                //}
+                result => {
+                  return of(
+                    R.map(
+                      response => ({
+                        [type]: {
+                          queries,
+                          response
+                        }
+                      }),
+                      result
+                    )
+                  );
+                },
+                // For each type, way and node, combine the unique features of all the queries
+                results => {
+                  return of(
+                    traverseReduce(
+                      (accum, response) => R.over(
+                        R.lensProp('features'),
+                        features => R.compose(
+                          R.uniqBy(R.prop('id')),
+                          features => R.concat(features, strPathOr([], 'features', response))
+                        )(features),
+                        accum
+                      ),
+                      Result.Ok({type: 'FeatureCollection', features: []}),
+                      results
+                    )
+                  );
+                },
+                // Perform the tasks in parallel
+                ({queries, type}) => {
+                  return waitAllBucketed(
+                    R.map(
+                      query => osmResultTask({
+                          name: `parallelWayNodeQueriesResultTask: ${type}`,
+                          context: R.merge({type}, location)
+                        },
+                        options => {
+                          return fetchOsmRawTask(options, query);
+                        }
+                      ),
+                      queries
+                    )
+                  );
                 }
-              ),
-              queries
-            )
+              )({queries, type});
+            },
+            queries
           )
-        )({queries, type}),
-        queries
-      )
-    )
-  )
-)(queries);
+        )
+      );
+    }
+  )(queries);
+};
 
 /***
  * Given node results this finds all ways of each node so that we can resolve street names of the intersections
@@ -370,42 +391,46 @@ export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) =
  * @sig waysByNodeIdResultsTask:: Task {Ok: <way: <query, response>, node: <query, response>>>, Error: [node id queris that error]} ->
  * Task <way: <query, response>, node: <query, response>, waysByNodeId: <node: <query, response>>>> ->
  */
-export const waysByNodeIdResultsTask = (osmConfig, {way, node}) => R.map(
-  // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
-  resultObjs => {
-    // Split the Result.Ok and Result.Errors into {Ok: [...], Error: [...]}
-    const resultObj = resultsToResultObj(resultObjs);
-    // Merge the oks and call them waysByNodeId
-    return R.over(
-      R.lensProp('Ok'),
-      objs => {
-        return {
-          way, node, waysByNodeId: R.mergeAll(objs)
-        };
-      },
-      resultObj
-    );
-  },
-  waitAll(
-    R.map(
-      nodeId => {
-        return mapMDeep(2,
-          // Then map the task response to include the query for debugging/error resolution
-          response => ({[nodeId]: {query: waysOfNodeQuery(osmConfig, nodeId), response: response}}),
-          // Perform the task
-          osmResultTask({name: 'waysOfNodeQuery', context: {nodeId, type: 'waysOfNode'}},
-            options => fetchOsmRawTask(options, waysOfNodeQuery(osmConfig, nodeId))
-          )
-        );
-      },
-      // Extract the id of each node
-      R.compose(
-        R.map(reqStrPathThrowing('id')),
-        reqStrPathThrowing('response.features')
-      )(node)
+export const waysByNodeIdResultsTask = (osmConfig, {way, node}) => {
+  return R.map(
+    // Just combine the results to get {nodeIdN: {query, response}, nodeIdM: {query, response}, ...}
+    resultObjs => {
+      // Split the Result.Ok and Result.Errors into {Ok: [...], Error: [...]}
+      const resultObj = resultsToResultObj(resultObjs);
+      // Merge the oks and call them waysByNodeId
+      return R.over(
+        R.lensProp('Ok'),
+        objs => {
+          return {
+            way, node, waysByNodeId: R.mergeAll(objs)
+          };
+        },
+        resultObj
+      );
+    },
+    waitAll(
+      R.map(
+        nodeId => {
+          return mapMDeep(2,
+            // Then map the task response to include the query for debugging/error resolution
+            response => {
+              return {[nodeId]: {query: waysOfNodeQuery(osmConfig, nodeId), response: response}};
+            },
+            // Perform the task
+            osmResultTask({name: 'waysOfNodeQuery', context: {nodeId, type: 'waysOfNode'}},
+              options => fetchOsmRawTask(options, waysOfNodeQuery(osmConfig, nodeId))
+            )
+          );
+        },
+        // Extract the id of each node
+        R.compose(
+          R.map(reqStrPathThrowing('id')),
+          reqStrPathThrowing('response.features')
+        )(node)
+      )
     )
-  )
-);
+  );
+};
 
 /***
  * Given way results that are not complete, this finds all nodes of each way.
@@ -1007,7 +1032,47 @@ export const blocksToGeojsonString = blocks => {
 };
 
 /**
- * Dumps blocks to geojson
+ * Styles the given block with the given color
+ * @param color
+ * @param block
+ * @return {Object} The block with {ways, nodes} but with the color added to the feature properties
+ */
+export const styledBlock = (color, block) => {
+  return R.compose(
+    ...R.map(type => {
+        return block => R.over(
+          R.lensProp(type),
+          things => R.map(
+            thing => R.over(
+              R.lensProp('properties'),
+              t => R.merge(
+                R.ifElse(
+                  R.equals('nodes'),
+                  () => ({
+                    'marker-color': color
+                  }),
+                  () => ({
+                    stroke: color,
+                    'stroke-width': 2,
+                    'stroke-opacity': 1
+                  })
+                )(type),
+                t
+              ),
+              thing
+            ),
+            things || []
+          ),
+          block
+        );
+      },
+      ['ways', 'nodes']
+    )
+  )(block);
+};
+
+/**
+ * Dumps blocks to geojson with arbitrary colors to distinguish them
  * @param blocks Blocks in the form
  * @returns {Object}
  */
@@ -1019,37 +1084,7 @@ export const blocksToGeojson = blocks => {
     (block, index) => {
       // Pass the id to get a randomish color
       const colour = color(index);
-      return R.compose(
-        ...R.map(type => {
-            return block => R.over(
-              R.lensProp(type),
-              things => R.map(
-                thing => R.over(
-                  R.lensProp('properties'),
-                  t => R.merge(
-                    R.ifElse(
-                      R.equals('nodes'),
-                      () => ({
-                        'marker-color': colour
-                      }),
-                      () => ({
-                        stroke: colour,
-                        'stroke-width': 2,
-                        'stroke-opacity': 1
-                      })
-                    )(type),
-                    t
-                  ),
-                  thing
-                ),
-                things || []
-              ),
-              block
-            );
-          },
-          ['ways', 'nodes']
-        )
-      )(block);
+      return styledBlock(colour, block);
     },
     blocks
   );
@@ -1336,7 +1371,47 @@ export const isRealIntersection = v((wayFeatures, nodeFeature) => R.anyPass([
   ['nodeFeature', PropTypes.shape().isRequired]
 ], 'isRealIntersection');
 
-
+/**
+ * If the given nodeFeature fails to qualify as a real intersection using the given wayFeatures, this
+ * asks OSM for the ways of the node to and tests the node with the results. This is used for cases where
+ * the ways of the node might not have been in the search area and need to be queried separately
+ * @param osmConfig
+ * @param wayFeatures
+ * @param nodeFeature
+ * @return {Task<Boolean>} Task resolving true or false.
+ * fails
+ */
+export const isRealIntersectionTask = (osmConfig, wayFeatures, nodeFeature) => {
+  // If we already have enough data to prove it's a real interection, return true
+  if (isRealIntersection(wayFeatures, nodeFeature)) {
+    return of(true);
+  }
+  return composeWithMap([
+    ({wayFeaturesResponse, nodeFeature}) => {
+      // Test if these wayFeatures mean that nodeFeature is a real intersection
+      return isRealIntersection(
+        reqStrPathThrowing('response.features', wayFeaturesResponse),
+        nodeFeature
+      );
+    },
+    toNamedResponseAndInputs('wayFeaturesResponse',
+      // Extract the results
+      ({nodeFeature, results}) => {
+        const waysByNodeId = strPathOr({}, 'Ok.waysByNodeId', results);
+        return R.prop(reqStrPathThrowing('id', nodeFeature), waysByNodeId);
+      }
+    ),
+    mapToNamedResponseAndInputs('results',
+      ({osmConfig, wayFeatures, nodeFeature}) => {
+        // Get the ways features. Putting them in response matches what waysByNodeIdResultsTask expects
+        return waysByNodeIdResultsTask(osmConfig, {
+          way: {response: {features: wayFeatures}},
+          node: {response: {features: [nodeFeature]}}
+        });
+      }
+    )
+  ])({osmConfig, wayFeatures, nodeFeature});
+};
 /**
  * Trims the given way to the index of the nodeObj inclusive
  * @param {Object} nodeObj

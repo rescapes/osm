@@ -22,6 +22,7 @@ import {nominatimLocationResultTask} from './nominatimLocationSearch';
 const log = loggers.get('rescapeDefault');
 
 /**
+ * TODO _constructStreetQuery is now used by overpassSingleOrAllBlocks
  * Given a locationWithNominatimData with an osmId included, query the Overpass API and cleanup the results to get all the blocks
  * for the given street for the part of the street in the given neighborhood, city, state, country, etc.
  * @param {Object} osmConfig The osm config
@@ -112,7 +113,7 @@ export const queryOverpassWithLocationForStreetResultTask = (osmConfig, location
  * to a neighborhood or city.
  * @returns {string} The complete Overpass query string
  */
-const _constructStreetQuery = (osmConfig, {type}, locationWithOsm) => {
+export const _constructStreetQuery = (osmConfig, {type}, locationWithOsm) => {
 
   const {street, intersections, osmId} = locationWithOsm;
   // If a street is specified, use it. Otherwise extract the common street from the intersections

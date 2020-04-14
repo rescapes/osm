@@ -39,6 +39,7 @@ import PropTypes from 'prop-types';
 import {geocodeJursidictionResultTask} from './googleLocation';
 import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers';
 import buffer from '@turf/buffer';
+import {_constructStreetQuery} from './overpassStreet';
 
 const log = loggers.get('rescapeDefault');
 
@@ -92,100 +93,104 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
     },
     // The last step is to assign each locationWithNominatimData jurisdiction information if it doesn't already have it
     // We check country and (city or county) of the locationWithNominatimData and only query for jurisdiction data if it lacks these fields
-    result => resultToTaskWithResult(
-      // Process Result Tasks locations, merging in jurisdiction data when needed
-      // Task Result [Location] -> Task Result [Location]
-      locationAndBlocks => {
-        return traverseReduceDeep(2,
-          (locations, location) => R.concat(locations, [location]),
-          of(Result.Ok([])),
-          R.map(
-            ({block, location}) => {
-              return R.ifElse(
-                ({location}) => {
-                  return R.both(
-                    location => R.propOr(null, 'country', location),
-                    location => R.any(
-                      prop => R.propOr(null, prop, location),
-                      ['city', 'country']
-                    )
-                  )(location);
-                },
-                // If we had a country or city, we already have jurisdiction data. Just rewrap in Result.Ok and task
-                obj => R.compose(of, Result.Ok)(obj),
-                // Reverse geocode and combine block, favoring keys already in locationWithNominatimData
-                ({block, location}) => {
-                  // Convert the geojson line into a {lat, lon} center point
-                  const searchLatLon = R.compose(
-                    latLon => R.fromPairs(R.zip(['lat', 'lon'], latLon)),
-                    point => turfPointToLocation(point),
-                    geojson => center(geojson),
-                    location => R.prop('geojson', location)
-                  )(location);
-                  // Task Result Object -> Task Result Object
-                  return composeWithChainMDeep(2, [
-                    nominatimProperties => {
-                      // If we didn't get a street name from OSM, use that from nominatim
-                      const checkStreet = reqStrPathThrowing('intersections.0.0', location);
-                      const updatedStreet = R.when(
-                        checkStreet => isOsmType('way', {id: checkStreet}),
-                        checkStreet => strPathOr(checkStreet, 'street', nominatimProperties)
-                      )(checkStreet);
-                      // Update the nodesToIntersectingStreets
-                      const updatedBlock = R.over(
-                        R.lensProp('nodesToIntersectingStreets'),
-                        obj => R.map(
-                          obj => R.over(
-                            R.lensIndex(0),
-                            () => updatedStreet,
+    result => {
+      return resultToTaskWithResult(
+        // Process Result Tasks locations, merging in jurisdiction data when needed
+        // Task Result [Location] -> Task Result [Location]
+        locationAndBlocks => {
+          return traverseReduceDeep(2,
+            (locations, location) => {return R.concat(locations, [location])},
+            of(Result.Ok([])),
+            R.map(
+              ({block, location}) => {
+                return R.ifElse(
+                  ({location}) => {
+                    return R.both(
+                      location => R.propOr(null, 'country', location),
+                      location => R.any(
+                        prop => R.propOr(null, prop, location),
+                        ['city', 'country']
+                      )
+                    )(location);
+                  },
+                  // If we had a country or city, we already have jurisdiction data. Just rewrap in Result.Ok and task
+                  obj => R.compose(of, Result.Ok)(obj),
+                  // Reverse geocode and combine block, favoring keys already in locationWithNominatimData
+                  ({block, location}) => {
+                    // Convert the geojson line into a {lat, lon} center point
+                    const searchLatLon = R.compose(
+                      latLon => R.fromPairs(R.zip(['lat', 'lon'], latLon)),
+                      point => turfPointToLocation(point),
+                      geojson => center(geojson),
+                      location => R.prop('geojson', location)
+                    )(location);
+                    // Task Result Object -> Task Result Object
+                    return composeWithChainMDeep(2, [
+                      nominatimProperties => {
+                        // If we didn't get a street name from OSM, use that from nominatim
+                        const checkStreet = reqStrPathThrowing('intersections.0.0', location);
+                        const updatedStreet = R.when(
+                          checkStreet => isOsmType('way', {id: checkStreet}),
+                          checkStreet => strPathOr(checkStreet, 'street', nominatimProperties)
+                        )(checkStreet);
+                        // Update the nodesToIntersectingStreets
+                        const updatedBlock = R.over(
+                          R.lensProp('nodesToIntersectingStreets'),
+                          obj => R.map(
+                            obj => R.over(
+                              R.lensIndex(0),
+                              () => updatedStreet,
+                              obj
+                            ),
                             obj
                           ),
-                          obj
-                        ),
-                        block
-                      );
-                      // Update the location.intersections
-                      const updatedLocation = R.over(
-                        R.lensProp('intersections'),
-                        obj => R.map(
-                          obj => R.over(
-                            R.lensIndex(0),
-                            () => updatedStreet,
-                            obj
-                          )
-                        )(obj),
-                        location
-                      );
-                      // Merge the block of the reverse goecoding. We'll keep our geojson since it represents
-                      // the block and the reverse geocode just represents the center point
-                      return of(Result.Ok({
-                        block: updatedBlock,
-                        location: R.merge(nominatimProperties, updatedLocation)
-                      }));
-                    },
-                    // Reverse geocode the center of the block to get missing jurisdiction data
-                    location => nominatimReverseGeocodeToLocationResultTask(
-                      searchLatLon
-                    )
-                  ])(location);
-                }
-              )({block, location});
-            },
-            locationAndBlocks
-          )
-        );
-      }
-    )(result),
+                          block
+                        );
+                        // Update the location.intersections
+                        const updatedLocation = R.over(
+                          R.lensProp('intersections'),
+                          obj => R.map(
+                            obj => R.over(
+                              R.lensIndex(0),
+                              () => updatedStreet,
+                              obj
+                            )
+                          )(obj),
+                          location
+                        );
+                        // Merge the block of the reverse goecoding. We'll keep our geojson since it represents
+                        // the block and the reverse geocode just represents the center point
+                        return of(Result.Ok({
+                          block: updatedBlock,
+                          location: R.merge(nominatimProperties, updatedLocation)
+                        }));
+                      },
+                      // Reverse geocode the center of the block to get missing jurisdiction data
+                      location => nominatimReverseGeocodeToLocationResultTask(
+                        searchLatLon
+                      )
+                    ])(location);
+                  }
+                )({block, location});
+              },
+              locationAndBlocks
+            )
+          );
+        }
+      )(result);
+    },
     // Use the results to create geojson for the locationWithNominatimData
     // Task Result [<results, locationWithNominatimData>] -> Task Result [<results, locationWithNominatimData>]
-    locationBlocksResult => of(mapMDeep(2,
-      ({block, location}) => {
-        return {
-          block,
-          location: locationAndOsmBlocksToLocationWithGeojson(location, block)
-        };
-      }
-    )(locationBlocksResult)),
+    locationBlocksResult => {
+      return of(mapMDeep(2,
+        ({block, location}) => {
+          return {
+            block,
+            location: locationAndOsmBlocksToLocationWithGeojson(location, block)
+          };
+        }
+      )(locationBlocksResult));
+    },
 
     // Process the nominatim or google response(s) if any
     resultToTaskWithResult(
@@ -195,21 +200,24 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
     ),
 
     // Nominatim query on the place search string or ready for querying because of geojson.
-    location => R.cond([
-      // If it's a geojson shape or has a radius, it's already prime for querying
-      [location => geojsonFeaturesHaveShapeOrRadii(strPathOr(null, 'geojson', location)),
-        location => of(Result.Ok([location]))
-      ],
-      // If it's got jurisdiction info, query nominatim to resolve the area
-      [
-        location => isNominatimEligible(location),
-        location => nominatimOrGoogleJurisdictionGeojsonResultTask(osmConfig, location)
-      ],
-      [R.T, location => of(Result.Error({
-        error: 'Location not eligible for nominatim query and does not have a geojson shape or radius',
-        location
-      }))]
-    ])(location)
+    location => {
+      return R.cond([
+        // If it's a geojson shape or has a radius, it's already prime for querying
+        [
+          location => geojsonFeaturesHaveShapeOrRadii(strPathOr(null, 'geojson', location)),
+          location => of(Result.Ok([location]))
+        ],
+        // If it's got jurisdiction info, query nominatim to resolve the area
+        [
+          location => isNominatimEligible(location),
+          location => nominatimOrGoogleJurisdictionGeojsonResultTask(osmConfig, location)
+        ],
+        [R.T, location => of(Result.Error({
+          error: 'Location not eligible for nominatim query and does not have a geojson shape or radius',
+          location
+        }))]
+      ])(location);
+    }
   )(location);
 }, [
   ['osmConfig', PropTypes.shape().isRequired],
@@ -231,18 +239,22 @@ export const processJurisdictionOrGeojsonResponsesResultTask = (osmConfig, locat
       // If we have variations, query then in order until a positive result is returned
       locationVariationsWithOsm => _queryLocationVariationsUntilFoundResultTask(
         osmConfig,
-        (osmConfig, locationWithOsm) => R.map(
-          // _queryOverpassWithLocationForAllBlocksResultsTask returns a {Ok: [block locations], Error: [Error]}
-          // We need to reduce this: If anything is in error, we know the query failed, so we pass a Result.Error
-          results => R.ifElse(
-            R.compose(R.length, R.prop('Error')),
-            // Put in a Result.Error so this result is skipped
-            results => Result.Error(R.prop('Error', results)),
-            // Put in a Result.Ok so this result is processed
-            results => Result.Ok(R.prop('Ok', results))
-          )(results),
-          _queryOverpassWithLocationForAllBlocksResultsTask(osmConfig, locationWithOsm)
-        ),
+        (osmConfig, locationWithOsm) => {
+          return R.map(
+            // _queryOverpassWithLocationForAllBlocksResultsTask returns a {Ok: [block locations], Error: [Error]}
+            // We need to reduce this: If anything is in error, we know the query failed, so we pass a Result.Error
+            results => {
+              return R.ifElse(
+                R.compose(R.length, R.prop('Error')),
+                // Put in a Result.Error so this result is skipped
+                results => Result.Error(R.prop('Error', results)),
+                // Put in a Result.Ok so this result is processed
+                results => Result.Ok(R.prop('Ok', results))
+              )(results);
+            },
+            _queryOverpassWithLocationForAllBlocksResultsTask(osmConfig, locationWithOsm)
+          );
+        },
         locationVariationsWithOsm
       )
     ],
@@ -386,20 +398,49 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (osmConfig, locationWi
     ),
     // Build an OSM query for the locationWithNominatimData. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
-    locationWithOsm => of(
-      R.fromPairs(R.map(
-        type => [
-          type,
-          _constructHighwayQueriesForType(
-            osmConfig,
-            {type},
-            // These are the only properties we might need from the locationWithNominatimData
-            pickDeepPaths(['osmId', 'osmType', 'geojson'], locationWithOsm)
+    locationWithOsm => {
+      return of(
+        R.fromPairs(
+          R.map(
+            type => [
+              type,
+              R.ifElse(
+                // If the location has a street but no intersections, we want to query for all streets matching the name
+                ({locationWithOsm}) => {
+                  return R.both(
+                    l => R.propOr(false, 'street', l),
+                    l => R.compose(R.equals(0), R.length, R.propOr([], 'intersections'))(l)
+                  )(locationWithOsm);
+                },
+                ({locationWithOsm}) => {
+                  // Street query
+                  return R.compose(
+                    Array.of,
+                    locationWithOsm => {
+                      return _constructStreetQuery(
+                        osmConfig,
+                        {type},
+                        locationWithOsm
+                      );
+                    }
+                  )(locationWithOsm);
+                },
+                ({locationWithOsm}) => {
+                  // Shape query, radius query, or area query
+                  return _constructHighwayQueriesForType(
+                    osmConfig,
+                    {type},
+                    // These are the only properties we might need from the locationWithOsm
+                    pickDeepPaths(['osmId', 'osmType', 'geojson'], locationWithOsm)
+                  );
+                }
+              )({locationWithOsm})
+            ],
+            ['way', 'node']
           )
-        ],
-        ['way', 'node']
-      ))
-    )
+        )
+      );
+    }
   )(locationWithOsm);
 };
 

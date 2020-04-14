@@ -113,7 +113,7 @@ describe('overpassStreet', () => {
     locationToOsmAllBlocksQueryResultsTask({}, {
         country: 'China 中国',
         city: '香港 Hong Kong',
-        street: 'Theatre Lane'
+        street: 'Apliu Street'
       }
     ).run().listen(defaultRunConfig({
       onResolved: ({Ok: componentLocationResponses}) => {

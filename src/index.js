@@ -68,7 +68,7 @@ export {
   isLatLng,
   isNominatimEligible,
   locationHasGeojsonFeatures,
-
+  fixWordsThatTripUpGoogle
 } from './locationHelpers';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';

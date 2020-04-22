@@ -9,6 +9,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import {
+  composeWithMap,
   composeWithMapMDeep,
   mapMDeep,
   mapToMergedResponseAndInputs,
@@ -192,39 +193,29 @@ export const _partialBlocksToFeaturesResultsTask = (
   osmConfig,
   location,
   {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
-  return composeWithMapMDeep(1, [
+  return composeWithMap([
     // Convert the results their values under Ok and Error
     // [Result] -> {Ok: [Object], Error: [Object]}
     blockResults => {
-      log.warn(`_partialBlocksToFeaturesResultsTask: Calling resultsToResultObj on ${R.length(blockResults)} blocks`);
+      log.debug(`_partialBlocksToFeaturesResultsTask: Calling resultsToResultObj on ${R.length(blockResults)} blocks`);
       return resultsToResultObj(blockResults);
     },
 
     // Extract the intersection street names
-    ({blocks, nodeIdToWays}) => {
-      log.warn(`_partialBlocksToFeaturesResultsTask: Calling _intersectionStreetNamesFromWaysAndNodesResult on ${R.length(blocks)} blocks`);
+    ({blocks}) => {
       return R.map(
         block => {
-          const nodesToIntersectingStreetsResult = _intersectionStreetNamesFromWaysAndNodesResult(
-            osmConfig,
-            reqStrPathThrowing('ways', block),
-            reqStrPathThrowing('nodes', block),
-            nodeIdToWays
-          );
-          return R.map(
-            nodesToIntersectingStreets => ({
-              // Put the OSM results together
-              block: R.merge(block, {nodesToIntersectingStreets}),
-              // Add the intersections to the locationWithNominatimData and return it
-              location: R.merge(
-                location,
-                {
-                  intersections: R.values(nodesToIntersectingStreets)
-                }
-              )
-            }),
-            nodesToIntersectingStreetsResult
-          );
+          const nodesToIntersectingStreets = strPathOr(null, 'nodesToIntersectingStreets', block)
+          return Result.Ok({
+            block,
+            // Add the intersections to the location
+            location: R.merge(
+              location,
+              {
+                intersections: R.values(nodesToIntersectingStreets)
+              }
+            )
+          });
         },
         blocks
       );
@@ -235,7 +226,7 @@ export const _partialBlocksToFeaturesResultsTask = (
     // TODO we don't want to lose ways, so we don't do this until we can incorporate these short into adjacent walks
     toNamedResponseAndInputs('blocks',
       ({blocks}) => {
-        log.warn(`_partialBlocksToFeaturesResultsTask: Removing small ways on ${R.length(blocks)} blocks`);
+        log.debug(`_partialBlocksToFeaturesResultsTask: Checking for small ways on ${R.length(blocks)} blocks`);
         if (process.env.NODE_ENV !== 'production') {
           blocksToGeojson(blocks);
         }
@@ -264,7 +255,7 @@ export const _partialBlocksToFeaturesResultsTask = (
     // TODO remove. We shouldn't have duplicates anymore
     toNamedResponseAndInputs('hashToBestBlock',
       ({blocks}) => {
-        log.warn(`_partialBlocksToFeaturesResultsTask: Calling _removeOpposingDuplicateBlocks on ${R.length(blocks)} blocks`);
+        log.debug(`_partialBlocksToFeaturesResultsTask: Calling _removeOpposingDuplicateBlocks on ${R.length(blocks)} blocks`);
         return _removeOpposingDuplicateBlocks(blocks);
       }
     ),
@@ -279,15 +270,37 @@ export const _partialBlocksToFeaturesResultsTask = (
         }
         return R.map(
           // Add intersections to the blocks based on the ways and nodes' properties
-          block => R.merge(block, {
-              nodesToIntersectingStreets: _intersectionStreetNamesFromWaysAndNodesResult(
-                osmConfig,
-                reqStrPathThrowing('ways', block),
-                reqStrPathThrowing('nodes', block),
-                nodeIdToWays
-              )
+          block => {
+            const nodesToIntersectingStreetsResult = _intersectionStreetNamesFromWaysAndNodesResult(
+              osmConfig,
+              reqStrPathThrowing('ways', block),
+              reqStrPathThrowing('nodes', block),
+              nodeIdToWays
+            );
+            log.debug(`_partialBlocksToFeaturesResultsTask: Resolved the following intersection names for the block nodes: ${
+              JSON.stringify(nodesToIntersectingStreetsResult.value)
+            }`);
+            const updatedBlock = nodesToIntersectingStreetsResult.matchWith({
+                Ok: ({value: nodesToIntersectingStreets}) => {
+                  return R.merge(block, {
+                      nodesToIntersectingStreets
+                    }
+                  );
+                },
+                Error: ({value}) => {
+                  log.warn(`_partialBlocksToFeaturesResultsTask: _intersectionStreetNamesFromWaysAndNodesResult failed with error: ${
+                    JSON.stringify(value)
+                  }`);
+                  return block;
+                }
+              }
+            );
+            if (process.env.NODE_ENV !== 'production') {
+              // Debugging help will eventually be used for visual feedback of the processing on a website
+              blockToGeojson(updatedBlock);
             }
-          ),
+            return updatedBlock;
+          },
           blocks
         );
       }

@@ -16,7 +16,7 @@ import {_calculateNodeAndWayRelationships, fetchOsmRawTask, osmResultTask} from 
 import {hashNodeFeature, hashWayFeature, wayFeatureToCoordinates} from './overpassFeatureHelpers';
 import {
   compact, composeWithChain,
-  composeWithChainMDeep, mapToNamedResponseAndInputs,
+  composeWithChainMDeep, mapToMergedResponseAndInputs, mapToNamedResponseAndInputs,
   mapToNamedResponseAndInputsMDeep,
   reqStrPathThrowing,
   resultToTaskNeedingResult,
@@ -267,7 +267,7 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
     },
     nodeAndTrimmedWayResult => {
       return resultToTaskWithResult(
-        ({block, remainingPartialBlocks, nodeIdToWays: newNodeIdToWays}) => {
+        ({block, remainingPartialBlocks, newNodeIdToWays}) => {
           // If the block is complete because there are two nodes now, or failing that we didn't find a joining way,
           // just return the block, otherwise recurse to travel more to
           // reach a node along the new way, reach another way, or reach a dead end
@@ -285,6 +285,11 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
                   {hashToPartialBlocks},
                   _mergeInNewNodeAndWayRelationships({
                       // Add any newNodeIdToWays that we found while resolving the block
+                      // When newNodeIdToWays has nodes that match nodeIdTyWays, it will always have the same ways and possibly more
+                      // nodeIdToWays is formed by evaluating everything returned from the initial way query, whereas newNodeIdToWays
+                      // is formed by explicitly looking for nodes of a way. So whereas nodeIdToWays might miss ways that are outside
+                      // the query area, newNodeIdToWays will not. This makes resolving the street names better because we have all
+                      // the intersecting ways
                       // TODO we don't update nodeIdToNodePoint correspondingly, does it matter?
                       nodeIdToWays: R.merge(nodeIdToWays, newNodeIdToWays),
                       wayIdToNodes,
@@ -378,18 +383,28 @@ export function _choicePointProcessPartialBlockResultTask(
   // Once we know firstFoundNodeOfFinalWay is, either complete the block or treat it as a fake intersection and
   // continue building the block
   return composeWithChain([
-    ({nodeIdToWays, hashToPartialBlocks, partialBlocks, ways, nodes, firstFoundNodeOfFinalWay, block, provenToBeRealIntersection}) => {
+    ({
+       nodeIdToWays, hashToPartialBlocks, partialBlocks, ways, nodes, firstFoundNodeOfFinalWay, block,
+       isRealIntersection, newNodeIdToWays
+     }) => {
       return R.ifElse(
-        ({provenToBeRealIntersection}) => {
-          return provenToBeRealIntersection;
+        ({isRealIntersection}) => {
+          return isRealIntersection;
         },
 
         // We have a firstFoundNodeOfFinalWay of a real intersection, so we are done with the block. This is because
         // a block can never extend over a real intersection, by definition of a block
-        ({partialBlocks, ways, firstFoundNodeOfFinalWay, block}) => {
+        ({partialBlocks, ways, firstFoundNodeOfFinalWay, block, newNodeIdToWays}) => {
           return of(
             Result.Ok(
-              _choicePointProcessPartialBlockCompleteBlock({partialBlocks, ways, nodes}, block, firstFoundNodeOfFinalWay)
+              R.merge(
+                {newNodeIdToWays},
+                _choicePointProcessPartialBlockCompleteBlock({
+                  partialBlocks,
+                  ways,
+                  nodes
+                }, block, firstFoundNodeOfFinalWay)
+              )
             )
           );
         },
@@ -419,7 +434,7 @@ export function _choicePointProcessPartialBlockResultTask(
               // constructing the block
               R.merge({__FAKE_INTERSECTION__: true}, firstFoundNodeOfFinalWay),
               {nodes, ways}
-            )
+            ).map(value => R.merge({newNodeIdToWays}, value))
           );
         }
       )
@@ -431,13 +446,14 @@ export function _choicePointProcessPartialBlockResultTask(
         nodes,
         firstFoundNodeOfFinalWay,
         block,
-        provenToBeRealIntersection
+        isRealIntersection,
+        newNodeIdToWays
       });
     },
 
     // Determines if firstFoundNodeOfFinalWays is a real intersection based on the data in nodeIdToWays or failing
     // that by querying OSM for the ways
-    mapToNamedResponseAndInputs('provenToBeRealIntersection',
+    mapToMergedResponseAndInputs(
       ({osmConfig, nodeIdToWays, firstFoundNodeOfFinalWay}) => {
         return isRealIntersectionTask(
           osmConfig,

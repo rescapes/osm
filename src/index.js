@@ -106,3 +106,6 @@ export {
   locationsToGeojsonString
 } from './overpassBlockHelpers';
 
+export {
+  bufferAndUnionGeojson
+} from './locationHelpers'

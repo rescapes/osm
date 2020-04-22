@@ -5,7 +5,7 @@ import {
   addressPair,
   addressStringForBlock,
   addressStrings,
-  aggregateLocation,
+  aggregateLocation, bufferAndUnionGeojson,
   featuresOfOsmType,
   fixWordsThatTripUpGoogle,
   geojsonFeaturesHaveRadii,
@@ -203,6 +203,7 @@ describe('LocationHeleprs', () => {
       ]
     );
   });
+
   test('intersectionsByNodeForWayWithDeadEnd', () => {
     const location = {
       "country": "Canada",
@@ -699,7 +700,7 @@ describe('LocationHeleprs', () => {
       ]
     };
     const errors = [];
-    const radius = 402.336;
+    const radius = 40;
     const units = 'meters';
     const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({radius, units}, geojson);
 
@@ -722,13 +723,13 @@ describe('LocationHeleprs', () => {
   }, 10000000);
 
   test('bufferedFeaturesToOsmAllBlocksQueryResultsTaskForPoints', done => {
-    const radius = 70;
+    const radius = 50;
     const units = 'meters';
     const circleFeatures = R.map(
       pnt => point(R.reverse(pnt)),
       [
         [22.369978, 114.113525],
-        [22.246151, 114.169610]
+        //[22.246151, 114.169610]
       ]);
 
     const geojson = {
@@ -743,7 +744,7 @@ describe('LocationHeleprs', () => {
       defaultRunConfig({
         onResolved: ({Error, Ok}) => {
           mergeDeepWithConcatArrays(
-            {features: circleFeatures},
+            {features: R.map(f=> buffer(f, radius, {units}), circleFeatures)},
             blocksToGeojson(R.map(
               res => R.compose(
                 r => R.prop('block', r),
@@ -760,4 +761,2121 @@ describe('LocationHeleprs', () => {
       }, errors, done)
     );
   }, 10000000);
+
+  test('bufferAndUnionGeojson', () => {
+    const featuresAndCollections = [
+      {
+        "type": "FeatureCollection",
+        "generator": "overpass-ide",
+        "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
+        "timestamp": "",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "way/28069950",
+            "properties": {
+              "stroke": "#1f77b4",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 28069950,
+              "tags": {
+                "carriageway_ref:kmb": "W",
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "ref:kmb": "DE02",
+                "surface": "concrete",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1513186,
+                  22.2866901
+                ],
+                [
+                  114.1520691,
+                  22.2864926
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/28069950",
+            "properties": {
+              "stroke": "#ff7f0e",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 28069950,
+              "tags": {
+                "carriageway_ref:kmb": "W",
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "ref:kmb": "DE02",
+                "surface": "concrete",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1513186,
+                  22.2866901
+                ],
+                [
+                  114.15048,
+                  22.286905
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141431",
+            "properties": {
+              "stroke": "#2ca02c",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141431,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1574109,
+                  22.2823977
+                ],
+                [
+                  114.1574439,
+                  22.2823561
+                ],
+                [
+                  114.1574786,
+                  22.2823142
+                ],
+                [
+                  114.1574965,
+                  22.282292
+                ],
+                [
+                  114.157565,
+                  22.2822064
+                ],
+                [
+                  114.1576684,
+                  22.2820771
+                ],
+                [
+                  114.1577479,
+                  22.2819825
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141431",
+            "properties": {
+              "stroke": "#d62728",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141431,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1574109,
+                  22.2823977
+                ],
+                [
+                  114.1573604,
+                  22.2824585
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141431",
+            "properties": {
+              "stroke": "#9467bd",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141431,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1573604,
+                  22.2824585
+                ],
+                [
+                  114.1572586,
+                  22.2825923
+                ],
+                [
+                  114.1571743,
+                  22.2826963
+                ],
+                [
+                  114.1570566,
+                  22.2828391
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141431",
+            "properties": {
+              "stroke": "#8c564b",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141431,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1570566,
+                  22.2828391
+                ],
+                [
+                  114.1570343,
+                  22.2828663
+                ],
+                [
+                  114.1570257,
+                  22.2828783
+                ],
+                [
+                  114.1569472,
+                  22.2829772
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141431",
+            "properties": {
+              "stroke": "#e377c2",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141431,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1569472,
+                  22.2829772
+                ],
+                [
+                  114.1569383,
+                  22.2829891
+                ],
+                [
+                  114.1568661,
+                  22.2830855
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141431",
+            "properties": {
+              "stroke": "#7f7f7f",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141431,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1568661,
+                  22.2830855
+                ],
+                [
+                  114.1566516,
+                  22.2833569
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141431",
+            "properties": {
+              "stroke": "#bcbd22",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141431,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1566516,
+                  22.2833569
+                ],
+                [
+                  114.156573,
+                  22.2834555
+                ],
+                [
+                  114.1564983,
+                  22.2835494
+                ],
+                [
+                  114.1564452,
+                  22.2836135
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141477",
+            "properties": {
+              "stroke": "#17becf",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141477,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1562342,
+                  22.2838698
+                ],
+                [
+                  114.1564147,
+                  22.2836514
+                ],
+                [
+                  114.1564452,
+                  22.2836135
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141477",
+            "properties": {
+              "stroke": "#1f77b4",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141477,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1562342,
+                  22.2838698
+                ],
+                [
+                  114.15602,
+                  22.28413
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141644",
+            "properties": {
+              "stroke": "#ff7f0e",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141644,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1552346,
+                  22.2850392
+                ],
+                [
+                  114.1553093,
+                  22.2849854
+                ],
+                [
+                  114.1553802,
+                  22.284899
+                ],
+                [
+                  114.1556257,
+                  22.2845981
+                ],
+                [
+                  114.1556834,
+                  22.2845264
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141644",
+            "properties": {
+              "stroke": "#2ca02c",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141644,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1552346,
+                  22.2850392
+                ],
+                [
+                  114.1551527,
+                  22.2850893
+                ],
+                [
+                  114.1551096,
+                  22.2851149
+                ],
+                [
+                  114.1550535,
+                  22.2851493
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141644",
+            "properties": {
+              "stroke": "#d62728",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141644,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1550535,
+                  22.2851493
+                ],
+                [
+                  114.1548713,
+                  22.2852538
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141644",
+            "properties": {
+              "stroke": "#9467bd",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141644,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1548713,
+                  22.2852538
+                ],
+                [
+                  114.1547532,
+                  22.2853248
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141644",
+            "properties": {
+              "stroke": "#8c564b",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141644,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1547532,
+                  22.2853248
+                ],
+                [
+                  114.1546815,
+                  22.2853661
+                ],
+                [
+                  114.1546078,
+                  22.2854087
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141644",
+            "properties": {
+              "stroke": "#e377c2",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141644,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1546078,
+                  22.2854087
+                ],
+                [
+                  114.1543793,
+                  22.2855377
+                ],
+                [
+                  114.1543222,
+                  22.2855716
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/151226287",
+            "properties": {
+              "stroke": "#7f7f7f",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 151226287,
+              "tags": {
+                "highway": "secondary",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.15253,
+                  22.286488
+                ],
+                [
+                  114.1520932,
+                  22.2865969
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/151226287",
+            "properties": {
+              "stroke": "#bcbd22",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 151226287,
+              "tags": {
+                "highway": "secondary",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.15253,
+                  22.286488
+                ],
+                [
+                  114.1530189,
+                  22.2863674
+                ],
+                [
+                  114.1531533,
+                  22.2863281
+                ],
+                [
+                  114.153237,
+                  22.2862987
+                ],
+                [
+                  114.1532924,
+                  22.2862764
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/492436535",
+            "properties": {
+              "stroke": "#17becf",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 492436535,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "2",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1565303,
+                  22.2836752
+                ],
+                [
+                  114.1565026,
+                  22.2837096
+                ],
+                [
+                  114.1562843,
+                  22.2839807
+                ],
+                [
+                  114.1561125,
+                  22.2841941
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/492436535",
+            "properties": {
+              "stroke": "#1f77b4",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 492436535,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "2",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1565303,
+                  22.2836752
+                ],
+                [
+                  114.1565539,
+                  22.2836442
+                ],
+                [
+                  114.1568593,
+                  22.2832566
+                ],
+                [
+                  114.1570288,
+                  22.2830415
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/492436535",
+            "properties": {
+              "stroke": "#ff7f0e",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 492436535,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "2",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1570288,
+                  22.2830415
+                ],
+                [
+                  114.1574891,
+                  22.2824532
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/28069952",
+            "properties": {
+              "stroke": "#2ca02c",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 28069952,
+              "tags": {
+                "carriageway_ref:left:kmb": "W",
+                "carriageway_ref:right:kmb": "E",
+                "highway": "residential",
+                "lanes": "2",
+                "lanes:backward": "1",
+                "lanes:forward": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "ref:kmb": "DE02",
+                "surface": "asphalt",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.15048,
+                  22.286905
+                ],
+                [
+                  114.15025,
+                  22.286956
+                ],
+                [
+                  114.15022,
+                  22.28697
+                ],
+                [
+                  114.15018,
+                  22.287
+                ],
+                [
+                  114.15015,
+                  22.28705
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/88695241",
+            "properties": {
+              "stroke": "#d62728",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 88695241,
+              "tags": {
+                "bus": "yes",
+                "highway": "tertiary",
+                "lanes": "1",
+                "motor_vehicle": "no",
+                "motor_vehicle:conditional": "yes @ (PH 07:00-24:00)",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1587308,
+                  22.2809705
+                ],
+                [
+                  114.1587932,
+                  22.2809397
+                ],
+                [
+                  114.1588375,
+                  22.2809257
+                ],
+                [
+                  114.1594192,
+                  22.2807802
+                ],
+                [
+                  114.1596308,
+                  22.280723
+                ],
+                [
+                  114.1596577,
+                  22.2807157
+                ],
+                [
+                  114.1599281,
+                  22.2806449
+                ],
+                [
+                  114.1599888,
+                  22.2806269
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/88695251",
+            "properties": {
+              "stroke": "#d62728",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 88695251,
+              "tags": {
+                "bus": "yes",
+                "highway": "tertiary",
+                "lanes": "1",
+                "motor_vehicle": "no",
+                "motor_vehicle:conditional": "yes @ (PH 07:00-24:00)",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1599888,
+                  22.2806269
+                ],
+                [
+                  114.1603005,
+                  22.2805498
+                ],
+                [
+                  114.1603486,
+                  22.2805276
+                ],
+                [
+                  114.1603967,
+                  22.2804929
+                ],
+                [
+                  114.1604436,
+                  22.2804476
+                ],
+                [
+                  114.1604841,
+                  22.2803953
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/242113654",
+            "properties": {
+              "stroke": "#d62728",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 242113654,
+              "tags": {
+                "bus": "yes",
+                "highway": "tertiary",
+                "lanes": "1",
+                "motor_vehicle": "no",
+                "motor_vehicle:conditional": "yes @ (PH 07:00-24:00)",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1604841,
+                  22.2803953
+                ],
+                [
+                  114.1605579,
+                  22.2802247
+                ],
+                [
+                  114.1606004,
+                  22.28016
+                ],
+                [
+                  114.1606473,
+                  22.280114
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/88695246",
+            "properties": {
+              "stroke": "#9467bd",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 88695246,
+              "tags": {
+                "highway": "unclassified",
+                "lanes": "1",
+                "motor_vehicle": "destination",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1606708,
+                  22.2799489
+                ],
+                [
+                  114.1605834,
+                  22.2800187
+                ],
+                [
+                  114.1605372,
+                  22.2800612
+                ],
+                [
+                  114.1604947,
+                  22.2801179
+                ],
+                [
+                  114.1604426,
+                  22.280217
+                ],
+                [
+                  114.16041,
+                  22.2802986
+                ],
+                [
+                  114.1603514,
+                  22.2803843
+                ],
+                [
+                  114.1602923,
+                  22.2804278
+                ],
+                [
+                  114.1602401,
+                  22.280447
+                ],
+                [
+                  114.160021,
+                  22.2804969
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/88695249",
+            "properties": {
+              "stroke": "#8c564b",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 88695249,
+              "tags": {
+                "bus": "yes",
+                "highway": "service",
+                "lanes": "1",
+                "motor_vehicle": "no",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "note": "bus road",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1586707,
+                  22.2808668
+                ],
+                [
+                  114.1586325,
+                  22.2808959
+                ],
+                [
+                  114.1585997,
+                  22.280931
+                ],
+                [
+                  114.15842,
+                  22.2811563
+                ],
+                [
+                  114.1581087,
+                  22.2815409
+                ],
+                [
+                  114.158092,
+                  22.2815598
+                ],
+                [
+                  114.1578747,
+                  22.2818196
+                ],
+                [
+                  114.1578356,
+                  22.2818704
+                ],
+                [
+                  114.1577479,
+                  22.2819825
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141458",
+            "properties": {
+              "stroke": "#e377c2",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141458,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.15602,
+                  22.28413
+                ],
+                [
+                  114.1560149,
+                  22.2841364
+                ],
+                [
+                  114.1558826,
+                  22.2842883
+                ],
+                [
+                  114.1557938,
+                  22.2843902
+                ],
+                [
+                  114.1557842,
+                  22.2844026
+                ],
+                [
+                  114.1557813,
+                  22.2844064
+                ],
+                [
+                  114.1556834,
+                  22.2845264
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141466",
+            "properties": {
+              "stroke": "#7f7f7f",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141466,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1532694,
+                  22.2861779
+                ],
+                [
+                  114.1531898,
+                  22.28621
+                ],
+                [
+                  114.1531396,
+                  22.2862259
+                ],
+                [
+                  114.1526626,
+                  22.2863417
+                ],
+                [
+                  114.1525135,
+                  22.2863801
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141490",
+            "properties": {
+              "stroke": "#bcbd22",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141490,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1525135,
+                  22.2863801
+                ],
+                [
+                  114.1523315,
+                  22.2864249
+                ],
+                [
+                  114.152294,
+                  22.286435
+                ],
+                [
+                  114.1521456,
+                  22.2864742
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/322844634",
+            "properties": {
+              "stroke": "#bcbd22",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 322844634,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1521456,
+                  22.2864742
+                ],
+                [
+                  114.1520691,
+                  22.2864926
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/89141509",
+            "properties": {
+              "stroke": "#17becf",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 89141509,
+              "tags": {
+                "carriageway_ref:kmb": "W",
+                "direction:kmb": "W",
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "ref:kmb": "DE02",
+                "sidewalk": "left",
+                "surface": "concrete",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1540076,
+                  22.2857594
+                ],
+                [
+                  114.1536666,
+                  22.2859584
+                ],
+                [
+                  114.1534241,
+                  22.2860999
+                ],
+                [
+                  114.1533871,
+                  22.2861202
+                ],
+                [
+                  114.1533418,
+                  22.2861437
+                ],
+                [
+                  114.1532694,
+                  22.2861779
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/131023317",
+            "properties": {
+              "stroke": "#1f77b4",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 131023317,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "1",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1543222,
+                  22.2855716
+                ],
+                [
+                  114.1541254,
+                  22.2856891
+                ],
+                [
+                  114.1540076,
+                  22.2857594
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/242113655",
+            "properties": {
+              "stroke": "#ff7f0e",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 242113655,
+              "tags": {
+                "bus": "yes",
+                "highway": "service",
+                "lanes": "1",
+                "motor_vehicle": "no",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "note": "bus road",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.160021,
+                  22.2804969
+                ],
+                [
+                  114.1599645,
+                  22.2805119
+                ],
+                [
+                  114.1592208,
+                  22.2807095
+                ],
+                [
+                  114.1590955,
+                  22.2807413
+                ],
+                [
+                  114.1590021,
+                  22.2807648
+                ],
+                [
+                  114.1587627,
+                  22.2808281
+                ],
+                [
+                  114.1587265,
+                  22.2808375
+                ],
+                [
+                  114.1586985,
+                  22.2808492
+                ],
+                [
+                  114.1586707,
+                  22.2808668
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/308827001",
+            "properties": {
+              "stroke": "#2ca02c",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 308827001,
+              "tags": {
+                "carriageway_ref:kmb": "E",
+                "direction:kmb": "E",
+                "highway": "secondary",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "ref:kmb": "DE02",
+                "sidewalk": "left",
+                "surface": "asphalt",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1532924,
+                  22.2862764
+                ],
+                [
+                  114.1533881,
+                  22.2862265
+                ],
+                [
+                  114.1534123,
+                  22.2862135
+                ],
+                [
+                  114.1534303,
+                  22.2862034
+                ],
+                [
+                  114.1536037,
+                  22.2861116
+                ],
+                [
+                  114.1537689,
+                  22.2860191
+                ],
+                [
+                  114.1540719,
+                  22.2858483
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/319674133",
+            "properties": {
+              "stroke": "#d62728",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 319674133,
+              "tags": {
+                "carriageway_ref:kmb": "E",
+                "highway": "secondary",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "ref:kmb": "DE02",
+                "surface": "asphalt",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1504941,
+                  22.2869863
+                ],
+                [
+                  114.1505246,
+                  22.2869791
+                ],
+                [
+                  114.1512847,
+                  22.2867985
+                ],
+                [
+                  114.1513407,
+                  22.2867852
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/319712184",
+            "properties": {
+              "stroke": "#9467bd",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 319712184,
+              "tags": {
+                "highway": "secondary",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1548193,
+                  22.2854157
+                ],
+                [
+                  114.1551066,
+                  22.2852448
+                ],
+                [
+                  114.1552709,
+                  22.2851456
+                ],
+                [
+                  114.1553438,
+                  22.2850947
+                ],
+                [
+                  114.1554137,
+                  22.2850392
+                ],
+                [
+                  114.155449,
+                  22.2850042
+                ],
+                [
+                  114.1557212,
+                  22.2846714
+                ],
+                [
+                  114.1557799,
+                  22.2845999
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/492424410",
+            "properties": {
+              "stroke": "#8c564b",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 492424410,
+              "tags": {
+                "bus": "yes",
+                "highway": "tertiary",
+                "lanes": "1",
+                "motor_vehicle": "no",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "concrete"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1578685,
+                  22.2819794
+                ],
+                [
+                  114.15862,
+                  22.2810678
+                ],
+                [
+                  114.1586833,
+                  22.2810059
+                ],
+                [
+                  114.1587308,
+                  22.2809705
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/492431185",
+            "properties": {
+              "stroke": "#e377c2",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 492431185,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "2",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1578283,
+                  22.2820331
+                ],
+                [
+                  114.1578685,
+                  22.2819794
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/526329771",
+            "properties": {
+              "stroke": "#7f7f7f",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 526329771,
+              "tags": {
+                "carriageway_ref:kmb": "E",
+                "highway": "secondary",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "ref:kmb": "DE02",
+                "surface": "asphalt",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1513407,
+                  22.2867852
+                ],
+                [
+                  114.1513979,
+                  22.2867709
+                ],
+                [
+                  114.1519945,
+                  22.2866216
+                ],
+                [
+                  114.1520932,
+                  22.2865969
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/636547284",
+            "properties": {
+              "stroke": "#bcbd22",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 636547284,
+              "tags": {
+                "highway": "secondary",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1557799,
+                  22.2845999
+                ],
+                [
+                  114.1558767,
+                  22.2844827
+                ],
+                [
+                  114.1558891,
+                  22.2844677
+                ],
+                [
+                  114.1559295,
+                  22.2844185
+                ],
+                [
+                  114.1559922,
+                  22.2843428
+                ],
+                [
+                  114.156096,
+                  22.2842138
+                ],
+                [
+                  114.1561125,
+                  22.2841941
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/776750569",
+            "properties": {
+              "stroke": "#17becf",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 776750569,
+              "tags": {
+                "highway": "secondary",
+                "lanes": "2",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "surface": "asphalt",
+                "turn:lanes": "left;slight_left|slight_left;through"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1574891,
+                  22.2824532
+                ],
+                [
+                  114.1576591,
+                  22.2822427
+                ],
+                [
+                  114.1578283,
+                  22.2820331
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "way/783005137",
+            "properties": {
+              "stroke": "#1f77b4",
+              "stroke-width": 2,
+              "stroke-opacity": 1,
+              "type": "way",
+              "id": 783005137,
+              "tags": {
+                "carriageway_ref:kmb": "E",
+                "direction:kmb": "E",
+                "highway": "secondary",
+                "name": "德輔道中 Des Voeux Road Central",
+                "name:en": "Des Voeux Road Central",
+                "name:zh": "德輔道中",
+                "oneway": "yes",
+                "ref:kmb": "DE02",
+                "sidewalk": "left",
+                "surface": "asphalt",
+                "wikidata": "Q13163706"
+              },
+              "relations": [],
+              "meta": {}
+            },
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  114.1540719,
+                  22.2858483
+                ],
+                [
+                  114.1542962,
+                  22.2857231
+                ],
+                [
+                  114.1547414,
+                  22.2854616
+                ],
+                [
+                  114.1548193,
+                  22.2854157
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            114.113525,
+            22.369978
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            114.131184,
+            22.363055
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            114.16186,
+            22.330248
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            114.205306,
+            22.336194
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            114.226496,
+            22.312118
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            114.213462,
+            22.287143
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            114.18405,
+            22.278962
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            114.154,
+            22.282346
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            114.16961,
+            22.246151
+          ]
+        }
+      }
+    ]
+    expect(R.map(f => bufferAndUnionGeojson({radius: 50, units: 'meters'}, f), featuresAndCollections)).toBeTruthy()
+  })
 });

@@ -11,7 +11,10 @@ import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {of} from 'folktale/concurrency/task';
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
-import {locationsToGeojson} from './overpassBlockHelpers';
+import {point} from '@turf/helpers';
+import {locationsToGeojson, locationsToGeojsonWaysAndBoth} from './overpassBlockHelpers';
+import buffer from '@turf/buffer';
+import union from '@turf/union';
 
 /**
  * Created by Andy Likuski on 2019.09.23
@@ -109,15 +112,34 @@ describe('overpassStreet', () => {
     expect.assertions(1);
     const errors = [];
 
-    // This calls _constructStreetQuery indirectlly
+    // This calls _constructStreetQuery indirectly
     locationToOsmAllBlocksQueryResultsTask({}, {
         country: 'China 中国',
         city: '香港 Hong Kong',
-        street: 'Apliu Street'
+        street: 'Des Voeux Road Central'
       }
     ).run().listen(defaultRunConfig({
       onResolved: ({Ok: componentLocationResponses}) => {
-        locationsToGeojson(R.map(R.prop('location'), componentLocationResponses))
+        expect(R.length(componentLocationResponses)).toEqual(2);
+      }
+    }, errors, done));
+  }, 2000000);
+
+  test('locationToOsmAllBlocksQueryResultsTaskRadius', done => {
+    expect.assertions(1);
+    const errors = [];
+    const radius = 50; // 201.168; // 1/8 mile
+    const units = 'meters';
+
+    // These are points in Hong Kong that we need data for
+    const featuresToBuffer = R.map(pnt => point(R.reverse(pnt)), [[22.369978, 114.113525]])
+    // This calls _constructStreetQuery indirectlly
+    locationToOsmAllBlocksQueryResultsTask({}, {
+        country: 'China 中国',
+        city: '香港 Hong Kong'
+      }
+    ).run().listen(defaultRunConfig({
+      onResolved: ({Ok: componentLocationResponses}) => {
         expect(R.length(componentLocationResponses)).toEqual(2);
       }
     }, errors, done));

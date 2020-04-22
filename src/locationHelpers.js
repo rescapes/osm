@@ -8,13 +8,22 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import {compactEmpty, reqStrPathThrowing, strPathOr, toNamedResponseAndInputs, mapKeys} from 'rescape-ramda';
+import {
+  compactEmpty,
+  reqStrPathThrowing,
+  strPathOr,
+  toNamedResponseAndInputs,
+  mapKeys,
+  toArrayIfNot
+} from 'rescape-ramda';
 import {locationToTurfPoint} from 'rescape-helpers';
 import * as R from 'ramda';
 import PropTypes from 'prop-types';
 import {v} from 'rescape-validate';
 import {point} from '@turf/helpers';
 import circle from '@turf/circle';
+import buffer from '@turf/buffer';
+import union from '@turf/union'
 
 // The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
 // Switzerland for example doesn't resolve correctly if the canton abbreviation is included
@@ -993,3 +1002,24 @@ export const nodeFromCoordinate = ({id}, coordinate) => {
     }
   };
 };
+
+/**
+ * Given a geojson feature collection, buffer it union each feature from the buffer
+ * @param {Object} config
+ * @param {Number} config.radius
+ * @param {String} config.units
+ * @param {Object} geojson Feature Collection to buffer
+ * @return {Object} A feature collection  containing one or more features
+ */
+export const bufferAndUnionGeojson = ({radius, units}, geojson) => {
+  const buffered = buffer(geojson, radius, {units})
+  const features = R.compose(toArrayIfNot, R.when(R.propEq('type', 'FeatureCollection'), R.prop('features')))(buffered)
+  const feature = R.reduce(
+    (acc, feature) => {
+      return !acc ? feature : union(acc, feature)
+    },
+    null,
+    features
+  )
+  return {type: 'FeatureCollection', features: [feature]}
+}

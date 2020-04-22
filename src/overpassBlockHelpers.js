@@ -35,7 +35,7 @@ import {
   resultsToResultObj,
   splitAtInclusive,
   strPathOr,
-  taskToResultTask,
+  taskToResultTask, toMergedResponseAndInputs,
   toNamedResponseAndInputs,
   traverseReduce,
   traverseReduceResultError,
@@ -1378,27 +1378,40 @@ export const isRealIntersection = v((wayFeatures, nodeFeature) => R.anyPass([
  * @param osmConfig
  * @param wayFeatures
  * @param nodeFeature
- * @return {Task<Boolean>} Task resolving true or false.
- * fails
+ * @return {Task<Boolean>} Task resolving {isRealIntersection: true/false, newNodeIdToWays: {}} where newNodeIdToWays
+ * are the resulsts of querying. These can be added to the cache of nodeIdToWays to help with intersection
+ * name resolution
  */
 export const isRealIntersectionTask = (osmConfig, wayFeatures, nodeFeature) => {
   // If we already have enough data to prove it's a real interection, return true
-  if (isRealIntersection(wayFeatures, nodeFeature)) {
+  // We don't allow length 1 wayFeatures to pass here because the node usually needs to query for more
+  // ways below in order to resolve intersecting street names later
+  if (R.complement(R.equals)(1, R.length(wayFeatures)) && isRealIntersection(wayFeatures, nodeFeature)) {
     return of(true);
   }
   return composeWithMap([
-    ({wayFeaturesResponse, nodeFeature}) => {
-      // Test if these wayFeatures mean that nodeFeature is a real intersection
-      return isRealIntersection(
-        reqStrPathThrowing('response.features', wayFeaturesResponse),
-        nodeFeature
-      );
-    },
-    toNamedResponseAndInputs('wayFeaturesResponse',
+    toNamedResponseAndInputs('isRealIntersection',
+      ({wayFeaturesResponse, nodeFeature}) => {
+        // Test if these wayisRealIntersectionTask(
+        //           osmConfig,
+        //           R.prop(R.prop('id', firstFoundNodeOfFinalWay), nodeIdToWays),
+        //           firstFoundNodeOfFinalWay
+        //         );Features mean that nodeFeature is a real intersection
+        return isRealIntersection(
+          reqStrPathThrowing('response.features', wayFeaturesResponse),
+          nodeFeature
+        );
+      }
+    ),
+    toMergedResponseAndInputs(
       // Extract the results
       ({nodeFeature, results}) => {
-        const waysByNodeId = strPathOr({}, 'Ok.waysByNodeId', results);
-        return R.prop(reqStrPathThrowing('id', nodeFeature), waysByNodeId);
+        const newNodeIdToWays = strPathOr({}, 'Ok.waysByNodeId', results);
+        return {
+          wayFeaturesResponse: R.prop(reqStrPathThrowing('id', nodeFeature), newNodeIdToWays),
+          // Return {nodeId: [ways], ...}
+          newNodeIdToWays: R.map(strPathOr([], 'response.features'), newNodeIdToWays)
+        };
       }
     ),
     mapToNamedResponseAndInputs('results',

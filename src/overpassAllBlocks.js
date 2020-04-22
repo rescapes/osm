@@ -27,6 +27,7 @@ import * as Result from 'folktale/result';
 import {_queryLocationVariationsUntilFoundResultTask} from './overpassBlockHelpers';
 import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch';
 import {
+  bufferAndUnionGeojson,
   geojsonFeaturesHaveRadii,
   geojsonFeaturesHaveShape,
   geojsonFeaturesHaveShapeOrRadii,
@@ -638,8 +639,12 @@ const _createQueryOutput = type => {
 
 /**
  * Given geojson buffers all features by the given radius and units and queries OSM to create blocks.
- * @param {Number} radius The radius of the buffer
- * @param {String} units Any unit supported by turf, such as 'meters'
+ * @param {Object} config
+ * @param {Boolean} config.unionFeatures Default true, unions the features prior to calling OSM. Disable
+ * if you have separate points that are circles that should be queried separately by OSM. Enabled if you have
+ * overlapping shapes. These shapes get broken up into separate bounding boxes for multiple OSM queries
+ * @param {Number} config.radius The radius of the buffer
+ * @param {String} config.units Any unit supported by turf, such as 'meters'
  * @param {Object} geojson Any geojson supported by buffer. The features that result from buffering are put into
  * a FeatureCollection that is then used to query for OSM blocks. Duplicate blocks returned due to overlapping
  * features are removed as well as possible
@@ -647,8 +652,13 @@ const _createQueryOutput = type => {
  * where location is the location object respresenting the block and the block is the same geojson
  * at location.geojson. TODO block will probably go away in the future since it is redundant
  */
-export const bufferedFeaturesToOsmAllBlocksQueryResultsTask = ({radius, units}, geojson) => {
-  const result = buffer(geojson, radius, {units});
+export const bufferedFeaturesToOsmAllBlocksQueryResultsTask = ({radius, units, unionFeatures}, geojson) => {
+  // Get the buffered geojson, optionally unioning the features. This returns a FeatureSet
+  const result = R.ifElse(R.identity,
+    () => bufferAndUnionGeojson({radius, units}, geojson),
+    () => buffer(geojson, radius, {units})
+  )(unionFeatures);
+
   // TODO can we create an intersection of each feature's buffer to prevent redundant querying
   const featureCollections = R.map(feature => ({type: 'FeatureCollection', features: [feature]}), result.features);
   return composeWithMapMDeep(1, [

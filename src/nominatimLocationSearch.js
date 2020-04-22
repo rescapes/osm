@@ -105,6 +105,7 @@ const nominatimResultTaskTries = ({tries, name}, taskFunc) => {
     }, attempts)
   );
 };
+
 /*
  * Uses the nominatim service to find a relation representing the given locationWithNominatimData.
  * Currently this supports neighborhoods and cities. If a neighborhood is specified in the locationWithNominatimData and that

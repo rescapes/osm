@@ -239,11 +239,12 @@ const _findFirstNodeOfWayAndTrimWay = ({wayIdToNodes, nodeIdToNodePoint}, way, t
  * @param {Object} block The current block being built up
  * @param {[Object]} block.ways, trimmed ways forming the block thus far
  * @param {[Object]} block.nodes, at least one node of the partial block
- * @returns {Task<Result.Ok<Object>>} {block: {ways, nodes}, partialBlocks}
+ * @returns {Task<Result.Ok<Object>>} {block: {ways, nodes}, partialBlocks, nodeIdToWays}
  * block with {nodes, ways}. nodes  with two or more nodes: nodes + firstFoundNodeOfFinalWay or a dead-end node
  * from Overpass or the result of recursing on waysAtEndOfFinalWay. ways are always built up to form the complete block, trimmed
  * to fit the two nodes.
- * Also returns the unused partialBlocks
+ * Also returns updated partialBlocks to those that are still remaining to be process. Also returns nodeIdToWays, which might
+ * have been updated to include more ways that were queried for.
  * @private
  */
 export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultTask(
@@ -253,60 +254,62 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
   block
 ) {
   const {nodes, ways} = block;
-  return R.composeK(
+  // Object a, Object b :: a -> Task Result b
+  return composeWithChainMDeep(2, [
     // The last step is to remove intermediate fake intersection nodes that we marked __FAKE_INTERSECTION__
-    result => {
-      return resultToTaskNeedingResult(
-        obj => of(R.over(
-          R.lensPath(['block', 'nodes']),
-          // Filter out nodes with __FAKE_INTERSECTION__
-          nodes => R.filter(R.complement(R.propOr)(false, '__FAKE_INTERSECTION__'), nodes),
-          obj
-        ))
-      )(result);
+    obj => {
+      return of(Result.Ok(R.over(
+        R.lensPath(['block', 'nodes']),
+        // Filter out nodes with __FAKE_INTERSECTION__
+        nodes => R.filter(R.complement(R.propOr)(false, '__FAKE_INTERSECTION__'), nodes),
+        obj
+      )));
     },
-    nodeAndTrimmedWayResult => {
-      return resultToTaskWithResult(
-        ({block, remainingPartialBlocks, newNodeIdToWays}) => {
-          // If the block is complete because there are two nodes now, or failing that we didn't find a joining way,
-          // just return the block, otherwise recurse to travel more to
-          // reach a node along the new way, reach another way, or reach a dead end
-          return R.ifElse(
-            // If we added a new way, we recurse.
-            block => R.lt(R.length(ways), R.length(reqStrPathThrowing('ways', block))),
-            // If we aren't done recurse on the calling function, appending the block to the remainingPartialBlocks,
-            // which will cause block to be processed
-            // We don't necessarily need to add anything else, but we have to check that it's complete
-            block => {
-              return _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask(
-                osmConfig,
-                // Merge the new way/node relationships into the existing
-                R.merge(
-                  {hashToPartialBlocks},
-                  _mergeInNewNodeAndWayRelationships({
-                      // Add any newNodeIdToWays that we found while resolving the block
-                      // When newNodeIdToWays has nodes that match nodeIdTyWays, it will always have the same ways and possibly more
-                      // nodeIdToWays is formed by evaluating everything returned from the initial way query, whereas newNodeIdToWays
-                      // is formed by explicitly looking for nodes of a way. So whereas nodeIdToWays might miss ways that are outside
-                      // the query area, newNodeIdToWays will not. This makes resolving the street names better because we have all
-                      // the intersecting ways
-                      // TODO we don't update nodeIdToNodePoint correspondingly, does it matter?
-                      nodeIdToWays: R.merge(nodeIdToWays, newNodeIdToWays),
-                      wayIdToNodes,
-                      wayEndPointToDirectionalWays,
-                      nodeIdToNodePoint
-                    },
-                    block
-                  )
-                ),
-                R.concat([block], remainingPartialBlocks)
-              );
-            },
-            // Done building the block
-            block => of(Result.Ok({block, partialBlocks: remainingPartialBlocks}))
-          )(block);
-        }
-      )(nodeAndTrimmedWayResult);
+    // Now we are either done building the block or need to recurse to continue building
+    ({block, remainingPartialBlocks, newNodeIdToWays}) => {
+      // Merge the new way/node relationships into the existing
+      const newNodeAndWayRelationships = R.merge(
+        {hashToPartialBlocks},
+        _mergeInNewNodeAndWayRelationships({
+            // Add any newNodeIdToWays that we found while resolving the block
+            // When newNodeIdToWays has nodes that match nodeIdTyWays, it will always have the same ways and possibly more
+            // nodeIdToWays is formed by evaluating everything returned from the initial way query, whereas newNodeIdToWays
+            // is formed by explicitly looking for nodes of a way. So whereas nodeIdToWays might miss ways that are outside
+            // the query area, newNodeIdToWays will not. This makes resolving the street names better because we have all
+            // the intersecting ways
+            // TODO we don't update nodeIdToNodePoint correspondingly, does it matter?
+            nodeIdToWays: R.merge(nodeIdToWays, newNodeIdToWays),
+            wayIdToNodes,
+            wayEndPointToDirectionalWays,
+            nodeIdToNodePoint
+          },
+          block
+        )
+      );
+      // If the block is complete because there are two nodes now, or failing that we didn't find a joining way,
+      // just return the block, otherwise recurse to travel more to
+      // reach a node along the new way, reach another way, or reach a dead end
+      return R.ifElse(
+        // If we added a new way, we recurse.
+        block => R.lt(R.length(ways), R.length(reqStrPathThrowing('ways', block))),
+        // If we aren't done recurse on the calling function, appending the block to the remainingPartialBlocks,
+        // which will cause block to be processed
+        // We don't necessarily need to add anything else, but we have to check that it's complete
+        block => {
+          return _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask(
+            osmConfig,
+            newNodeAndWayRelationships,
+            R.concat([block], remainingPartialBlocks)
+          );
+        },
+        // Done building the block, return the remaining partial blocks and updated context
+        block => of(Result.Ok(
+          R.merge({
+            block,
+            partialBlocks: remainingPartialBlocks
+          }, newNodeAndWayRelationships)
+        ))
+      )(block);
     },
 
     // Use the context and blockContext to resolve the next part of the block. This might involve
@@ -321,7 +324,7 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
         {nodes, ways}
       );
     }
-  )({
+  ])({
     osmConfig,
     firstFoundNodeOfFinalWay, waysAtEndOfFinalWay, nodeIdToWays, hashToPartialBlocks,
     partialBlocks,
@@ -454,7 +457,8 @@ export function _choicePointProcessPartialBlockResultTask(
     // Determines if firstFoundNodeOfFinalWays is a real intersection based on the data in nodeIdToWays or failing
     // that by querying OSM for the ways
     mapToMergedResponseAndInputs(
-      ({osmConfig, nodeIdToWays, firstFoundNodeOfFinalWay}) => {
+      ({block, osmConfig, nodeIdToWays, firstFoundNodeOfFinalWay}) => {
+        blockToGeojson(block);
         return isRealIntersectionTask(
           osmConfig,
           R.prop(R.prop('id', firstFoundNodeOfFinalWay), nodeIdToWays),

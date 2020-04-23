@@ -9,6 +9,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import {
+  composeWithChain,
   composeWithMap,
   composeWithMapMDeep,
   mapMDeep,
@@ -26,7 +27,7 @@ import * as Result from 'folktale/result';
 import {
   _buildPartialBlocks,
   _hashBlock,
-  _sortOppositeBlocksByNodeOrdering, blocksToGeojson, blockToGeojson,
+  _sortOppositeBlocksByNodeOrdering, blocksToGeojson, blockToGeojson, isRealIntersectionTask,
   parallelWayNodeQueriesResultTask,
   waysByNodeIdResultsTask
 } from './overpassBlockHelpers';
@@ -193,19 +194,19 @@ export const _partialBlocksToFeaturesResultsTask = (
   osmConfig,
   location,
   {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
-  return composeWithMap([
+  return composeWithChain([
     // Convert the results their values under Ok and Error
     // [Result] -> {Ok: [Object], Error: [Object]}
     blockResults => {
       log.debug(`_partialBlocksToFeaturesResultsTask: Calling resultsToResultObj on ${R.length(blockResults)} blocks`);
-      return resultsToResultObj(blockResults);
+      return of(resultsToResultObj(blockResults));
     },
 
     // Extract the intersection street names
     ({blocks}) => {
-      return R.map(
+      return of(R.map(
         block => {
-          const nodesToIntersectingStreets = strPathOr(null, 'nodesToIntersectingStreets', block)
+          const nodesToIntersectingStreets = strPathOr(null, 'nodesToIntersectingStreets', block);
           return Result.Ok({
             block,
             // Add the intersections to the location
@@ -218,19 +219,19 @@ export const _partialBlocksToFeaturesResultsTask = (
           });
         },
         blocks
-      );
+      ));
     },
     // Filter out fake blocks that are just street connectors.
     // This will be more sophisticated in the future.
     // For now just eliminate any block that is less than osmConfig.minimumWayLength meters long
     // TODO we don't want to lose ways, so we don't do this until we can incorporate these short into adjacent walks
-    toNamedResponseAndInputs('blocks',
+    mapToNamedResponseAndInputs('blocks',
       ({blocks}) => {
         log.debug(`_partialBlocksToFeaturesResultsTask: Checking for small ways on ${R.length(blocks)} blocks`);
         if (process.env.NODE_ENV !== 'production') {
           blocksToGeojson(blocks);
         }
-        return R.filter(
+        return of(R.filter(
           block => R.compose(
             // ways add up to at least 20 meters
             //R.lte(R.propOr(20, 'minimumWayLength', osmConfig)),
@@ -242,67 +243,29 @@ export const _partialBlocksToFeaturesResultsTask = (
             )
           )(strPathOr([], 'ways', block)),
           blocks
-        );
-      }
-    ),
-    // Once we pick the best version of the block, simply take to values and discard the hash keys,
-    // TODO remove. We shouldn't have duplicates anymore
-    toNamedResponseAndInputs('blocks',
-      ({hashToBestBlock}) => {
-        return R.values(hashToBestBlock);
+        ));
       }
     ),
     // TODO remove. We shouldn't have duplicates anymore
-    toNamedResponseAndInputs('hashToBestBlock',
+    mapToNamedResponseAndInputs('hashToBestBlock',
       ({blocks}) => {
         log.debug(`_partialBlocksToFeaturesResultsTask: Calling _removeOpposingDuplicateBlocks on ${R.length(blocks)} blocks`);
-        return _removeOpposingDuplicateBlocks(blocks);
+        return of(R.values(_removeOpposingDuplicateBlocks(blocks)));
       }
     ),
-    toNamedResponseAndInputs('blocks',
-      ({blocksResult, nodeIdToWays}) => {
+    mapToNamedResponseAndInputs('blocks',
+      ({blocksResult}) => {
         // TODO just extracting the value from Result.Ok here.
         // Change to deal with Result.Error
-        const {blocks, errorBlocks} = blocksResult.value;
+        const {blocks, errorBlocks, nodeIdToWays} = blocksResult.value;
         log.debug(`_partialBlocksToFeaturesResultsTask: Calling _intersectionStreetNamesFromWaysAndNodesResult on ${R.length(blocks)} blocks`);
         if (R.length(errorBlocks)) {
           log.warn(`One or more blocks couldn't be built. Errors: ${JSON.stringify(errorBlocks)}`);
         }
-        return R.map(
-          // Add intersections to the blocks based on the ways and nodes' properties
-          block => {
-            const nodesToIntersectingStreetsResult = _intersectionStreetNamesFromWaysAndNodesResult(
-              osmConfig,
-              reqStrPathThrowing('ways', block),
-              reqStrPathThrowing('nodes', block),
-              nodeIdToWays
-            );
-            log.debug(`_partialBlocksToFeaturesResultsTask: Resolved the following intersection names for the block nodes: ${
-              JSON.stringify(nodesToIntersectingStreetsResult.value)
-            }`);
-            const updatedBlock = nodesToIntersectingStreetsResult.matchWith({
-                Ok: ({value: nodesToIntersectingStreets}) => {
-                  return R.merge(block, {
-                      nodesToIntersectingStreets
-                    }
-                  );
-                },
-                Error: ({value}) => {
-                  log.warn(`_partialBlocksToFeaturesResultsTask: _intersectionStreetNamesFromWaysAndNodesResult failed with error: ${
-                    JSON.stringify(value)
-                  }`);
-                  return block;
-                }
-              }
-            );
-            if (process.env.NODE_ENV !== 'production') {
-              // Debugging help will eventually be used for visual feedback of the processing on a website
-              blockToGeojson(updatedBlock);
-            }
-            return updatedBlock;
-          },
-          blocks
-        );
+        // Use the nodeIdToWays that was augmented by _traversePartialBlocksToBuildBlocksResultTask to get
+        // intersection street names for each block
+        // This adds nodesToIntersectingStreets to each block
+        return _addIntersectionsToBlocksTask({osmConfig, nodeIdToWays}, blocks);
       }
     ),
     // [Object] -> Task Result [Object]
@@ -323,6 +286,74 @@ export const _partialBlocksToFeaturesResultsTask = (
       }
     )
   ])({nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks});
+};
+
+/**
+ * Queries for any needed intersection ways and then uses that result plus nodeItToWays to assign intersection
+ * street names to each block
+ * @param osmConfig
+ * @param nodeIdToWays
+ * @param blocks
+ * @return {Task<[Object]>} Resolves to the blocks with a key nodesToIntersectingStreets that is keyed by
+ * block node and valued by two or more street names
+ * @private
+ */
+const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
+  return R.traverse(
+    of,
+    // Add intersections to the blocks based on the ways and nodes' properties
+    block => {
+      return composeWithMap([
+        ({block, newNodeIdToWays}) => {
+          const nodesToIntersectingStreetsResult = _intersectionStreetNamesFromWaysAndNodesResult(
+            osmConfig,
+            reqStrPathThrowing('ways', block),
+            reqStrPathThrowing('nodes', block),
+            // Merge in any newNodeIdToWays we found
+            R.merge(nodeIdToWays, newNodeIdToWays)
+          );
+          log.debug(`_partialBlocksToFeaturesResultsTask: Resolved the following intersection names for the block nodes: ${
+            JSON.stringify(nodesToIntersectingStreetsResult.value)
+          }`);
+          const updatedBlock = nodesToIntersectingStreetsResult.matchWith({
+              Ok: ({value: nodesToIntersectingStreets}) => {
+                return R.merge(block, {
+                    nodesToIntersectingStreets
+                  }
+                );
+              },
+              Error: ({value}) => {
+                log.warn(`_partialBlocksToFeaturesResultsTask: _intersectionStreetNamesFromWaysAndNodesResult failed with error: ${
+                  JSON.stringify(value)
+                }`);
+                return block;
+              }
+            }
+          );
+          if (process.env.NODE_ENV !== 'production') {
+            // Debugging help will eventually be used for visual feedback of the processing on a website
+            blockToGeojson(updatedBlock);
+          }
+          return updatedBlock;
+        },
+        // If we didn't get the intersecting ways for the first node of the way, do so now. This
+        // can happen since we look for intersection ways as we add new nodes to to the way, so
+        // we might never have stored the ways of the first node of the way if it wasn't the end of
+        // another way that we found
+        j => mapToMergedResponseAndInputs(
+          ({osmConfig, nodeIdToWays, block}) => {
+            const nodeId = reqStrPathThrowing('nodes.0', block);
+            return isRealIntersectionTask(
+              osmConfig,
+              R.prop(R.prop('id', nodeId), nodeIdToWays),
+              nodeId
+            );
+          }
+        )(j)
+      ])({osmConfig, nodeIdToWays, block});
+    },
+    blocks
+  );
 };
 
 /**
@@ -402,7 +433,9 @@ const _removeOpposingDuplicateBlocks = blocks => {
  * @param {Object} context.wayEndPointToDirectionalWays
  * @param {Object} context.nodeIdToNodePoint
  * @param {Object} partialBlocks
- * @returns {[Object]} The blocks
+ * @returns {Task<Result<Object>>} Where object contains blocks, errorBlocks, and nodeIdToWays
+ * blocks are the successful blocks, errorBlocks are the ones that errored, and nodeIdToWays are the original
+ * nodeIdToWays plus ways added by querying. The latter is used to name streets and intersecting streets of the block
  * @private
  */
 export const _traversePartialBlocksToBuildBlocksResultTask = (
@@ -424,14 +457,14 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
   // Block b:: [b] -> Task Result [b]
   // Wait in parallel but bucket tasks to prevent stack overflow
   return mapMDeep(2,
-    ({blocks, errorBlocks}) => {
+    ({blocks, errorBlocks, nodeIdToWays}) => {
       log.debug(`_traversePartialBlocksToBuildBlocksResultTask: Done with ${
         R.length(blocks)
       } blocks and ${
         R.length(errorBlocks)
       } error blocks`);
       // Remove the empty partialBlocks, just returning the blocks and errorBlocks
-      return {blocks, errorBlocks};
+      return {blocks, errorBlocks, nodeIdToWays};
     },
     // traverseReduceWhile allows us to chain tasks together that rely on the result of the previous task
     // since we can't know how many tasks we need to use up all the partialBlocks, we simply give it
@@ -452,40 +485,50 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
         mappingFunction: R.chain,
         monadConstructor: of
       },
+      // Accumulator, returns the values that will be used in the next iteration
       // Ignore x, which just indicates the index of the reduction. We reduce until we run out of partialBlocks
-      ({value: {partialBlocks, blocks, errorBlocks}}, x) => {
+      ({value: {partialBlocks, nodeIdToWays, blocks, errorBlocks}}, x) => {
         return R.map(
           // partialBlocks are those remaining to be processed
           // block is the completed block that was created with one or more partial blocks
           // Result.Ok -> Result.Ok, Result.Error -> Result.Ok
-          result => result.matchWith({
-            Ok: ({value: {partialBlocks, block}}) => {
-              log.debug(`_traversePartialBlocksToBuildBlocksResultTask: finished block. ${R.length(partialBlocks)} remaining`);
-              const processedBlocks = R.concat(blocks, [block]);
-              if (process.env.NODE_ENV !== 'production') {
-                // Debugging help will eventually be used for visual feedback of the processing on a website
-                log.debug('Geojson of processed blocks');
-                blocksToGeojson(processedBlocks);
-                log.debug('Geojson of remaining partial blocks');
-                blocksToGeojson(partialBlocks);
+          result => {
+            return result.matchWith({
+              Ok: ({value: {partialBlocks, nodeIdToWays, block}}) => {
+                log.debug(`_traversePartialBlocksToBuildBlocksResultTask: finished block. ${R.length(partialBlocks)} remaining`);
+                const processedBlocks = R.concat(blocks, [block]);
+                if (process.env.NODE_ENV !== 'production') {
+                  // Debugging help will eventually be used for visual feedback of the processing on a website
+                  log.debug('Geojson of processed blocks');
+                  blocksToGeojson(processedBlocks);
+                  log.debug('Geojson of remaining partial blocks');
+                  blocksToGeojson(partialBlocks);
+                }
+                return Result.Ok({
+                  // partialBlocks are reduced by the those newly processed
+                  partialBlocks,
+                  // nodeIdToWays might have added more ways to nodes that weren't adequately queried initially
+                  nodeIdToWays,
+                  blocks: processedBlocks,
+                  errorBlocks
+                });
+              },
+              Error: ({value: {error}}) => {
+                // Something went wrong processing a partial block
+                // error is {nodes, ways}, so we can eliminate the partialBlock matching it
+                // TODO error should contain information about the error
+                return Result.Ok({
+                    // partialBlocks are reduced by the those newly processed
+                    partialBlocks,
+                    // nodeIdToWays might have added more ways to nodes that weren't adequately queried initially
+                    nodeIdToWays,
+                    blocks,
+                    errorBlocks: R.concat(errorBlocks, [error])
+                  }
+                );
               }
-              return Result.Ok({
-                partialBlocks,
-                blocks: processedBlocks,
-                errorBlocks
-              });
-            },
-            Error: ({value: {error}}) => {
-              // Something went wrong processing a partial block
-              // error is {nodes, ways}, so we can eliminate the partialBlock matching it
-              // TODO error should contain information about the error
-              return Result.Ok({
-                partialBlocks: R.difference(partialBlocks, [error]),
-                blocks,
-                errorBlocks: R.concat(errorBlocks, [error])
-              });
-            }
-          }),
+            });
+          },
           // Call this R.length(partialBlocks) times until there are no partialBlocks left.
           // At most we call this R.length(partialBlocks) times, but if some partialBlocks join
           // into one we call it fewer times
@@ -496,7 +539,7 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
           )
         );
       },
-      of(Result.Ok({partialBlocks, blocks: [], errorBlocks: []})),
+      of(Result.Ok({partialBlocks, nodeIdToWays, blocks: [], errorBlocks: []})),
       // Just need to call a maximum of partialBlocks to process them all
       R.times(of, R.length(partialBlocks))
     )

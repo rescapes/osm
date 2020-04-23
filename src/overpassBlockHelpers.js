@@ -1379,7 +1379,7 @@ export const isRealIntersection = v((wayFeatures, nodeFeature) => R.anyPass([
  * @param wayFeatures
  * @param nodeFeature
  * @return {Task<Boolean>} Task resolving {isRealIntersection: true/false, newNodeIdToWays: {}} where newNodeIdToWays
- * are the resulsts of querying. These can be added to the cache of nodeIdToWays to help with intersection
+ * are the results of querying. These can be added to the cache of nodeIdToWays to help with intersection
  * name resolution
  */
 export const isRealIntersectionTask = (osmConfig, wayFeatures, nodeFeature) => {
@@ -1387,7 +1387,7 @@ export const isRealIntersectionTask = (osmConfig, wayFeatures, nodeFeature) => {
   // We don't allow length 1 wayFeatures to pass here because the node usually needs to query for more
   // ways below in order to resolve intersecting street names later
   if (R.complement(R.equals)(1, R.length(wayFeatures)) && isRealIntersection(wayFeatures, nodeFeature)) {
-    return of(true);
+    return of({isRealIntersection: true, newNodeIdToWays: {}});
   }
   return composeWithMap([
     toNamedResponseAndInputs('isRealIntersection',

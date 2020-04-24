@@ -120,10 +120,13 @@ describe('overpassStreet', () => {
       }
     ).run().listen(defaultRunConfig({
       onResolved: ({Ok: componentLocationResponses}) => {
+        locationsToGeojson(R.map(R.prop('location'), componentLocationResponses))
         expect(R.length(componentLocationResponses)).toEqual(2);
       }
     }, errors, done));
   }, 2000000);
+
+
 
   test('locationToOsmAllBlocksQueryResultsTaskRadius', done => {
     expect.assertions(1);

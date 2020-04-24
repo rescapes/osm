@@ -47,12 +47,16 @@ const log = loggers.get('rescapeDefault');
  * @param context.nodeIdToNodePoint
  * @param context.hashToPartialBlocks
  * @param {[Object]} partialBlocks Contains nodes and ways of the partial block {nodes, ways}
- * @returns {Object} task that resolves to A complete block atthat has {
+ * @returns {Object} task that resolves to Result.Ok with a complete block a at block: {
  * nodes: [one or more nodes],
  * ways: [one or more ways],
  * }. Nodes is normally two unless the block is a dead end. Ways are 1 or more, depending how many ways are need to
  * connect to the closest node (intersection).
  * partialBlocks are the blocks not consumed by the function
+ * Also returns updated partialBlocks to those that are still remaining to be process. Also returns nodeIdToWays, which might
+ * have been updated to include more ways that were queried for.
+ * If a Result.Error occurs it will be returned containing the failed block along with updated {partialBlocks, nodeIdToWays}
+ * The caller should abandon the block but keep the partialBlock and nodeIdToWays updates
  */
 export const _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = v((
   osmConfig,
@@ -245,6 +249,8 @@ const _findFirstNodeOfWayAndTrimWay = ({wayIdToNodes, nodeIdToNodePoint}, way, t
  * to fit the two nodes.
  * Also returns updated partialBlocks to those that are still remaining to be process. Also returns nodeIdToWays, which might
  * have been updated to include more ways that were queried for.
+ * If a Result.Error occurs it will be returned containing the failed block along with updated {partialBlocks, nodeIdToWays}
+ * The caller should abandon the block but keep the partialBlock and nodeIdToWays updates
  * @private
  */
 export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultTask(
@@ -255,7 +261,7 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
 ) {
   const {nodes, ways} = block;
   // Object a, Object b :: a -> Task Result b
-  return composeWithChainMDeep(2, [
+  const resultTask = composeWithChainMDeep(2, [
     // The last step is to remove intermediate fake intersection nodes that we marked __FAKE_INTERSECTION__
     obj => {
       return of(Result.Ok(R.over(
@@ -330,6 +336,13 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
     partialBlocks,
     nodes, ways
   });
+  // If an error occurs make sure the partial blocks are attatched
+  return R.map(
+    result => result.mapError(
+      error => R.merge({partialBlocks}, error)
+    ),
+    resultTask
+  );
 };
 
 /**
@@ -359,6 +372,7 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
  * {block: {ways, nodes}, remainingPartialBlocks: {[Object]}}, nodeIdToWays: {nodeId: [ways]} where nodeIdToWays
  * are mapping of a node id to its ways to help with street resolution. These are the incidental result of querying
  * and the remainingPartialBlocks, meaning the partialBlocks that weren't needed to construct the rest of this block.
+ * If something goes wrong a Result.Error is returned and the block should be abandoned by the caller
  * @private
  */
 export function _choicePointProcessPartialBlockResultTask(
@@ -390,7 +404,7 @@ export function _choicePointProcessPartialBlockResultTask(
        nodeIdToWays, hashToPartialBlocks, partialBlocks, ways, nodes, firstFoundNodeOfFinalWay, block,
        isRealIntersection, newNodeIdToWays
      }) => {
-      return R.ifElse(
+      const resultTask = R.ifElse(
         ({isRealIntersection}) => {
           return isRealIntersection;
         },
@@ -430,18 +444,21 @@ export function _choicePointProcessPartialBlockResultTask(
             }`);
           }
           return of(
-            _extendBlockToFakeIntersectionPartialBlockResult(
-              {hashToPartialBlocks},
-              partialBlocks,
-              // Mark the node as a fake intersection so we can remove it from the final block when we are done
-              // constructing the block
-              R.merge({__FAKE_INTERSECTION__: true}, firstFoundNodeOfFinalWay),
-              {nodes, ways}
-            ).map(value => R.merge({newNodeIdToWays}, value))
+            R.map(
+              // Merge in newNodeIdToWays so we can use them
+              value => R.merge({newNodeIdToWays}, value),
+              _extendBlockToFakeIntersectionPartialBlockResult(
+                {hashToPartialBlocks},
+                partialBlocks,
+                // Mark the node as a fake intersection so we can remove it from the final block when we are done
+                // constructing the block
+                R.merge({__FAKE_INTERSECTION__: true}, firstFoundNodeOfFinalWay),
+                {nodes, ways}
+              )
+            )
           );
         }
-      )
-      ({
+      )({
         nodeIdToWays,
         hashToPartialBlocks,
         partialBlocks,
@@ -452,6 +469,17 @@ export function _choicePointProcessPartialBlockResultTask(
         isRealIntersection,
         newNodeIdToWays
       });
+      // If an error occurs make sure the partial blocks and newNodeIdToWays are returned
+      // The first is required to advance recursion. The second might have useful context data
+      return R.map(
+        result => result.mapError(
+          error => R.merge(
+            {partialBlocks, nodeIdToWays: newNodeIdToWays},
+            error
+          )
+        ),
+        resultTask
+      );
     },
 
     // Determines if firstFoundNodeOfFinalWays is a real intersection based on the data in nodeIdToWays or failing

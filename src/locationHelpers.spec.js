@@ -18,8 +18,9 @@ import {
   osmFeaturesOfLocationForType
 } from './locationHelpers';
 import {defaultRunConfig, mergeDeepWithConcatArrays, reqStrPathThrowing} from 'rescape-ramda';
-import {blocksToGeojson} from './overpassBlockHelpers';
+import {blocksToGeojson, locationsToGeojson} from './overpassBlockHelpers';
 import {bufferedFeaturesToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
+import sampleStreetLocationsAndBlocks from './samples/hongKongStreetLocationsAndBlocks.json'
 
 const sampleCityLocations = [
   {
@@ -702,7 +703,7 @@ describe('LocationHeleprs', () => {
     const errors = [];
     const radius = 40;
     const units = 'meters';
-    const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({radius, units}, geojson);
+    const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({osmConfig: {}, bufferConfig: {radius, units}}, geojson);
 
     resultsTask.run().listen(
       defaultRunConfig({
@@ -737,7 +738,7 @@ describe('LocationHeleprs', () => {
       "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
       "features": circleFeatures
     };
-    const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({radius, units}, geojson);
+    const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({osmConfig: {}, bufferConfig: {radius, units}}, geojson);
     const errors = [];
 
     resultsTask.run().listen(
@@ -745,6 +746,36 @@ describe('LocationHeleprs', () => {
         onResolved: ({Error, Ok}) => {
           mergeDeepWithConcatArrays(
             {features: R.map(f=> buffer(f, radius, {units}), circleFeatures)},
+            blocksToGeojson(R.map(
+              res => R.compose(
+                r => R.prop('block', r),
+                r => R.over(
+                  R.lensProp('block'),
+                  ({ways}) => ({ways}),
+                  r
+                )
+              )(res)
+            )(Ok))
+          );
+          expect(Ok).toBeTruthy();
+        }
+      }, errors, done)
+    );
+  }, 10000000);
+
+  test('bufferedFeaturesToOsmAllBlocksQueryResultsTaskFromStreetResults', done => {
+    const radius = 10;
+    const units = 'meters';
+
+    const locationGeojson = locationsToGeojson(R.map(reqStrPathThrowing('location'), sampleStreetLocationsAndBlocks))
+    const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({osmConfig: {}, bufferConfig: {radius, units, unionFeatures:true}}, locationGeojson);
+    const errors = [];
+
+    resultsTask.run().listen(
+      defaultRunConfig({
+        onResolved: ({Error, Ok, bufferedGeojson}) => {
+          mergeDeepWithConcatArrays(
+            bufferedGeojson,
             blocksToGeojson(R.map(
               res => R.compose(
                 r => R.prop('block', r),

@@ -74,7 +74,8 @@ export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominati
 export {fetchTransitOsm} from './overpassTransit';
 export {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 export {
-  locationToOsmAllBlocksQueryResultsTask, nominatimOrGoogleJurisdictionGeojsonResultTask, bufferedFeaturesToOsmAllBlocksQueryResultsTask
+  locationToOsmAllBlocksQueryResultsTask, nominatimOrGoogleJurisdictionGeojsonResultTask, bufferedFeaturesToOsmAllBlocksQueryResultsTask,
+  locationToOsmAllBlocksThenBufferedMoreBlocksResultsTask
 } from './overpassAllBlocks';
 export {
   osmLocationToLocationWithGeojsonResultTask,

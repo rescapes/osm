@@ -513,15 +513,15 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
                   errorBlocks
                 });
               },
-              Error: ({value: {error}}) => {
+              Error: ({value: {error, partialBlocks, nodeIdToWays: newNodeIdToWays}}) => {
                 // Something went wrong processing a partial block
                 // error is {nodes, ways}, so we can eliminate the partialBlock matching it
                 // TODO error should contain information about the error
                 return Result.Ok({
-                    // partialBlocks are reduced by the those newly processed
+                    // partialBlocks must be reduced by the those newly processed if though they erred
                     partialBlocks,
                     // nodeIdToWays might have added more ways to nodes that weren't adequately queried initially
-                    nodeIdToWays,
+                    nodeIdToWays: R.merge(nodeIdToWays, newNodeIdToWays || {}),
                     blocks,
                     errorBlocks: R.concat(errorBlocks, [error])
                   }

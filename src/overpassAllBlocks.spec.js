@@ -1,7 +1,10 @@
 import * as R from 'ramda';
 import {defaultRunConfig, defaultRunToResultConfig} from 'rescape-ramda';
-import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
-import {blocksToGeojson, blocksWithLengths, blockToGeojson} from './overpassBlockHelpers';
+import {
+  locationToOsmAllBlocksQueryResultsTask,
+  locationToOsmAllBlocksThenBufferedMoreBlocksResultsTask
+} from './overpassAllBlocks';
+import {blocksToGeojson, blocksWithLengths, blockToGeojson, locationsToGeojson} from './overpassBlockHelpers';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
 
@@ -3646,4 +3649,21 @@ describe('overpassAllBlocks', () => {
       }, errors, done)
     );
   }, 1000000);
+
+  test('locationToOsmAllBlocksThenBufferedMoreBlocksResultsTask', done => {
+    expect.assertions(1);
+    const errors = [];
+
+    // This calls _constructStreetQuery indirectly
+    locationToOsmAllBlocksThenBufferedMoreBlocksResultsTask({osmConfig: {}, bufferConfig: {radius: 50, units: 'meters', unionFeatures: true}}, {
+      country: 'China 中国',
+      city: '香港 Hong Kong',
+      street: 'Des Voeux Road Central'
+    }).run().listen(defaultRunConfig({
+      onResolved: ({Ok: componentLocationResponses}) => {
+        locationsToGeojson(R.map(R.prop('location'), componentLocationResponses));
+        expect(R.length(componentLocationResponses)).toEqual(2);
+      }
+    }, errors, done));
+  }, 2000000);
 });

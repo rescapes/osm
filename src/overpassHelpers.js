@@ -201,8 +201,8 @@ const highwayWayFilters = [
   osmNotEqual('access', 'delivery'),
   osmNotEqual('highway', 'path'),
   osmNotEqual('highway', 'footway'),
-  // temporary for Hong Kong highway!=path. TODO This should be configurable depending on what we want
-  //osmNotEqual('highway', 'service'),
+  // TODO This should be configurable depending on what we want
+  osmNotEqual('highway', 'service'),
   osmNotEqual('building', 'yes'),
   osmNotEqual('highway', 'elevator'),
   // We're not currently interested in driveways, but might be in the future

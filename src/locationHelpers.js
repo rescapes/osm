@@ -8,6 +8,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+import booleanWithin from '@turf/boolean-within';
 import {
   compactEmpty,
   reqStrPathThrowing,
@@ -481,7 +482,7 @@ export const isResolvableSingleBlockLocation = location => R.either(
 
 /**
  * Resolvable to all blocks in an OSM area, like a city or neighborhood requires that
- * at that 1) country and city be specified, 2) A geosjson 'Polygon' or 'Multipolygon' 3) any geojson with a geojson.property.radius
+ * at that 1) country and city be specified, 2) A geosjson 'Polygon' or 'MultiPolygon' 3) any geojson with a geojson.property.radius
  * @param {Object} location Location props
  * @returns {Boolean} True if resolvable, else false
  */
@@ -527,7 +528,7 @@ export const geojsonFeaturesHaveShapeOrRadii = geojson => R.either(
 export const geojsonFeaturesHaveShape = geojson => R.and(
   R.compose(R.length, strPathOr([], 'features'))(geojson),
   R.all(
-    feature => R.includes(strPathOr(false, 'geometry.type', feature), ['Polygon', 'Multipolygon']),
+    feature => R.includes(strPathOr(false, 'geometry.type', feature), ['Polygon', 'MultiPolygon']),
     strPathOr([], 'features', geojson)
   )
 );
@@ -1023,3 +1024,41 @@ export const bufferAndUnionGeojson = ({radius, units}, geojson) => {
   )
   return {type: 'FeatureCollection', features: [feature]}
 }
+
+/**
+ * Returns true if the given features are within the given polygon feature
+ * @param {Object} polygon A polygon feature
+ * @param {[Object]} features Features to test
+ * @return {Boolean} returns tru if all features aree within the polygon
+ */
+export const isWithinPolygon = R.curry((polygon, features) => {
+  return R.all(
+    line => {
+      return booleanWithin(
+        line,
+        polygon
+      );
+    },
+    R.compose(
+      ways => {
+        return R.chain(
+          way => {
+            // Convert multilinstrings to linestring if they are actually linestring
+            return R.map(
+              coord => {
+                // Converts each line to a linestring feature
+                return R.compose(
+                  way => R.set(R.lensPath(['geometry', 'coordinates']), coord, way),
+                  way => R.set(R.lensPath(['geometry', 'type']), 'LineString', way)
+                )(way);
+              },
+              reqStrPathThrowing('geometry.coordinates', way)
+            );
+          },
+          ways
+        );
+      },
+      features => osmFeaturesOfLocationForType('way', {geojson: {features}})
+    )(features)
+  );
+});

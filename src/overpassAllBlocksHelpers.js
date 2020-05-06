@@ -167,7 +167,19 @@ export const organizeResponseFeaturesResultsTask = (
               }), {partialBlocks});
             },
             // Build the partial blocks
-            () => _buildPartialBlocks({ways, nodes})
+            () => {
+              // Filter out any ways that are invalid types, such as polygons. As of now we can only
+              // process ways that are type LineString or MultiLineString (not sure we can actually handle the latter)
+              const filteredWays = R.filter(way => {
+                const geometry = R.prop('geometry', way);
+                if (R.none(type => R.propEq('type', type, geometry))(['LineString', 'MultiLineString'])) {
+                  console.warn(`The following way had an invalid geometry type. Skipping it: ${JSON.stringify(way)}`)
+                  return false
+                }
+                return true
+              }, ways)
+              return _buildPartialBlocks({ways: filteredWays, nodes})
+            }
           )(partialBlocks)
         );
       }

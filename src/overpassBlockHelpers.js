@@ -1383,11 +1383,18 @@ export const isRealIntersection = v((wayFeatures, nodeFeature) => R.anyPass([
  * name resolution
  */
 export const isRealIntersectionTask = (osmConfig, wayFeatures, nodeFeature) => {
-  // If we already have enough data to prove it's a real interection, return true
+  // osmConfig.disableNodesOfWayQueries is true, meaning we already have a complete node/way dataset, or
+  // if we already have enough data to prove it's a real interection, return true
   // We don't allow length 1 wayFeatures to pass here because the node usually needs to query for more
   // ways below in order to resolve intersecting street names later
-  if (R.complement(R.equals)(1, R.length(wayFeatures)) && isRealIntersection(wayFeatures, nodeFeature)) {
-    return of({isRealIntersection: true, newNodeIdToWays: {}});
+  if (
+    strPathOr(false, 'disableNodesOfWayQueries', osmConfig) ||
+    (
+      R.complement(R.equals)(1, R.length(wayFeatures)) &&
+      isRealIntersection(wayFeatures, nodeFeature)
+    )
+  ) {
+      return of({isRealIntersection: true, newNodeIdToWays: {}});
   }
   return composeWithMap([
     toNamedResponseAndInputs('isRealIntersection',

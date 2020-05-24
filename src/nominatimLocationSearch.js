@@ -14,7 +14,6 @@ import {task, waitAll, of} from 'folktale/concurrency/task';
 import * as R from 'ramda';
 import {
   traverseReduceWhile,
-  composeWithMapExceptChainDeepestMDeep,
   mapObjToValues,
   camelCase,
   compactEmpty,
@@ -26,17 +25,17 @@ import {
   duplicateKey,
   transformKeys,
   filterWithKeys,
-  mapToNamedResponseAndInputs
+  composeWithChainMDeep, toNamedResponseAndInputs, strPathOr, compact
 } from 'rescape-ramda';
 import {locationToTurfPoint} from 'rescape-helpers';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import * as Result from 'folktale/result';
-import {addressString, stateCodeLookup} from './locationHelpers';
+import {addressString, featuresByOsmType, featuresOfOsmType, stateCodeLookup} from './locationHelpers';
 import area from '@turf/area';
 import bboxPolygon from '@turf/bbox-polygon';
 import {loggers} from 'rescape-log';
-import {nominatimServers, roundRobinNoimnatimServers} from './overpassHelpers';
+import {fetchOsmRawTask, nominatimServers, osmResultTask, roundRobinNoimnatimServers} from './overpassHelpers';
 
 const log = loggers.get('rescapeDefault');
 
@@ -187,37 +186,64 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
               JSON.stringify(locationProps)
             }`
           );
-          return nominatimResultTask(locationProps).map(responseResult => responseResult.map(value => {
+          return nominatimResultTask(locationProps).map(responseResult => responseResult.map(nominatimResponse => {
               // bounding box comes as two lats, then two lon, so fix
               return R.merge(
                 // Create a geojson center point feature for the locationWithNominatimData if it has
                 // features with properties but no geometry
                 // TODO this is a special case of filling in empty features that might be replaced in the future
-                R.over(
-                  R.lensPath(['geojson', 'features']),
-                  features => R.when(
-                    R.identity,
-                    features => R.map(
-                      feature => {
-                        return R.when(
-                          // If there is no feature.geometry
-                          f => R.complement(R.propOr)(false, 'geometry', f),
-                          f => R.merge(f, {
-                            // Set the geometry to the lat, lon
-                            geometry: locationToTurfPoint(R.props(['lat', 'lon'], value)).geometry
-                          })
-                        )(feature);
+                R.compose(
+                  ({nominatimResponse, location}) => {
+                    // Unless the we got features below, merge nominatimResponse.geojson into location.
+                    // Nominatim only returns geojson when it finds a relation for a jurisdiction
+                    return R.unless(
+                      location => {
+                        return R.compose(R.length, compact, strPathOr([], 'geojson.features'))(location);
                       },
-                      features
+                      location => {
+                        return R.merge(
+                          location, {
+                            geojson: R.compose(
+                              geojson => R.unless(R.compose(R.length, strPathOr('features')), () => null)(geojson),
+                              geojson => R.over(
+                                R.lensProp('features'),
+                                features => featuresOfOsmType('relation', features || []),
+                                geojson
+                              )
+                            )(R.propOr({}, 'geojson', nominatimResponse))
+                          }
+                        );
+                      }
+                    )(location);
+                  },
+                  toNamedResponseAndInputs('location',
+                    ({nominatimResponse}) => R.over(
+                      R.lensPath(['geojson', 'features']),
+                      features => R.when(
+                        R.identity,
+                        features => R.map(
+                          feature => {
+                            return R.when(
+                              // If there is no feature.geometry
+                              f => R.complement(R.propOr)(false, 'geometry', f),
+                              f => R.merge(f, {
+                                // Set the geometry to the lat, lon
+                                geometry: locationToTurfPoint(R.props(['lat', 'lon'], nominatimResponse)).geometry
+                              })
+                            )(feature);
+                          },
+                          features
+                        )
+                      )(features),
+                      location
                     )
-                  )(features),
-                  location
-                ),
+                  )
+                )({nominatimResponse}),
                 {
                   // We're not using the bbox, but note it anyway
-                  bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], value.boundingbox)),
-                  osmId: R.propOr(null, 'osm_id', value),
-                  placeId: R.propOr(null, 'placie_id', value)
+                  bbox: R.map(str => parseFloat(str), R.props([0, 2, 1, 3], nominatimResponse.boundingbox)),
+                  osmId: R.propOr(null, 'osm_id', nominatimResponse),
+                  placeId: R.propOr(null, 'placie_id', nominatimResponse)
                 });
             }).mapError(value => {
               // If no results are found, just return null. Hopefully the other nominatin query will return something
@@ -264,7 +290,10 @@ export const nominatimResultTask = location => {
   )(location);
 
   // Task Result
-  return composeWithMapExceptChainDeepestMDeep(2, [
+  return composeWithChainMDeep(2, [
+    response => {
+      return responseWithOsmRelationToResponseWithGeojsonResultTask(response).map(x => x);
+    },
     // Object -> Task Result [Object]
     responses => {
       // If we have a country, state, city, neighborhood, accept a relation or a city/town point
@@ -290,6 +319,7 @@ export const nominatimResultTask = location => {
         // Assume the first match is the best since responses are ordered by importance
         // Prefer relationships over points, and prefer the relatonship with the smallest bounding box
         return R.compose(
+          of,
           Result.Ok,
           R.head,
           R.sortWith([
@@ -310,7 +340,7 @@ export const nominatimResultTask = location => {
         )(matches);
       } else {
         log.debug(`Nominatim no matches for query ${query}`);
-        return (Result.Error({error: "No qualifying respones", results: responses, query}));
+        return of(Result.Error({error: "No qualifying respones", results: responses, query}));
       }
     },
     // Query nominatim, this us a Result.Ok with responses or a Result.Error if the query failes
@@ -457,3 +487,36 @@ export const mapboxGeocodeTask = R.curry((accessToken, address) => {
     );
   });
 });
+
+export const osmIdToGeojsonQuery = osmId => {
+  return `(relation(${osmId}););out body;>;out skel qt;`;
+};
+
+/**
+ * Adds the geojson to the given responses that return osmIds. We need the geojson of the relationship
+ * to donated by osmId to query OSM. Querying for blocks by the osmId times our for big places, but
+ * with the geojson we can break the query down into squares
+ * @param responses
+ * @return {*}
+ */
+export const responseWithOsmRelationToResponseWithGeojsonResultTask = response => {
+  const osmId = R.propOr(null, 'osm_id', response);
+  const osmType = R.propOr(null, 'osm_type', response);
+  if (osmType !== 'relation' || !osmId) {
+    return of(Result.Ok(response));
+  }
+  const geojsonQuery = osmIdToGeojsonQuery(osmId);
+  return mapMDeep(2, geojson => {
+      // set the geojson that is returned
+      return R.set(R.lensProp('geojson'), geojson, response);
+    },
+    osmResultTask({
+        name: `osmIdToGeojsonQueryResultTask: ${osmId}`,
+        context: {osmId}
+      },
+      options => {
+        return fetchOsmRawTask(options, geojsonQuery);
+      }
+    )
+  );
+};

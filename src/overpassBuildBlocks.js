@@ -88,7 +88,8 @@ export const _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = v
     )
   );
   const matchingPartialBlocks = _matchingPartialBlocks(hashToPartialBlocks, partialBlock);
-  const remainingPartialBlocks = R.without(matchingPartialBlocks, partialBlocks);
+  let remainingPartialBlocks = R.without(matchingPartialBlocks, partialBlocks);
+
   const {nodes, ways} = partialBlock;
   log.debug(`_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask: Processing partial block way ids ${
     JSON.stringify(R.map(R.prop('id'), ways))
@@ -98,7 +99,7 @@ export const _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = v
 
   if (process.env.NODE_ENV !== 'production') {
     log.debug('_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask: Geojson of current partial block');
-    blockToGeojson({nodes, ways});
+    log.debug(blockToGeojson({nodes, ways}));
   }
   // Get the current final way of the partial block. This is the way we will process
   const way = R.last(ways);
@@ -140,6 +141,23 @@ export const _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = v
     // If we have a node, we don't care about the connecting way at this point
     () => []
   )(firstFoundNodeOfWay);
+
+  if (R.equals(
+    R.length(remainingPartialBlocks),
+    R.length(partialBlocks))
+  ) {
+    const wayIds = R.map(R.prop('id'), R.map(R.prop('ways'), partialBlock));
+    log.warn(`Failed to remove the partial block with way ids ${
+      JSON.stringify(wayIds)
+    } being processed from remainingPartialBlocks. This should never happen. Will remove "manually"`);
+    remainingPartialBlocks = R.filter(
+      remainingBlock => R.compose(
+        ids => R.none(id => R.includes(id, wayIds), ids),
+        R.map(R.prop('id'), R.map(R.prop('ways')))
+      )(remainingBlock),
+      remainingPartialBlocks
+    );
+  }
 
   // Create a task to add the found node to the first node to complete the block and set the trimmed ways,
   // Alternatively if we got to a new way then we have to recurse and traverse that way until we find an intersection node

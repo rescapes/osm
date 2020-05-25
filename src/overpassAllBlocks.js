@@ -452,7 +452,9 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (osmConfig, locationWi
  * Construct one or more Overpass queries to get all eligible highway ways or nodes for area of the given osmId or optionally
  * geojsonBOunds
  * @param {Object} osmConfig
- * @param {Object} [osmConfig.gridSize] Defaults to 1000 meters. Use to override the number of meters. Small places
+ * @param {Number} [osmConfig.gridSize] Defaults to 1000 meters. Use to override the number of meters. Small places
+ * @Param {Boolean} [osmConfig.useAreaIdWithoutGrids] Default false, when true and areaId is available for the query,
+ * query for the whole area without breaking the query into smaller grids (i.e. to grids of gridSize=1000 meters)
  * and buffers might need to be 100 meters
  * @param {String} type 'way' or 'node' We have to do the queries separately because overpass combines the geojson
  * results in buggy ways
@@ -480,12 +482,18 @@ function _constructHighwayQueriesForType(osmConfig, {type}, location) {
   // The Overpass Area Id is based on the osm id plus this Overpass magic number
   // Don't calculate this if we didn't pass an osmId
   const areaId = R.when(R.identity, osmIdToAreaId)(osmId);
+  // If configured, query by just the areaId when one is available without breaking queries into grids
+  const useAreaIdWithoutGrids = strPathOr(false, 'useAreaIdWithoutGrids', osmConfig)
 
   // If the we are filtering by geojson features, we need at least one query per feature. Large features
   // are broken down into smaller square features that are each converted to a bbox for querying Overpass
   const locationWithSingleFeatures = R.cond([
     [
-      ({geojson}) => geojsonFeaturesHaveShape(geojson),
+      ({geojson}) => R.and(
+        // Disable this condition if useAreaIdWithoutGrids is true and we have an areaId
+        !R.and(useAreaIdWithoutGrids, areaId),
+        geojsonFeaturesHaveShape(geojson)
+      ),
       ({areaId, geojson}) => R.map(
         feature => {
           return {areaId, geojson: {features: [feature]}};
@@ -507,7 +515,8 @@ function _constructHighwayQueriesForType(osmConfig, {type}, location) {
       }
     ],
     // Just put the locationWithNominatimData in an array since we'll search for it by areaId
-    [({areaId}) => areaId, Array.of],
+    // Don't include the geojson. It is redundant in this case
+    [({areaId}) => areaId, ({areaId}) => Array.of({areaId})],
     // This should never happen
     [R.T, () => {
       throw new Error('Cannot query for a locationWithNominatimData that lacks both an areaId and geojson features with shapes or radii');

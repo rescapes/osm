@@ -452,6 +452,8 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (osmConfig, locationWi
  * Construct one or more Overpass queries to get all eligible highway ways or nodes for area of the given osmId or optionally
  * geojsonBOunds
  * @param {Object} osmConfig
+ * @param {Object} [osmConfig.gridSize] Defaults to 1000 meters. Use to override the number of meters. Small places
+ * and buffers might need to be 100 meters
  * @param {String} type 'way' or 'node' We have to do the queries separately because overpass combines the geojson
  * results in buggy ways
  * @param {Object} location Location data optionally containing OSM overrides
@@ -489,7 +491,7 @@ function _constructHighwayQueriesForType(osmConfig, {type}, location) {
           return {areaId, geojson: {features: [feature]}};
         },
         // Get .1km squares of the area
-        extractSquareGridFeatureCollectionFromGeojson({cellSize: .1, units: 'kilometers'}, geojson).features
+        extractSquareGridFeatureCollectionFromGeojson({cellSize: R.propOr(1000, 'gridSize', osmConfig), units: 'meters'}, geojson).features
       )
     ],
     // If feature properties have radii split them up into features.

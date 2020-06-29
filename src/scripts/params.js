@@ -1,0 +1,48 @@
+export default [
+  {
+    geojson: {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "properties": {},
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  34.791855812072754,
+                  31.236389550690053
+                ],
+                [
+                  34.793561697006226,
+                  31.236389550690053
+                ],
+                [
+                  34.793561697006226,
+                  31.23777474374497
+                ],
+                [
+                  34.791855812072754,
+                  31.23777474374497
+                ],
+                [
+                  34.791855812072754,
+                  31.236389550690053
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  /*
+  {
+    country: 'USA',
+    state: 'North Carolina',
+    city: 'Durham',
+    neighborhood: 'Old North Durham'
+  }
+   */
+];

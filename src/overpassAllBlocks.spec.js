@@ -1,12 +1,19 @@
 import * as R from 'ramda';
-import {defaultRunConfig, defaultRunToResultConfig} from 'rescape-ramda';
+import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from 'rescape-ramda';
 import {
   locationToOsmAllBlocksQueryResultsTask,
   locationToOsmAllBlocksThenBufferedMoreBlocksResultsTask
 } from './overpassAllBlocks';
-import {blocksToGeojson, blocksWithLengths, blockToGeojson, locationsToGeojson} from './overpassBlockHelpers';
+import {
+  blocksToGeojson,
+  blocksWithLengths,
+  blockToGeojson,
+  locationsToGeojson,
+  locationsToGeojsonFileResultTask
+} from './overpassBlockHelpers';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
+import {processParamsFromJsonOrJsToList} from './scripts/scriptHelpers';
 
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -54,7 +61,7 @@ describe('overpassAllBlocks', () => {
     locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
       {
         onResolved: ({Ok: locationsWithBlocks, Error: errors}) => {
-          // Paste the results of this into a geojson viewer for debugging
+          // Paste the results f this into a geojson viewer for debugging
           blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
           expect(R.length(locationsWithBlocks)).toEqual(131);
         }
@@ -3666,4 +3673,42 @@ describe('overpassAllBlocks', () => {
       }
     }, errors, done));
   }, 2000000);
+
+  const sequencedTask = composeWithChain([
+    results => {
+      return locationsToGeojsonFileResultTask(
+        '/tmp',
+        `rescapeOsmlocationsToGeojsonFileResultTask_${moment().format('YYYY-MM-DD-HH-mm-SS')}`,
+        results
+      );
+    },
+    propSets => traverseReduce(
+      // The accumulator
+      /***
+       * @param {Object} res {Ok:[Object], Error:[Object] Previous or initial results
+       * @param {Object} results {Ok:[Object], Error:[Object]} Current results
+       * @returns {Object} {Ok:[Object], Error[Object]} The merged results
+       */
+      (res, results) => {
+        return R.mergeWith(R.concat, res, results);
+      },
+      of({Ok: [], Error: []}),
+      R.map(
+        location => locationToOsmAllBlocksQueryResultsTask(osmConfig, location),
+        propSets
+      )
+    )])(propSets);
+
+  const errors = [];
+  sequencedTask.run().listen(
+    defaultRunConfig({
+      onResolved: results => {
+        // Use Dump results to json streetviewConfig to figure out output dir
+        log.debug(`Finished all propsets. Dumping results with processQueryForStreetviewResults`);
+      }
+    }, errors, () => {
+    })
+  )
+
+
 });

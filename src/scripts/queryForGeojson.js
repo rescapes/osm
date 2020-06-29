@@ -114,8 +114,7 @@ sequencedTask.run().listen(
   defaultRunToResultConfig({
     onResolved: results => {
       // Use Dump results to json streetviewConfig to figure out output dir
-      log.debug(`Finished all propsets. Dumping results with processQueryForStreetviewResults`);
-      expect(R.length(results.geojson.features)).toBeGreaterThan(0);
+      console.log(JSON.stringify(results.geojsonWays))
     }
   }, errors, () => {})
 );

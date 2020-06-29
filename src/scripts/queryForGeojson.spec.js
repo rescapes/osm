@@ -64,7 +64,7 @@ describe('queryForGeojson', () => {
         onResolved: results => {
           // Use Dump results to json streetviewConfig to figure out output dir
           log.debug(`Finished all propsets. Dumping results with processQueryForStreetviewResults`);
-          expect(R.length(results)).toBeGreaterThan(0);
+          expect(R.length(results.geojson.features)).toBeGreaterThan(0);
         }
       }, errors, done)
     );

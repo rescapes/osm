@@ -13,7 +13,7 @@
 import moment from 'moment';
 import "regenerator-runtime/runtime";
 import * as R from 'ramda';
-import {composeWithChain, defaultRunConfig, traverseReduce} from 'rescape-ramda';
+import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from 'rescape-ramda';
 import meow from 'meow';
 import {loggers, rescapeDefaultTransports} from 'rescape-log';
 import {locationsToGeojsonFileResultTask} from '../overpassBlockHelpers';
@@ -85,33 +85,37 @@ const sequencedTask = composeWithChain([
     return locationsToGeojsonFileResultTask(
       '/tmp',
       `rescapeOsmlocationsToGeojsonFileResultTask_${moment().format('YYYY-MM-DD-HH-mm-SS')}`,
-      results
+      R.map(R.prop('location'), results.Ok)
     );
   },
-  propSets => traverseReduce(
-    // The accumulator
-    /***
-     * @param {Object} res {Ok:[Object], Error:[Object] Previous or initial results
-     * @param {Object} results {Ok:[Object], Error:[Object]} Current results
-     * @returns {Object} {Ok:[Object], Error[Object]} The merged results
-     */
-    (res, results) => {
-      return R.mergeWith(R.concat, res, results);
-    },
-    of({Ok: [], Error: []}),
-    R.map(
-      location => locationToOsmAllBlocksQueryResultsTask(osmConfig, location),
-      propSets
-    )
-  )])(propSets);
+  propSets => {
+    return traverseReduce(
+      // The accumulator
+      /***
+       * @param {Object} res {Ok:[Object], Error:[Object] Previous or initial results
+       * @param {Object} results {Ok:[Object], Error:[Object]} Current results
+       * @returns {Object} {Ok:[Object], Error[Object]} The merged results
+       */
+      (res, results) => {
+        return R.mergeWith(R.concat, res, results);
+      },
+      of({Ok: [], Error: []}),
+      R.map(
+        location => {
+          return locationToOsmAllBlocksQueryResultsTask(osmConfig, location);
+        },
+        propSets
+      )
+    );
+  }])(propSets);
 
 const errors = [];
 sequencedTask.run().listen(
-  defaultRunConfig({
+  defaultRunToResultConfig({
     onResolved: results => {
       // Use Dump results to json streetviewConfig to figure out output dir
       log.debug(`Finished all propsets. Dumping results with processQueryForStreetviewResults`);
+      expect(R.length(results.geojson.features)).toBeGreaterThan(0);
     }
-  }, errors, () => {
-  })
+  }, errors, () => {})
 );

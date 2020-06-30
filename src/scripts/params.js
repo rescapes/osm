@@ -37,12 +37,10 @@ export default [
       ]
     }
   },
-  /*
   {
     country: 'USA',
     state: 'North Carolina',
     city: 'Durham',
     neighborhood: 'Old North Durham'
   }
-   */
 ];

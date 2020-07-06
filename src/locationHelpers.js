@@ -24,7 +24,7 @@ import {v} from 'rescape-validate';
 import {point} from '@turf/helpers';
 import circle from '@turf/circle';
 import buffer from '@turf/buffer';
-import union from '@turf/union'
+import union from '@turf/union';
 
 // The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
 // Switzerland for example doesn't resolve correctly if the canton abbreviation is included
@@ -43,7 +43,7 @@ const GOOGLE_STREET_REPLACEMENTS = [
   R.replace(/South/g, 'S'),
   R.replace(/East/g, 'E'),
   R.replace(/West/g, 'W'),
-  // OpenStreetMap uses full names, Google likes abbreviations
+  // OpenStreetMap uses full namessc, Google likes abbreviations
   R.replace(/\sRoad/g, ' Rd'),
   R.replace(/\sStreet/g, ' St'),
   R.replace(/\sAvenue/g, ' Ave'),
@@ -103,13 +103,19 @@ export const fixWordsThatTripUpGoogle = streetName => {
  * @returns {[String]} the same streets with problematic words changed
  */
 export const normalizedIntersectionNames = intersection => {
-  return R.unless(
-    intersection => R.either(
-      R.isNil,
-      R.compose(R.equals(0), R.length)
-    )(intersection),
-    intersection => R.map(fixWordsThatTripUpGoogle, intersection)
-  )(intersection);
+  return R.over(
+    R.lensProp('streets'),
+    intersection => {
+      return R.unless(
+        intersection => R.either(
+          R.isNil,
+          R.compose(R.equals(0), R.length)
+        )(intersection),
+        intersection => R.map(fixWordsThatTripUpGoogle, intersection)
+      )(intersection);
+    },
+    intersection
+  );
 };
 
 /**
@@ -144,31 +150,37 @@ export const locationWithIntersectionInBothOrders = locationWithOneIntersectionP
 
 /**
  * Extracts a 'lat, lon' string from an intersection already in the form 'lat, lon' or 'Main St & lat, lon'
- * @param intersection
+ * @param {Object} intersection
+ * @param {[String]} intersection.streets All streets of the intersections
  * @returns {String}
  */
-export const locationIntersectionAsLatLng = intersection => R.cond([
-  [address => isLatLng(address), R.identity],
-  [address => R.both(
-    address => R.is(String, address),
-    address => R.any(
-      eitherStreet => isLatLng(eitherStreet),
-      R.map(
-        str => str.trim(),
-        R.split('&', address)
+export const locationIntersectionAsLatLng = intersection => {
+  // TODO why is this expecting address strings instead of arrays?
+  return R.cond([
+    [address => isLatLng(address), R.identity],
+    [
+      // If the street
+      address => R.both(
+        address => R.is(String, address),
+        address => R.any(
+          eitherStreet => isLatLng(eitherStreet),
+          R.map(
+            str => str.trim(),
+            R.split('&', address)
+          )
+        )
+      )(address),
+      address => R.find(
+        eitherStreet => isLatLng(eitherStreet),
+        R.map(
+          str => str.trim(),
+          R.split('&', address)
+        )
       )
-    )
-  )(address),
-    address => R.find(
-      eitherStreet => isLatLng(eitherStreet),
-      R.map(
-        str => str.trim(),
-        R.split('&', address)
-      )
-    )
-  ],
-  [R.T, () => null]
-])(intersection);
+    ],
+    [R.T, () => null]
+  ])(strPathOr([], 'data.streets', intersection));
+};
 
 /**
  * Creates an address string for geolocation resolution
@@ -177,7 +189,8 @@ export const locationIntersectionAsLatLng = intersection => R.cond([
  * @param {String} city The city
  * @param {String} neighborhood Optional the neighborhood
  * @param {String} street Optional specify if there is a street but not intersections yet known
- * @param {[[String]]} intersections Optional array of one pair of street names.
+ * @param {[Object]} intersections Optional array of one intersection in the form {streets: [streets]}
+ * where streets contain all streets of the intersection including the block name (i.e. the value of the street param)
  * This matches the Location object when it only has one of its locations
  * If intersections is specified neighborhood is omitted from the search, since the former is more precise
  * @returns {String} The address string with neighborhood and state optional
@@ -223,8 +236,10 @@ export const addressString = ({country, state, city, neighborhood, street, inter
  * @param {String} country The country
  * @param {String} state Optional state or province
  * @param {String} city The city
+ * @param {String} neighborhood The neighborhood
  * @param {String} street Optional specify if there is a street but not intersections yet known
- * @param {[[String]]} intersections Array of two pairs of street names.
+ * @param {Object} intersections Array of two pairs of street names in the form of a two item array containing
+ * two {streets=[intersection street names]}. The street of the block must be the first street in streets.
  * If intersections are specified neighborhood is omitted from the search, since the former is more precise
  * @returns {String} The address string with neighborhood and state optional
  * Example: Main St & Chestnut St to Main St & Elm St, Anytown, Anystate, USA which will resolve to an intersection
@@ -234,8 +249,8 @@ export const addressStringForBlock = ({country, state, city, neighborhood, stree
   // If it's a lat/lon return it
   // We take the first intersection of intersections because we're only resolving single point address here.
   // If the intersections are 2 intersections, representing a street block, we ignore the second value
-  const resolvedIntersectionPairs = R.map(intersection => {
-      const latLng = locationIntersectionAsLatLng(R.defaultTo([], intersection));
+  const resolvedIntersections = R.map(intersection => {
+      const latLng = locationIntersectionAsLatLng(R.defaultTo({streets: []}, intersection));
       if (latLng) {
         return latLng;
       }
@@ -262,7 +277,7 @@ export const addressStringForBlock = ({country, state, city, neighborhood, stree
           // Otherwise put the street and/or neighborhood. If this is null it's filtered out
           R.always(street ? `${street}, ${neighborhood}` : neighborhood)
         )(resolvedIntersectionPair);
-      }, resolvedIntersectionPairs)
+      }, resolvedIntersections)
     ),
     city,
     state,
@@ -488,7 +503,7 @@ export const isResolvableSingleBlockLocation = location => R.either(
  */
 export const isResolvableAllBlocksLocation = location => {
   if (isResolvableSingleBlockLocation(location)) {
-    return false
+    return false;
   }
   return R.cond([
     [location => isNominatimEligible(location), () => true],
@@ -654,8 +669,8 @@ export const locationAndOsmBlocksToLocationWithGeojson = v((location, block) => 
   ['location', PropTypes.shape().isRequired],
   ['block', PropTypes.shape({
     ways: PropTypes.arrayOf(PropTypes.shape()).isRequired,
-    nodes: PropTypes.arrayOf(PropTypes.shape()).isRequired,
-  }).isRequired],
+    nodes: PropTypes.arrayOf(PropTypes.shape()).isRequired
+  }).isRequired]
 ], 'locationAndOsmBlocksToLocationWithGeojson');
 
 /**
@@ -719,7 +734,7 @@ export const featuresOfOsmType = v((osmType, features) => {
       id: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
     }
   )).isRequired]
-], 'featuresOfOsmType')
+], 'featuresOfOsmType');
 
 /**
  * Indicates if loction has an array intersectionLocations with values, meaning it has lat/lon points which
@@ -1013,17 +1028,17 @@ export const nodeFromCoordinate = ({id}, coordinate) => {
  * @return {Object} A feature collection  containing one or more features
  */
 export const bufferAndUnionGeojson = ({radius, units}, geojson) => {
-  const buffered = buffer(geojson, radius, {units})
-  const features = R.compose(toArrayIfNot, R.when(R.propEq('type', 'FeatureCollection'), R.prop('features')))(buffered)
+  const buffered = buffer(geojson, radius, {units});
+  const features = R.compose(toArrayIfNot, R.when(R.propEq('type', 'FeatureCollection'), R.prop('features')))(buffered);
   const feature = R.reduce(
     (acc, feature) => {
-      return !acc ? feature : union(acc, feature)
+      return !acc ? feature : union(acc, feature);
     },
     null,
     features
-  )
-  return {type: 'FeatureCollection', features: [feature]}
-}
+  );
+  return {type: 'FeatureCollection', features: [feature]};
+};
 
 /**
  * Returns true if the given features are within the given polygon feature

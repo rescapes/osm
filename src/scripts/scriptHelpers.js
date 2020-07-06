@@ -10,10 +10,7 @@
  */
 import * as R from 'ramda';
 import {toArrayIfNot} from 'rescape-ramda';
-import {loggers} from 'rescape-log';
 import "regenerator-runtime/runtime";
-
-const log = loggers.get('rescapeDefault');
 
 /**
  * Process an imported json params or js file's default import

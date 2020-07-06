@@ -26,7 +26,9 @@ describe('queryForGeojson', () => {
     expect.assertions(1);
     const osmConfig = {};
     // Process .json or the default value of a .js file export
-    const propSets = processParamsFromJsonOrJsToList(require('./params.js'));
+    const propSets = processParamsFromJsonOrJsToList(require(
+      '/Users/andy/code/rescape/rescape-osm/src/samples/philadelphia_neighborhoods_to_locations.js'
+    ));
     log.debug(`Config: ${JSON.stringify({osmConfig}, null, '\t')}`);
 
     const sequencedTask = composeWithChain([
@@ -56,7 +58,7 @@ describe('queryForGeojson', () => {
             propSets
           )
         );
-      }])(propSets);
+      }])(R.slice(0, 1, propSets));
 
     const errors = [];
     sequencedTask.run().listen(

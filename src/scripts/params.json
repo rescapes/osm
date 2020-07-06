@@ -1,6 +1,6 @@
-export default [
+[
   {
-    geojson: {
+    "geojson": {
       "type": "FeatureCollection",
       "features": [
         {
@@ -38,9 +38,9 @@ export default [
     }
   },
   {
-    country: 'USA',
-    state: 'North Carolina',
-    city: 'Durham',
-    neighborhood: 'Old North Durham'
+    "country": "USA",
+    "state": "North Carolina",
+    "city": "Durham",
+    "neighborhood": "Old North Durham"
   }
-];
+]

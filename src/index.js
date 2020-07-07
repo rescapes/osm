@@ -108,5 +108,6 @@ export {
 } from './overpassBlockHelpers';
 
 export {
-  bufferAndUnionGeojson
+  bufferAndUnionGeojson,
+  oldIntersectionUpgrade
 } from './locationHelpers'

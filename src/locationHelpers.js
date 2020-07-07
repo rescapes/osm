@@ -1077,3 +1077,42 @@ export const isWithinPolygon = R.curry((polygon, features) => {
     )(features)
   );
 });
+
+/**
+ * Temporary function to convert old-school intersection style to new
+ * @param blockname
+ * @param intersc1
+ * @param intersc2
+ * @param intersection1Location
+ * @param intersection2Location
+ * @return {{blockname: *, intersections: [{streets: [*, *]}, {streets: [*, *]}]}}
+ */
+export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersection1Location, intersection2Location}) => {
+  return {
+    blockname,
+    intersections: [
+      {
+        streets: [blockname, intersc1],
+        ...intersection1Location ? {
+          geojson: {
+            type: 'FeatureCollection',
+            features: [
+              locationToTurfPoint(intersection1Location)
+            ]
+          }
+        } : {}
+      },
+      {
+        streets: [blockname, intersc2],
+        ...intersection2Location ? {
+          geojson: {
+            type: 'FeatureCollection',
+            features: [
+              locationToTurfPoint(intersection2Location)
+            ]
+          }
+        } : {}
+      }
+    ]
+  };
+};

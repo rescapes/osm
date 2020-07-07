@@ -20,7 +20,7 @@ import {
 import {defaultRunConfig, mergeDeepWithConcatArrays, reqStrPathThrowing} from 'rescape-ramda';
 import {blocksToGeojson, locationsToGeojson} from './overpassBlockHelpers';
 import {bufferedFeaturesToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
-import sampleStreetLocationsAndBlocks from './samples/hongKongStreetLocationsAndBlocks.json';
+import sampleStreetLocationsAndBlocks from './samples/hongKongStreetLocationsAndBlocks.json'
 
 const sampleCityLocations = [
   {
@@ -284,22 +284,19 @@ describe('LocationHeleprs', () => {
       "street": "High St",
       intersections: [
         {
-          streets: ['High St', 'Durham St E'],
+          data: {streets: ['High St', 'Durham St E']},
           geojson: {
             type: 'FeatureCollection',
             features: [
               {
-                geometry: {
-                  type: 'Point',
-                  coordinates: [174.766344, -36.848499]
-                }
+                coordinates: [174.766344, -36.848499]
               }
             ]
           }
         },
         {
 
-          streets: ['High St', 'Victoria St E'],
+          data: {streets: ['High St', 'Victoria St E']},
           geojson: {
             type: 'FeatureCollection',
             features: [
@@ -310,7 +307,7 @@ describe('LocationHeleprs', () => {
           }
         }
       ],
-      "geojson": null
+      "geojson": null,
     }, {
       "id": 2229955,
       "state": "",
@@ -320,22 +317,19 @@ describe('LocationHeleprs', () => {
       "street": "High St",
       intersections: [
         {
-          streets: ['High St', 'Durham St E'],
+          data: {streets: ['High St', 'Durham St E']},
           geojson: {
             type: 'FeatureCollection',
             features: [
               {
-                geometry: {
-                  type: 'Point',
-                  coordinates: [174.766344, -36.848499]
-                }
+                coordinates: [174.766344, -36.848499]
               }
             ]
           }
         },
         {
 
-          streets: ['High St', 'Victoria St E'],
+          data: {streets: ['High St', 'Victoria St E']},
           geojson: {
             type: 'FeatureCollection',
             features: [
@@ -355,22 +349,19 @@ describe('LocationHeleprs', () => {
       "neighborhood": "Viaduct Basin",
       intersections: [
         {
-          streets: ['High St', 'Shortland St'],
+          data: {streets: ['High St', 'Shortland St']},
           geojson: {
             type: 'FeatureCollection',
             features: [
               {
-                geometry: {
-                  type: 'Point',
-                  coordinates: [174.766872, -36.846571]
-                }
+                coordinates: [174.766872, -36.846571]
               }
             ]
           }
         },
         {
 
-          streets: ['High St', 'Vulcan Ln'],
+          data: {streets: ['High St', 'Vulcan Ln']},
           geojson: {
             type: 'FeatureCollection',
             features: [
@@ -383,7 +374,7 @@ describe('LocationHeleprs', () => {
       ],
       "point_of_interest": "",
       "point_of_interest_location": "",
-      "geojson": null
+      "geojson": null,
     }, {
       "id": 2229947,
       "state": "",
@@ -392,22 +383,19 @@ describe('LocationHeleprs', () => {
       "neighborhood": "Viaduct Basin",
       intersections: [
         {
-          streets: ['High St', 'Vulcan Ln'],
+          data: {streets: ['High St', 'Vulcan Ln']},
           geojson: {
             type: 'FeatureCollection',
             features: [
               {
-                geometry: {
-                  type: 'Point',
-                  coordinates: [174.766720, -36.847199]
-                }
+                coordinates: [174.766720, -36.847199]
               }
             ]
           }
         },
         {
 
-          streets: ['High St', 'Durham St E'],
+          data: {streets: ['High St', 'Durham St E']},
           geojson: {
             type: 'FeatureCollection',
             features: [
@@ -419,7 +407,7 @@ describe('LocationHeleprs', () => {
         }
       ],
       "street": "High St",
-      "geojson": null
+      "geojson": null,
     }];
 
     expect(aggregateLocation({}, location, componentLocationWithoutGeojson)).toEqual(
@@ -444,22 +432,18 @@ describe('LocationHeleprs', () => {
       "street": "High St",
       intersections: [
         {
-          streets: ['High St', 'Durham St E'],
+          data: {streets: ['High St', 'Durham St E']},
           geojson: {
             type: 'FeatureCollection',
             features: [
               {
-                geometry: {
-                  type: 'Point',
-                  coordinates: [174.766344, -36.848499]
-                }
+                coordinates: [174.766344, -36.848499]
               }
             ]
           }
         },
         {
-
-          streets: ['High St', 'Durham St E'],
+          data: {streets: ['High St', 'Durham St E']},
           geojson: {
             type: 'FeatureCollection',
             features: [
@@ -470,10 +454,6 @@ describe('LocationHeleprs', () => {
           }
         }
       ],
-      "intersc1": "Durham St E",
-      "intersc2": "Durham St E",
-      "intersection1Location": "-36.848499, 174.766344",
-      "intersection2Location": "-36.849247, 174.766100",
       "neighborhood": "Viaduct Basin",
       "city": "Auckland",
       "state": "",
@@ -856,7 +836,7 @@ describe('LocationHeleprs', () => {
     const circleFeatures = R.map(
       pnt => point(R.reverse(pnt)),
       [
-        [22.369978, 114.113525]
+        [22.369978, 114.113525],
         //[22.246151, 114.169610]
       ]);
 
@@ -897,7 +877,7 @@ describe('LocationHeleprs', () => {
     const radius = 10;
     const units = 'meters';
 
-    const locationGeojson = locationsToGeojson(R.map(reqStrPathThrowing('location'), sampleStreetLocationsAndBlocks));
+    const locationGeojson = locationsToGeojson(R.map(reqStrPathThrowing('location'), sampleStreetLocationsAndBlocks))
     const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({
       osmConfig: {},
       bufferConfig: {radius, units, unionFeatures: true}
@@ -3039,7 +3019,7 @@ describe('LocationHeleprs', () => {
           ]
         }
       }
-    ];
-    expect(R.map(f => bufferAndUnionGeojson({radius: 50, units: 'meters'}, f), featuresAndCollections)).toBeTruthy();
-  });
+    ]
+    expect(R.map(f => bufferAndUnionGeojson({radius: 50, units: 'meters'}, f), featuresAndCollections)).toBeTruthy()
+  })
 });

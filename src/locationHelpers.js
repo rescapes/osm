@@ -104,7 +104,7 @@ export const fixWordsThatTripUpGoogle = streetName => {
  */
 export const normalizedIntersectionNames = intersection => {
   return R.over(
-    R.lensProp('streets'),
+    R.lensPath('data.streets'),
     intersection => {
       return R.unless(
         intersection => R.either(
@@ -250,7 +250,7 @@ export const addressStringForBlock = ({country, state, city, neighborhood, stree
   // We take the first intersection of intersections because we're only resolving single point address here.
   // If the intersections are 2 intersections, representing a street block, we ignore the second value
   const resolvedIntersections = R.map(intersection => {
-      const latLng = locationIntersectionAsLatLng(R.defaultTo({streets: []}, intersection));
+      const latLng = locationIntersectionAsLatLng(R.defaultTo({data: {streets: []}}, intersection));
       if (latLng) {
         return latLng;
       }
@@ -1092,7 +1092,7 @@ export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersect
     blockname,
     intersections: [
       {
-        streets: [blockname, intersc1],
+        data: {streets: [blockname, intersc1]},
         ...intersection1Location ? {
           geojson: {
             type: 'FeatureCollection',
@@ -1103,7 +1103,7 @@ export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersect
         } : {}
       },
       {
-        streets: [blockname, intersc2],
+        data: {streets: [blockname, intersc2]},
         ...intersection2Location ? {
           geojson: {
             type: 'FeatureCollection',

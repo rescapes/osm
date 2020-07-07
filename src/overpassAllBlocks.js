@@ -1,15 +1,19 @@
 import {loggers} from 'rescape-log';
 import {
   composeWithChain,
-  composeWithChainMDeep, composeWithMapExceptChainDeepestMDeep, composeWithMapMDeep,
-  mapMDeep, mapToNamedResponseAndInputs,
-  mapToNamedResponseAndInputsMDeep, mergeDeepWithConcatArrays,
+  composeWithChainMDeep,
+  composeWithMapMDeep,
+  mapMDeep,
+  mapToNamedResponseAndInputs,
+  mapToNamedResponseAndInputsMDeep,
+  mergeDeepWithConcatArrays,
   pickDeepPaths,
   reqStrPathThrowing,
   resultToTaskWithResult,
   strPathOr,
-  toArrayIfNot, traverseReduce,
-  traverseReduceDeep, waitAllBucketed
+  toArrayIfNot,
+  traverseReduce,
+  traverseReduceDeep
 } from 'rescape-ramda';
 import distance from '@turf/distance';
 import {extractSquareGridFeatureCollectionFromGeojson, turfBboxToOsmBbox, turfPointToLocation} from 'rescape-helpers';
@@ -19,9 +23,9 @@ import * as R from 'ramda';
 import {of} from 'folktale/concurrency/task';
 import {
   aroundPointDeclaration,
-  configuredHighwayWayFilters, fetchOsmRawTask,
+  configuredHighwayWayFilters,
   highwayNodeFilters,
-  osmIdToAreaId, osmResultTask
+  osmIdToAreaId
 } from './overpassHelpers';
 import * as Result from 'folktale/result';
 import {_queryLocationVariationsUntilFoundResultTask, locationsToGeojson} from './overpassBlockHelpers';
@@ -32,7 +36,8 @@ import {
   geojsonFeaturesHaveShape,
   geojsonFeaturesHaveShapeOrRadii,
   geojsonFeaturesIsPoint,
-  isNominatimEligible, isOsmType,
+  isNominatimEligible,
+  isOsmType,
   locationAndOsmBlocksToLocationWithGeojson
 } from './locationHelpers';
 import {v} from 'rescape-validate';

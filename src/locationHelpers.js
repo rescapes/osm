@@ -104,7 +104,7 @@ export const fixWordsThatTripUpGoogle = streetName => {
  */
 export const normalizedIntersectionNames = intersection => {
   return R.over(
-    R.lensPath('data.streets'),
+    R.lensPath(['data', 'streets']),
     intersection => {
       return R.unless(
         intersection => R.either(

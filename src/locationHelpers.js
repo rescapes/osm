@@ -15,7 +15,7 @@ import {
   strPathOr,
   toNamedResponseAndInputs,
   mapKeys,
-  toArrayIfNot
+  toArrayIfNot, compact, strPath
 } from 'rescape-ramda';
 import {locationToTurfPoint} from 'rescape-helpers';
 import * as R from 'ramda';
@@ -119,33 +119,21 @@ export const normalizedIntersectionNames = intersection => {
 };
 
 /**
- * Given a locationWithNominatimData with one intersection. Returns the locationWithNominatimData with the intersection in both directions because sometimes Google
+ * Given a location  with one intersection. Returns the location with the intersection in both directions because sometimes Google
  * give different results for each order.
  * Example: [[Main St, Chestnut St], [Chestnut St, Main St]]
- * @param locationWithOneIntersectionPair
- * @returns {[String]} Two arrays of two streets or if the intersection are a lat/lon just a one item
- * array with the lat/lon
+ * @param location
+ * @returns {[Object]} Two locations, one with the first intersection streets reversed
  */
-export const locationWithIntersectionInBothOrders = locationWithOneIntersectionPair => {
-  const latLng = locationIntersectionAsLatLng(
-    reqStrPathThrowing(
-      'intersections.0',
-      locationWithOneIntersectionPair
+export const locationWithIntersectionInBothOrders = location => {
+  return [
+    location,
+    R.over(
+      R.lensPath(['intersections', 0, 'data', 'streets']),
+      streets => R.reverse(streets),
+      location
     )
-  );
-  return R.ifElse(
-    () => latLng,
-    // If the intersection is a lat/lon, just use that for the address
-    location => [
-      R.set(R.lensPath(['intersections', 0]), latLng, location)
-    ],
-    // Else create two addresses with the intersection names ordered in both ways
-    // Google can sometimes only handle one ordering
-    location => [
-      location,
-      R.over(R.lensPath(['intersections', 0]), R.reverse, location)
-    ]
-  )(locationWithOneIntersectionPair);
+  ];
 };
 
 /**
@@ -199,15 +187,7 @@ export const locationIntersectionAsLatLng = intersection => {
  */
 export const addressString = ({country, state, city, neighborhood, street, intersections}) => {
 
-  // If it's a lat/lon return it
-  // We take the first intersection of intersections because we're only resolving single point address here.
-  // If the intersections are 2 intersections, representing a street block, we ignore the second value
-  const latLng = locationIntersectionAsLatLng(R.head(R.defaultTo([], intersections)));
-  if (latLng) {
-    return latLng;
-  }
-
-  const resolvedIntersectionPair = R.when(
+  const intersection = R.when(
     R.length,
     intersections => normalizedIntersectionNames(R.head(intersections))
   )(intersections);
@@ -217,14 +197,7 @@ export const addressString = ({country, state, city, neighborhood, street, inter
     // Remove nulls and empty strings
     compactEmpty
   )([
-    R.ifElse(
-      // Check if the intersection pair exists and has length
-      intersectionPair => R.length(intersectionPair || []),
-      // If so we can put it between &, like 'Maple St & Chestnut St'
-      R.join(' & '),
-      // Otherwise put the street and/or neighborhood. If this is null it's filtered out
-      R.always(street ? `${street}, ${neighborhood}` : neighborhood)
-    )(resolvedIntersectionPair),
+    addressForIntersection({street, neighborhood}, intersection),
     city,
     state,
     country]
@@ -246,43 +219,55 @@ export const addressString = ({country, state, city, neighborhood, street, inter
  */
 export const addressStringForBlock = ({country, state, city, neighborhood, street, intersections}) => {
 
-  // If it's a lat/lon return it
-  // We take the first intersection of intersections because we're only resolving single point address here.
-  // If the intersections are 2 intersections, representing a street block, we ignore the second value
-  const resolvedIntersections = R.map(intersection => {
-      const latLng = locationIntersectionAsLatLng(R.defaultTo({data: {streets: []}}, intersection));
-      if (latLng) {
-        return latLng;
-      }
-
-      return R.when(
-        R.length,
-        intersection => normalizedIntersectionNames(intersection)
-      )(intersection);
-    },
-    intersections
-  );
-
   return R.compose(
     R.join(', '),
     // Remove nulls and empty strings
-    compactEmpty
-  )([
-    R.join(' <-> ', R.map(resolvedIntersectionPair => {
-        return R.ifElse(
-          // Check if the intersection pair exists and has length
-          intersectionPair => R.length(intersectionPair || []),
-          // If so we can put it between &, like 'Maple St & Chestnut St'
-          R.join(' & '),
-          // Otherwise put the street and/or neighborhood. If this is null it's filtered out
-          R.always(street ? `${street}, ${neighborhood}` : neighborhood)
-        )(resolvedIntersectionPair);
-      }, resolvedIntersections)
+    compactEmpty,
+    address => [address, city, state, country],
+    // If we have intersections with different first street names, list the street
+    address => R.when(
+      () => R.complement(R.equals)(...R.map(
+        intersection => strPathOr('none', 'data.streets', intersection),
+        intersections)
+      ),
+      // List the street after
+      address => `${address} (Street Name: ${street})`
+    )(address),
+    intersections => R.join(' <-> ', intersections),
+    // Use the intersections or the street and neighborhood if they aren't available
+    intersections => R.map(
+      intersection => {
+        return addressForIntersection({street, neighborhood}, intersection);
+      },
+      intersections
+    )
+  )(intersections);
+};
+
+/**
+ * Create a string representing the intersection, or failing that list the street and maybe neighborhood
+ * @param street
+ * @param neighborhood
+ * @param intersection
+ * @return {*}
+ */
+const addressForIntersection = ({street, neighborhood}, intersection) => {
+  return R.compose(
+    R.ifElse(
+      // Check if the intersection pair exists and has length
+      intersection => R.length(
+        strPathOr([], 'data.streets', intersection) || []
+      ),
+      // If so we can put it between &, like 'Maple St & Chestnut St'
+      intersection => R.join(' & ', strPath('data.streets', intersection)),
+      // Otherwise put the street and/or neighborhood. If this is null it's filtered out
+      R.always(street ? `${street}, ${neighborhood}` : neighborhood)
     ),
-    city,
-    state,
-    country]
-  );
+    // Normalize street names
+    intersection => {
+      return normalizedIntersectionNames(intersection);
+    }
+  )(intersection);
 };
 
 /**
@@ -674,15 +659,15 @@ export const locationAndOsmBlocksToLocationWithGeojson = v((location, block) => 
 ], 'locationAndOsmBlocksToLocationWithGeojson');
 
 /**
- * Given a locationWithNominatimData and componentLocations that are locations geospatially within locationWithNominatimData, create a single
- * locationWithNominatimData with the unique geojson of the componentLocations. The geojson of the given locationWithNominatimData can be optionally
- * preserved and combined with the components. For instance if locationWithNominatimData is a neighborhood represented by
+ * Given a location and componentLocations that are locations geospatially within location, create a single
+ * location with the unique geojson of the componentLocations. The geojson of the given location can be optionally
+ * preserved and combined with the components. For instance if location is a neighborhood represented by
  * OSM relation geojson, it can be optionally combined with the ways and nodes of all componentLocations or omitted
  * @param {Object} config
- * @param {Object} config.preserveLocationGeojson Keeps the geojson of the locationWithNominatimData and adds the componentLocations
+ * @param {Object} config.preserveLocationGeojson Keeps the geojson of the location and adds the componentLocations
  * unique geojson
- * @param {Object} location Location emcompassing the componentLocations
- * @param {[Object]} componentLocations any number of locations that are geospatailly within locationWithNominatimData
+ * @param {Object} location Location encompassing the componentLocations
+ * @param {[Object]} componentLocations any number of locations that are geospatailly within location
  */
 export const aggregateLocation = ({preserveLocationGeojson}, location, componentLocations) => {
   return R.compose(
@@ -1092,7 +1077,7 @@ export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersect
     blockname,
     intersections: [
       {
-        data: {streets: [blockname, intersc1]},
+        data: {streets: compact([blockname, intersc1])},
         ...intersection1Location ? {
           geojson: {
             type: 'FeatureCollection',
@@ -1103,7 +1088,7 @@ export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersect
         } : {}
       },
       {
-        data: {streets: [blockname, intersc2]},
+        data: {streets: compact([blockname, intersc2])},
         ...intersection2Location ? {
           geojson: {
             type: 'FeatureCollection',

@@ -20,7 +20,7 @@ import {
 import {defaultRunConfig, mergeDeepWithConcatArrays, reqStrPathThrowing} from 'rescape-ramda';
 import {blocksToGeojson, locationsToGeojson} from './overpassBlockHelpers';
 import {bufferedFeaturesToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
-import sampleStreetLocationsAndBlocks from './samples/hongKongStreetLocationsAndBlocks.json'
+import sampleStreetLocationsAndBlocks from './samples/hongKongStreetLocationsAndBlocks.json';
 
 const sampleCityLocations = [
   {
@@ -71,36 +71,28 @@ describe('LocationHeleprs', () => {
   test('addressPair', () => {
     expect(addressPair(
       R.merge(location, {
+        street: 'Main St',
         intersections: [
-          [
-            'Main St',
-            'First St'
-          ],
-          [
-            'Main St',
-            'Second St'
-          ]
+          {
+            data: {
+              streets: [
+                'Main St',
+                'First St'
+              ]
+            }
+          },
+          {
+            data: {
+              streets: [
+                'Main St',
+                'Second St'
+              ]
+            }
+          }
         ]
       })
     )).toEqual([
       "Main St & First St, Anytown, Anystate, USA",
-      "Main St & Second St, Anytown, Anystate, USA"
-    ]);
-  });
-
-  test('addressPair with a lan,lng', () => {
-    expect(addressPair(
-      R.merge(location, {
-        intersections: [
-          "54,-120",
-          [
-            'Main St',
-            'Second St'
-          ]
-        ]
-      })
-    )).toEqual([
-      "54,-120",
       "Main St & Second St, Anytown, Anystate, USA"
     ]);
   });
@@ -110,7 +102,15 @@ describe('LocationHeleprs', () => {
       country: 'USA',
       state: 'DC',
       city: 'Washington',
-      intersections: [['Monroe St', '13th NE'], ['Political St', 'Correctness St']]
+      street: 'Monroe St',
+      intersections: [
+        {
+          data: {streets: ['Monroe St', '13th NE']}
+        },
+        {
+          data: {streets: ['Political St', 'Correctness St']}
+        }
+      ]
     })).toEqual(
       ['Monroe St & 13th NE, Washington, DC, USA',
         'Political St & Correctness St, Washington, DC, USA']
@@ -122,9 +122,11 @@ describe('LocationHeleprs', () => {
       country: 'USA',
       state: 'DC',
       city: 'Washington',
-      intersections: [['Monroe St', '13th NE'], ['Political St', 'Correctness St']]
+      street: 'Monroe St',
+      // Street changes name at the intersection
+      intersections: [{data: {streets: ['Monroe St', '13th NE']}}, {data: {streets: ['Political St', 'Correctness St']}}]
     })).toEqual(
-      'Monroe St & 13th NE to Political St & Correctness St, Washington, DC, USA'
+      'Monroe St & 13th NE <-> Political St & Correctness St (Street Name: Monroe St), Washington, DC, USA'
     )
   );
 
@@ -307,7 +309,7 @@ describe('LocationHeleprs', () => {
           }
         }
       ],
-      "geojson": null,
+      "geojson": null
     }, {
       "id": 2229955,
       "state": "",
@@ -374,7 +376,7 @@ describe('LocationHeleprs', () => {
       ],
       "point_of_interest": "",
       "point_of_interest_location": "",
-      "geojson": null,
+      "geojson": null
     }, {
       "id": 2229947,
       "state": "",
@@ -407,7 +409,7 @@ describe('LocationHeleprs', () => {
         }
       ],
       "street": "High St",
-      "geojson": null,
+      "geojson": null
     }];
 
     expect(aggregateLocation({}, location, componentLocationWithoutGeojson)).toEqual(
@@ -427,7 +429,7 @@ describe('LocationHeleprs', () => {
   });
 
   test('addressStringInBothDirectionsOfLocation', () => {
-    expect(locationWithIntersectionInBothOrders({
+    expect(R.length(locationWithIntersectionInBothOrders({
       "id": 2229955,
       "street": "High St",
       intersections: [
@@ -466,33 +468,7 @@ describe('LocationHeleprs', () => {
         "generator": null,
         "copyright": null
       }
-    })).toEqual(["-36.849247, 174.766100"]);
-
-    expect(locationWithIntersectionInBothOrders({
-      "intersections": [
-        ['High St', 'Durham St E'], ['High St', 'Victoria St E']
-      ],
-      "id": 2229955,
-      "street": "High St",
-      "intersc1": "Durham St E",
-      "intersc2": "Victoria St E",
-      "intersection1Location": "-36.848499, 174.766344",
-      "intersection2Location": "-36.849247, 174.766100'",
-      "neighborhood": "Viaduct Basin",
-      "city": "Auckland",
-      "state": "",
-      "country": "New Zealand",
-      "data": {},
-      "dataComplete": true,
-      "geojson": {
-        "type": null,
-        "features": null,
-        "generator": null,
-        "copyright": null
-      }
-    })).toEqual([
-      "High St & Durham St E, Auckland, New Zealand",
-      "Durham St E & High St, Auckland, New Zealand"]);
+    }))).toEqual(2)
   });
 
   test('isResolvableAllBlocksLocation', () => {
@@ -571,9 +547,9 @@ describe('LocationHeleprs', () => {
 
   test('normalizedIntersectionNames', () => {
     expect(normalizedIntersectionNames(
-      ['Northwest Mammoth Avenue', 'Southwest Penguin Plaza']
+      {data: {streets: ['Northwest Mammoth Avenue', 'Southwest Penguin Plaza']}}
     )).toEqual(
-      ['NW Mammoth Ave', 'SW Penguin Plaza']
+      {data: {streets: ['NW Mammoth Ave', 'SW Penguin Plaza']}}
     );
   });
 
@@ -602,7 +578,7 @@ describe('LocationHeleprs', () => {
       }
     };
     expect(intersectionsByNodeIdToSortedIntersections(location, nodesToIntersectingStreetsWithNull)).toEqual(
-      [["way/665350226", "Victoria Avenue", "way/446472694"], ["way/665350226", "Victoria Avenue", "way/446472694"]]
+      [["Victoria Avenue", "way/446472694", "way/665350226"], ["Victoria Avenue", "way/446472694", "way/665350226"]]
     );
     const normalNodesToIntersectingStreets = {
       "node/4437341913": [
@@ -836,7 +812,7 @@ describe('LocationHeleprs', () => {
     const circleFeatures = R.map(
       pnt => point(R.reverse(pnt)),
       [
-        [22.369978, 114.113525],
+        [22.369978, 114.113525]
         //[22.246151, 114.169610]
       ]);
 
@@ -877,7 +853,7 @@ describe('LocationHeleprs', () => {
     const radius = 10;
     const units = 'meters';
 
-    const locationGeojson = locationsToGeojson(R.map(reqStrPathThrowing('location'), sampleStreetLocationsAndBlocks))
+    const locationGeojson = locationsToGeojson(R.map(reqStrPathThrowing('location'), sampleStreetLocationsAndBlocks));
     const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({
       osmConfig: {},
       bufferConfig: {radius, units, unionFeatures: true}
@@ -3019,7 +2995,7 @@ describe('LocationHeleprs', () => {
           ]
         }
       }
-    ]
-    expect(R.map(f => bufferAndUnionGeojson({radius: 50, units: 'meters'}, f), featuresAndCollections)).toBeTruthy()
-  })
+    ];
+    expect(R.map(f => bufferAndUnionGeojson({radius: 50, units: 'meters'}, f), featuresAndCollections)).toBeTruthy();
+  });
 });

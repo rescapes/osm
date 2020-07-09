@@ -133,7 +133,20 @@ describe('nominatimLocationSearch', () => {
       return rejected(reason);
     }).run().listen(defaultRunToResultConfig({
         onResolved: obj => {
-          expect(obj.placeId).toEqual(141621428);
+          expect(R.omit(['geojson'], obj)).toEqual(
+            {
+              "placeId": 154462321,
+              "osmId": 276650359,
+              "street": "Highway 507",
+              "county": "Pincher Creek No. 9",
+              "state": "AB",
+              "country": "Canada",
+              "countryCode": "ca",
+              "stateLong": "Alberta",
+              // City is set based on the county this location lacks a city and we currently require one
+              "city": "Pincher Creek No. 9"
+            }
+          )
         }
       },
       errors,

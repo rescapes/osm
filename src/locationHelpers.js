@@ -218,7 +218,6 @@ export const addressString = ({country, state, city, neighborhood, street, inter
  * Example: Main St & Chestnut St to Main St & Elm St, Anytown, Anystate, USA which will resolve to an intersection
  */
 export const addressStringForBlock = ({country, state, city, neighborhood, street, intersections}) => {
-
   return R.compose(
     R.join(', '),
     // Remove nulls and empty strings
@@ -227,7 +226,7 @@ export const addressStringForBlock = ({country, state, city, neighborhood, stree
     // If we have intersections with different first street names, list the street
     address => R.when(
       () => R.complement(R.equals)(...R.map(
-        intersection => strPathOr('none', 'data.streets', intersection),
+        intersection => strPathOr('none', 'data.streets.0', intersection),
         intersections)
       ),
       // List the street after

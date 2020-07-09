@@ -382,6 +382,23 @@ export const nominatimReverseGeocodeToLocationResultTask = ({lat, lon}) => {
         )(location),
         // Compose changes to the address object
         R.compose(
+          // If OSM doesn't have a city, build it. In the future we'll use all the jurisdiction level, but for
+          // now we require a city
+          obj => {
+            return R.unless(
+              obj => R.propOr(false, 'city', obj),
+              obj => R.set(
+                R.lensProp('city'),
+                // Find the first of county, region, or state to serve as the city
+                // Other values exist: https://github.com/osm-search/Nominatim/blob/6c1977b448e8b195bf96b6144674ffe0527e79de/lib/lib.php#L63
+                R.head(compact(R.map(
+                  str => R.propOr(null, str, obj),
+                  ['county', 'region', 'state']
+                ))),
+                obj
+              )
+            )(obj)
+          },
           // Remove point specific data that we don't care about
           obj => R.omit(['houseNumber', 'building', 'fastFood'], obj),
           // Convert underscore keys to camel case

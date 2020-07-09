@@ -30,6 +30,7 @@ const cli = meow(`
  
     Options
     --help, -h Show help and exit
+    --output-dir, -o The output directory
     --dev Query the local server instead of the production server. The local server is http://localhost/sop_api/graphql
     --log-debug Show all the SoP API, OpenStreetMap, and Google queries
     --external-source Optional geojson file of line strings to provide instead of querying OpenStreetMap. Used for
@@ -45,7 +46,11 @@ const cli = meow(`
     },
     logDebug: {
       type: 'boolean'
-    }
+    },
+    outputDir: {
+      type: 'string',
+      alias: 'o'
+    },
   }
 });
 
@@ -83,7 +88,7 @@ log.debug(`Config: ${JSON.stringify({osmConfig}, null, '\t')}`);
 const sequencedTask = composeWithChain([
   results => {
     return locationsToGeojsonFileResultTask(
-      '/tmp',
+      flags.o || '/tmp',
       `rescapeOsmlocationsToGeojsonFileResultTask_${moment().format('YYYY-MM-DD-HH-mm-SS')}`,
       R.map(R.prop('location'), results.Ok)
     );

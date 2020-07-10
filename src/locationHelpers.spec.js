@@ -130,6 +130,18 @@ describe('LocationHeleprs', () => {
     )
   );
 
+  test('addressStringForBlockNoIntersections', () =>
+    expect(addressStringForBlock({
+      country: 'USA',
+      state: 'DC',
+      city: 'Washington',
+      street: 'Monroe St',
+    })).toEqual(
+      'Intersections N/A (Street Name: Monroe St), Washington, DC, USA'
+    )
+  );
+
+
   test('intersectionsByNodeIdToSortedIntersections', () => {
     expect(intersectionsByNodeIdToSortedIntersections(
       {

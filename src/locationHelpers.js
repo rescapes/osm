@@ -227,10 +227,10 @@ export const addressStringForBlock = ({country, state, city, neighborhood, stree
     address => R.when(
       () => R.complement(R.equals)(...R.map(
         intersection => strPathOr('none', 'data.streets.0', intersection),
-        intersections)
+        intersections || [])
       ),
       // List the street after
-      address => `${address} (Street Name: ${street})`
+      address => `${address || 'Intersections N/A'} (Street Name: ${street})`
     )(address),
     intersections => R.join(' <-> ', intersections),
     // Use the intersections or the street and neighborhood if they aren't available
@@ -238,7 +238,7 @@ export const addressStringForBlock = ({country, state, city, neighborhood, stree
       intersection => {
         return addressForIntersection({street, neighborhood}, intersection);
       },
-      intersections
+      intersections || []
     )
   )(intersections);
 };
@@ -355,11 +355,16 @@ export const commonStreetOfLocation = (location, streetIntersectionSets) => {
       // If there's a question about who's the main block, consult locationWithNominatimData
       const wayFeature = R.find(
         feature => isOsmType('way', feature),
-        reqStrPathThrowing('geojson.features', location)
+        strPathOr([], 'geojson.features', location)
       );
       // Use the name of the way or failing that the id
       // This will probably always match one the names in each intersection, unless the way is super weird
-      return wayFeatureName(wayFeature);
+      // If there is no wayFeature default to the first common or 'Unknown'
+      return R.ifElse(
+        R.identity,
+        wayFeature => wayFeatureName(wayFeature),
+        () => R.head(common) || 'Unknown'
+      )(wayFeature);
     },
     common => R.head(common)
   )(common);

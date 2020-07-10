@@ -361,7 +361,7 @@ export const nominatimResultTask = location => {
  * the OSM format and get rid of our flat address format
  * @param lat
  * @param lon
- * @returns {Task<Result<Object>>} locatoin with the osm top level keys and address object flattened. We change
+ * @returns {Task<Result<Object>>} location with the osm top level keys and address object flattened. We change
  * the name of road to street to match our format
  */
 export const nominatimReverseGeocodeToLocationResultTask = ({lat, lon}) => {

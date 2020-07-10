@@ -15,8 +15,11 @@ import {
   traverseReduce,
   traverseReduceDeep
 } from 'rescape-ramda';
+import {lineString} from '@turf/helpers';
 import distance from '@turf/distance';
 import {extractSquareGridFeatureCollectionFromGeojson, turfBboxToOsmBbox, turfPointToLocation} from 'rescape-helpers';
+import length from '@turf/length';
+import along from '@turf/along';
 import center from '@turf/center';
 import bbox from '@turf/bbox';
 import * as R from 'ramda';
@@ -38,7 +41,8 @@ import {
   geojsonFeaturesIsPoint,
   isNominatimEligible,
   isOsmType,
-  locationAndOsmBlocksToLocationWithGeojson
+  locationAndOsmBlocksToLocationWithGeojson,
+  osmFeaturesOfLocationForType
 } from './locationHelpers';
 import {v} from 'rescape-validate';
 import PropTypes from 'prop-types';
@@ -125,12 +129,19 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                   obj => R.compose(of, Result.Ok)(obj),
                   // Reverse geocode and combine block, favoring keys already in locationWithNominatimData
                   ({block, location}) => {
-                    // Convert the geojson line into a {lat, lon} center point
+                    // Convert the geojson line into a {lat, lon} middle point along the ways
                     const searchLatLon = R.compose(
                       latLon => R.fromPairs(R.zip(['lat', 'lon'], latLon)),
                       point => turfPointToLocation(point),
                       geojson => center(geojson),
-                      location => R.prop('geojson', location)
+                      ({line, length}) => along(line, length / 2 , {units: 'meters'}),
+                      line => ({line, length: length(line, {units: 'meters'})}),
+                      ways => lineString(R.reduce(
+                        (acc, way) => R.uniq(R.concat(acc, reqStrPathThrowing('geometry.coordinates', way))),
+                        [],
+                        ways
+                      )),
+                      location => osmFeaturesOfLocationForType('way', location)
                     )(location);
                     // Task Result Object -> Task Result Object
                     return composeWithChainMDeep(2, [

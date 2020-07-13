@@ -1090,25 +1090,9 @@ export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersect
       intersections: [
         {
           data: {streets: compact([blockname, intersc1])},
-          ...intersection1Location ? {
-            geojson: {
-              type: 'FeatureCollection',
-              features: [
-                locationToTurfPoint(intersection1Location)
-              ]
-            }
-          } : {}
         },
         {
           data: {streets: compact([blockname, intersc2])},
-          ...intersection2Location ? {
-            geojson: {
-              type: 'FeatureCollection',
-              features: [
-                locationToTurfPoint(intersection2Location)
-              ]
-            }
-          } : {}
         }
       ]
     },

@@ -1276,6 +1276,14 @@
     "@turf/destination" "^5.1.5"
     "@turf/helpers" "^5.1.5"
 
+"@turf/circle@^6.0.1":
+  version "6.0.1"
+  resolved "https://registry.yarnpkg.com/@turf/circle/-/circle-6.0.1.tgz#0ab72083373ae3c76b700c17a504ab1b5c0910b9"
+  integrity sha512-pF9XsYtCvY9ZyNqJ3hFYem9VaiGdVNQb0SFq/zzDMwH3iWZPPJQHnnDB/3e8RD1VDtBBov9p5uO2k7otsfezjw==
+  dependencies:
+    "@turf/destination" "6.x"
+    "@turf/helpers" "6.x"
+
 "@turf/clean-coords@5.1.x", "@turf/clean-coords@^5.1.5":
   version "5.1.5"
   resolved "https://registry.yarnpkg.com/@turf/clean-coords/-/clean-coords-5.1.5.tgz#12800a98a78c9a452a72ec428493c43acf2ada1f"
@@ -2252,6 +2260,15 @@
   dependencies:
     "@turf/helpers" "^5.1.5"
     turf-jsts "*"
+
+"@turf/union@^6.0.3":
+  version "6.0.3"
+  resolved "https://registry.yarnpkg.com/@turf/union/-/union-6.0.3.tgz#463b62d71c406f40a6978f560bfb92e88fe7db56"
+  integrity sha512-SJPhEvsR96k4vFqymxPPC43jcqFydTafGjHWnYzlupxqUDzIYD8X5d9Ed8mONl2T9oM4ErbNuuZ9j/eHvoWtKw==
+  dependencies:
+    "@turf/helpers" "6.x"
+    "@turf/invariant" "6.x"
+    martinez-polygon-clipping "^0.4.3"
 
 "@turf/unkink-polygon@5.1.x":
   version "5.1.5"

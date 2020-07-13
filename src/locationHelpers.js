@@ -74,9 +74,9 @@ export const isLatLng = address => {
 
 /***
  * Some countries don't resolve locations well in Google with their states, provinces, cantons, etc
- * @param {Object} location The locationWithNominatimData from which to remove the state if its country is in the
+ * @param {Object} location The location from which to remove the state if its country is in the
  * EXCLUDE_STATES_FROM_COUNTRIES list
- * @return {Object} The locationWithNominatimData with the state possibly removed
+ * @return {Object} The location with the state possibly removed
  */
 export const removeStateFromSomeCountriesForSearch = location => {
   return R.when(
@@ -270,8 +270,8 @@ const addressForIntersection = ({street, neighborhood}, intersection) => {
 };
 
 /**
- * Given a locationWithNominatimData with 2 pairs of intersections, returns the address string for each intersection
- * @param {Object} location The locationWithNominatimData
+ * Given a location with 2 pairs of intersections, returns the address string for each intersection
+ * @param {Object} location The location
  * @param {[[String]]} location.intersections Two pairs of intersection names
  */
 export const addressStrings = location => {
@@ -279,7 +279,7 @@ export const addressStrings = location => {
 };
 
 /**
- * Given a locationWithNominatimData with 2 paris of intersections, returns two locations that each have a one element intersections array.
+ * Given a location with 2 paris of intersections, returns two locations that each have a one element intersections array.
  * Each of the two locations has one of the intersections
  * @param location
  * @return {*}
@@ -313,11 +313,11 @@ export const jurisdictionString = ({country, state, city, street}) => {
 };
 
 /**
- * Given a locationWithNominatimData returns a pair of address strings representing both ends of the block. If
- * @param {Object} location The locationWithNominatimData object
+ * Given a location returns a pair of address strings representing both ends of the block. If
+ * @param {Object} location The location object
  * @param {[[String]|String]} location.intersections. Two pairs of streets used for the two intersections.
  * Each of these pairs can alternatively be a lat,lon string for more precise resolution
- * @returns {[String]} Two address strings for the locationWithNominatimData
+ * @returns {[String]} Two address strings for the location
  */
 export const addressPair = location => {
   const locationProps = R.pick(['country', 'state', 'city', 'neighborhood'], location);
@@ -352,7 +352,7 @@ export const commonStreetOfLocation = (location, streetIntersectionSets) => {
   return R.ifElse(
     common => R.compose(R.not, R.equals(1), R.length)(common),
     () => {
-      // If there's a question about who's the main block, consult locationWithNominatimData
+      // If there's a question about who's the main block, consult location
       const wayFeature = R.find(
         feature => isOsmType('way', feature),
         strPathOr([], 'geojson.features', location)
@@ -396,7 +396,7 @@ export const wayFeatureNameOrDefault = (defaultTo, wayFeature) => {
  * The streets at each intersection are listed alphabetically following the street that represents the block.
  * If a node represents a dead-end rather than an intersection then the one intersection is returned along
  * with a pseudo intersection that is the block name and the dead-end node id.
- * @param {Object} location locationWithNominatimData.geojson.features are used to help pick the main street
+ * @param {Object} location location.geojson.features are used to help pick the main street
  * @param {Object} nodesToIntersectingStreets Keyed by node id and valued by an array of 2 or more street names
  * @returns {[[String]]} Two intersections (where one might be a pseudo dead-end intersection). Each has a list
  * of two or more street names. The block name is always first followed by the others alphabetically
@@ -418,7 +418,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
   const streetIntersectionSets = R.when(
     R.compose(R.equals(1), R.length),
     streetIntersectionSets => R.append(
-      // Find the locationWithNominatimData geojson feature node that doesn't occur in nodesToIntersectingStreets.
+      // Find the location geojson feature node that doesn't occur in nodesToIntersectingStreets.
       // This must be our dead-end node. Grab it's id and use that as it's street name
       [
         street,
@@ -506,7 +506,7 @@ export const isResolvableAllBlocksLocation = location => {
 };
 
 /**
- * Returns true if the locationWithNominatimData is eligible for a nominatim
+ * Returns true if the location is eligible for a nominatim
  * @param location
  * @returns {f1}
  */
@@ -515,7 +515,7 @@ export const isNominatimEligible = location => {
 };
 
 /**
- * Returns true if the given locationWithNominatimData's features have a shape or has a feature.properties.radius
+ * Returns true if the given location's features have a shape or has a feature.properties.radius
  * @param {Object} geojson FeatureCollection or similar
  * @returns {Boolean} True if all features have either a shape or a properties.radius amount, otherwise false
  */
@@ -610,7 +610,7 @@ export const featureRepresentsCircle = feature => {
 };
 
 /**
- * Does the locationWithNominatimData have at least one geojson features
+ * Does the location have at least one geojson features
  * @param {Object} location
  * @param {Object} location.geojson
  * @param {Object} location.geojson.features
@@ -632,9 +632,9 @@ export const locationHasGeojsonFeatures = location => {
 };
 
 /**
- * Combines a locationWithNominatimData with the ways and nodes that came back from OSM queries, putting them in the locationWithNominatimData's
+ * Combines a location with the ways and nodes that came back from OSM queries, putting them in the location's
  * geojson property as a FeatureCollection
- * @param {Object} location A locationWithNominatimData object with intersections set matching the given ways and nodes
+ * @param {Object} location A location object with intersections set matching the given ways and nodes
  * @param {Object} block OSM features. Must contain ways and nodes keys, relations are optional
  * @param {[Object]} block.ways List of one or more ways of the block
  * @param {[Object]} block.nodes List of two or more nodes of the block
@@ -680,7 +680,7 @@ export const aggregateLocation = ({preserveLocationGeojson}, location, component
     // we chop ways into individual blocks, so they have the same id but different points
     featuresByType => R.over(R.lensProp('nodes'), nodes => R.uniqBy(R.prop('id'), nodes || []), featuresByType),
     features => featuresByOsmType(features),
-    // Get features of each locationWithNominatimData and chain them together
+    // Get features of each location and chain them together
     R.chain(
       blockLocation => strPathOr([], 'geojson.features', blockLocation)
     )
@@ -727,7 +727,7 @@ export const featuresOfOsmType = v((osmType, features) => {
 
 /**
  * Indicates if loction has an array intersectionLocations with values, meaning it has lat/lon points which
- * tell us where the block locationWithNominatimData is
+ * tell us where the block location is
  * @param blockLocation
  */
 export const locationHasLocationPoints = blockLocation => R.compose(
@@ -740,7 +740,7 @@ export const locationHasLocationPoints = blockLocation => R.compose(
  * Gets locationPoints from the blockLocation from blockLocation.locationPoints or geojson.feature nodes or
  * from interscections that have lat/lons (they shouldn't but this is legacy) or from googleIntersectionObjects
  * @param {Object} blockLocation contains possibly  locationPoinst, intersections, googleIntersctionPoints, and/or geojson
- * @returns {Object} the locationWithNominatimData with the locationPoints set to a two element array if anything was found
+ * @returns {Object} the location with the locationPoints set to a two element array if anything was found
  */
 export const locationWithLocationPoints = blockLocation => {
   return R.over(
@@ -919,7 +919,7 @@ export const isOsmType = (type, feature) => {
 };
 
 /**
- * Returns the matching features of the locationWithNominatimData
+ * Returns the matching features of the location
  * @param {String} type 'way', 'node', or 'relation'
  * @param {Object} location
  * @param {Object} location.geojson

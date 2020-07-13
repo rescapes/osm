@@ -63,7 +63,7 @@ describe('overpassStreet', () => {
   }, 200000);
 
   // osmLocationToRelationshipGeojsonResultTaskStreet with component locations selected to be used for geojson
-  // We do this test by fetching the component locationWithNominatimData from OSM first
+  // We do this test by fetching the component location from OSM first
   test('osmLocationToRelationshipGeojsonResultTaskStreetWithComponentLocations', done => {
     expect.assertions(1);
     const errors = [];
@@ -107,7 +107,7 @@ describe('overpassStreet', () => {
   }, 200000);
 
   // osmLocationToRelationshipGeojsonResultTaskStreet with component locations selected to be used for geojson
-  // We do this test by fetching the component locationWithNominatimData from OSM first
+  // We do this test by fetching the component location from OSM first
   test('_constructStreetQuery', done => {
     expect.assertions(1);
     const errors = [];

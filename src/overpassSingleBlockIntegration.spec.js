@@ -16,6 +16,7 @@ import {
 import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import * as R from 'ramda';
 import {loggers} from 'rescape-log';
+
 const log = loggers.get('rescapeDefault');
 
 // Integration testing. Unmocked tests
@@ -51,7 +52,7 @@ describe('overpassIntegration', () => {
   }, 50000);
 
   // Query multiple locations and combine results. Expect one result in Ok and one in Errors
-  // Currently the second locationWithNominatimData here doesn't resolve because of a weird highway intersection. It might
+  // Currently the second location here doesn't resolve because of a weird highway intersection. It might
   // work in the future though when the query code is improved
   test('queryLocationForOsmSingleBlocksResultsTask', done => {
     expect.assertions(1);
@@ -59,13 +60,13 @@ describe('overpassIntegration', () => {
     const osmConfig = {};
     queryLocationForOsmSingleBlocksResultsTask(osmConfig, [
       {
-      country: 'USA',
-      state: 'California',
-      city: 'Oakland',
-      neighborhood: 'Adams Point',
-      // Intentionally put Grand Ave a different positions
-      intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
-    },
+        country: 'USA',
+        state: 'California',
+        city: 'Oakland',
+        neighborhood: 'Adams Point',
+        // Intentionally put Grand Ave a different positions
+        intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
+      },
       {
         intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']
       }
@@ -237,7 +238,7 @@ describe('overpassIntegration', () => {
   // Here East Columbia Avenue becomes West Columbia Avenue
   test('fetchOSMBlockWhereMainBlockChangesName', done => {
     expect.assertions(1);
-    const osmConfig = {}
+    const osmConfig = {};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
       country: 'USA',
       state: 'IL',
@@ -295,7 +296,7 @@ describe('overpassIntegration', () => {
 
   test('fetchBlockWithJogAtIntersectionProducing2Nodes', done => {
     const location = {
-      'intersections': [['High St', 'Shortland St'], ['High St', 'Vulcan Ln']],
+      'intersections': {data: {streets: [['High St', 'Shortland St'], ['High St', 'Vulcan Ln']]}},
       'neighborhood': 'Viaduct Basin',
       'city': 'Auckland',
       'state': '',
@@ -317,7 +318,7 @@ describe('overpassIntegration', () => {
 
   test('fetchBlockForDividedRoad', done => {
     const location = {
-      'intersections': [['Lee Hwy', 'N Buchanan St'], ['Lee Hwy', 'N Glebe Rd']],
+      'intersections': {data: {streets: [['Lee Hwy', 'N Buchanan St'], ['Lee Hwy', 'N Glebe Rd']]}},
       'city': 'Arlington',
       'state': 'VA',
       'country': 'USA'

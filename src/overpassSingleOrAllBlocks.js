@@ -30,10 +30,10 @@ import {toArrayIfNot, strPathOr} from 'rescape-ramda';
  * Queries locationToOsmAllBlocksQueryResultsTask or queryLocationForOsmSingleBlockResultTask
  * @param {Object} osmConfig
  * @param {Object} osmConfig.forceOsmQuery
- * @param {Object} location A locationWithNominatimData that must be resolvable to a block or city/neighborhood area
+ * @param {Object} location A location that must be resolvable to a block or city/neighborhood area
  * @returns {Task<{Ok: Result.Ok, Error: Result.Error}>} Successful values in the Ok: [] array and errors in the Error: [] array.
- * Single block query will only have one result. The result value is {locationWithNominatimData, results} where locationWithNominatimData
- * is the locationWithNominatimData block object (either from the single block query or each block of multiple results) and
+ * Single block query will only have one result. The result value is {location, results} where location
+ * is the location block object (either from the single block query or each block of multiple results) and
  * results are the OSM results {way: way features, node: node features, intersections: {keyed by node id valued by street names of the intersection}}
  */
 export const queryLocationForOsmBlockOrAllResultsTask = (osmConfig, location) => {
@@ -77,11 +77,11 @@ const _queryLocationForOsmSingleBlockAllResultsTask = (osmConfig, location) => {
         Ok: ({value}) => ({
           Ok: R.map(
             value => {
-              // Create the geojson fro the locationWithNominatimData
+              // Create the geojson fro the location
               const {block: {ways, nodes, nodesToIntersectingStreets}} = value;
               return {
                 block: {nodesToIntersectingStreets},
-                // Assign the geojson to the locationWithNominatimData if it hasn't been assigned yet or is forced
+                // Assign the geojson to the location if it hasn't been assigned yet or is forced
                 location: R.when(
                   R.either(
                     () => strPathOr(false, 'forceOsmQuery', osmConfig),

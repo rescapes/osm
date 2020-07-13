@@ -72,7 +72,7 @@ export {
 } from './locationHelpers';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
 export {fetchTransitOsm} from './overpassTransit';
-export {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
+export {queryLocationForOsmSingleBlockResultTask, queryLocationForOsmSingleBlocksResultsTask} from './overpassSingleBlock';
 export {
   locationToOsmAllBlocksQueryResultsTask, nominatimOrGoogleJurisdictionGeojsonResultTask, bufferedFeaturesToOsmAllBlocksQueryResultsTask,
   locationToOsmAllBlocksThenBufferedMoreBlocksResultsTask

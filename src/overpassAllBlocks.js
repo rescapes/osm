@@ -65,7 +65,7 @@ const log = loggers.get('rescapeDefault');
  */
 
 /**
- * Resolve the locationWithNominatimData and then query for the all of its blocks in overpass.
+ * Resolve the location and then query for the all of its blocks in overpass.
  * This process will first use nominatimResultTask to query nomatim.openstreetmap.org for the relationship
  * of the neighborhood of the city. If it fails it will try the entire city. With this result we
  * query overpass using the area representation of the neighborhood or city, which is the OpenStreetMap id
@@ -76,14 +76,14 @@ const log = loggers.get('rescapeDefault');
  * @param {Object} [osmConfig.allowFallbackToCity] Default false. Let's the nomanatim query fallback to the city
  * @param {Object} [osmConfig.minimumWayLength]. The minimum lengths of way features to return. Defaults to 20 meters.
  * if the neighborhood can't be found
- * @param {Object} locationWithNominatimData A locationWithNominatimData object
+ * @param {Object} location A location object
  * @returns {Task<{Ok: blocks, Error: errors>}>}
- * In Ok a list of results found in the form [{locationWithNominatimData,  results}]
- * Where each locationWithNominatimData represents a block and the results are the OSM geojson data
+ * In Ok a list of results found in the form [{location,  results}]
+ * Where each location represents a block and the results are the OSM geojson data
  * The results contain nodes and ways and intersections (the street intersections of each node)
- * Error contains Result.Errors in the form {errors: {errors, locationWithNominatimData}, locationWithNominatimData} where the internal
- * locationWithNominatimData are varieties of the original with an osm area id added. result.Error is only returned
- * if no variation of the locationWithNominatimData succeeds in returning a result
+ * Error contains Result.Errors in the form {errors: {errors, location}, location} where the internal
+ * location are varieties of the original with an osm area id added. result.Error is only returned
+ * if no variation of the location succeeds in returning a result
  */
 export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) => {
   return R.composeK(
@@ -101,8 +101,8 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
         })
       }));
     },
-    // The last step is to assign each locationWithNominatimData jurisdiction information if it doesn't already have it
-    // We check country and (city or county) of the locationWithNominatimData and only query for jurisdiction data if it lacks these fields
+    // The last step is to assign each location jurisdiction information if it doesn't already have it
+    // We check country and (city or county) of the location and only query for jurisdiction data if it lacks these fields
     result => {
       return resultToTaskWithResult(
         // Process Result Tasks locations, merging in jurisdiction data when needed
@@ -127,7 +127,7 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                   },
                   // If we had a country or city, we already have jurisdiction data. Just rewrap in Result.Ok and task
                   obj => R.compose(of, Result.Ok)(obj),
-                  // Reverse geocode and combine block, favoring keys already in locationWithNominatimData
+                  // Reverse geocode and combine block, favoring keys already in location
                   ({block, location}) => {
                     // Convert the geojson line into a {lat, lon} middle point along the ways
                     const searchLatLon = R.compose(
@@ -198,7 +198,7 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
         }
       )(result);
     },
-    // Use the results to create geojson for the locationWithNominatimData
+    // Use the results to create geojson for the location
     // Task Result [<results, locationWithNominatimData>] -> Task Result [<results, locationWithNominatimData>]
     locationBlocksResult => {
       return of(mapMDeep(2,

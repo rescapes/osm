@@ -771,7 +771,7 @@ export const _googleResolveJurisdictionResultTask = location => mapMDeep(2,
               // wins
               googleIntersectionStreetname => 1 - compareTwoStrings(
                 googleIntersectionStreetname,
-                reqStrPathThrowing('0', locationIntersection)
+                reqStrPathThrowing('data.streets.0', locationIntersection)
               ),
               googleIntersection
             );

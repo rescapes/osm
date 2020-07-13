@@ -112,7 +112,7 @@ describe('overpassSingleBlock', () => {
     expect.assertions(3);
     const osmConfig = {};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
-      'intersections': [['High St', 'Durham St E'], ['High St', 'Victoria St E']],
+      'intersections': {data: {streets: [['High St', 'Durham St E'], ['High St', 'Victoria St E']]}},
       'neighborhood': 'Viaduct Basin',
       'city': 'Auckland',
       'country': 'New Zealand'
@@ -174,7 +174,7 @@ describe('overpassSingleBlock', () => {
     );
   }, 200000);
 
-  // If the single locationWithNominatimData query fails the codee should perform a bounds query based on the two locationPoints
+  // If the single location query fails the codee should perform a bounds query based on the two locationPoints
   // to resolve the block
   test('testUseBoundsQueryForFailingSingleLocationQuery', done => {
     const errors = [];
@@ -203,7 +203,7 @@ describe('overpassSingleBlock', () => {
       }, errors, done));
   }, 2000000);
 
-  // If the single locationWithNominatimData query fails the codee should perform a bounds query based on the two locationPoints
+  // If the single location query fails the codee should perform a bounds query based on the two locationPoints
   // to resolve the block
   test('testUseBoundsQueryForSingleLocationQuery', done => {
     const errors = [];

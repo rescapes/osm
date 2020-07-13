@@ -23,20 +23,20 @@ const log = loggers.get('rescapeDefault');
 
 /**
  * TODO _constructStreetQuery is now used by overpassSingleOrAllBlocks
- * Given a locationWithNominatimData with an osmId included, query the Overpass API and cleanup the results to get all the blocks
+ * Given a location with an osmId included, query the Overpass API and cleanup the results to get all the blocks
  * for the given street for the part of the street in the given neighborhood, city, state, country, etc.
  * @param {Object} osmConfig The osm config
  * @param {Object} osmConfig.minimumWayLength. The minimum lengths of way features to return. Defaults to 20 meters.
  * @param {Object} location A Location object.
  * @param {Number} [location.osmId], Optional osmId to limit the area of the queries. If this isn't defined then nominatm is queried to get it
- * @returns {Task<Result<[Object]>>} Result.Ok with the successful locationWithNominatimData blocks containing geojson
+ * @returns {Task<Result<[Object]>>} Result.Ok with the successful location blocks containing geojson
  * The results contain nodes and ways of the streets, where nodes are where intersections occur
  * There must be at least on way and possibly more
  * Some blocks have more than two nodes if they have multiple divided ways.
  */
 export const queryOverpassWithLocationForStreetResultTask = (osmConfig, location) => {
   return composeWithChainMDeep(2, [
-    // Take the positive results and combine them with the locationWithNominatimData, which has corresponding intersections
+    // Take the positive results and combine them with the location, which has corresponding intersections
     ({locationsAndBlock}) => {
       return of(Result.Ok(R.map(
         ({location, block}) => {
@@ -57,7 +57,7 @@ export const queryOverpassWithLocationForStreetResultTask = (osmConfig, location
         ).map(results => Result.Ok(results.Ok));
       }
     ),
-    // Build an OSM query for the locationWithNominatimData. We have to query for ways and then nodes because the API muddles
+    // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
     // the geojson if we request them together
     mapToNamedResponseAndInputsMDeep(2, 'queries',
       // Location l, String w, String n: l -> <way: w, node: n>

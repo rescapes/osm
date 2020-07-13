@@ -729,7 +729,11 @@ export const featuresOfOsmType = v((osmType, features) => {
 ], 'featuresOfOsmType');
 
 /**
- * Indicates if loction has an array intersectionLocations with values, meaning it has lat/lon points which
+ * TODO use of locationPoints is deprecated and removed. Use geojson: {type: 'FeatureCollection', features: [
+ *   {type: 'Feature', geometry: [location point in geojson order]},
+ *   {type: 'Feature', geometry: [location point in geojson order]}
+ * ]} instead
+ * Indicates if location has an array intersectionLocations with values, meaning it has lat/lon points which
  * tell us where the block location is
  * @param blockLocation
  */
@@ -1114,8 +1118,8 @@ export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersect
         features: [
           // We don't put in a fake way here. We assume the single block resolution code will find the way from OSM
           // based on these 2 points
-          locationToTurfPoint(intersection1Location),
-          locationToTurfPoint(intersection2Location),
+          locationToTurfPoint(R.map(s => parseFloat(s), R.split(',', intersection1Location))),
+          locationToTurfPoint(R.map(s => parseFloat(s), R.split(',', intersection2Location)))
         ]
       }
     } : {}

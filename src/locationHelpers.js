@@ -1080,31 +1080,42 @@ export const isWithinPolygon = R.curry((polygon, features) => {
  * @return {{blockname: *, intersections: [{streets: [*, *]}, {streets: [*, *]}]}}
  */
 export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersection1Location, intersection2Location}) => {
-  return {
-    blockname,
-    intersections: [
-      {
-        data: {streets: compact([blockname, intersc1])},
-        ...intersection1Location ? {
-          geojson: {
-            type: 'FeatureCollection',
-            features: [
-              locationToTurfPoint(intersection1Location)
-            ]
-          }
-        } : {}
-      },
-      {
-        data: {streets: compact([blockname, intersc2])},
-        ...intersection2Location ? {
-          geojson: {
-            type: 'FeatureCollection',
-            features: [
-              locationToTurfPoint(intersection2Location)
-            ]
-          }
-        } : {}
+  return R.merge(
+    {
+      blockname,
+      intersections: [
+        {
+          data: {streets: compact([blockname, intersc1])},
+          ...intersection1Location ? {
+            geojson: {
+              type: 'FeatureCollection',
+              features: [
+                locationToTurfPoint(intersection1Location)
+              ]
+            }
+          } : {}
+        },
+        {
+          data: {streets: compact([blockname, intersc2])},
+          ...intersection2Location ? {
+            geojson: {
+              type: 'FeatureCollection',
+              features: [
+                locationToTurfPoint(intersection2Location)
+              ]
+            }
+          } : {}
+        }
+      ]
+    },
+    intersection1Location || intersection2Location ? {
+      geojson: {
+        type: 'FeatureCollection',
+        features: [
+          locationToTurfPoint(intersection1Location),
+          locationToTurfPoint(intersection2Location)
+        ]
       }
-    ]
-  };
+    } : {}
+  );
 };

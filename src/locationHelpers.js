@@ -286,7 +286,10 @@ export const addressStrings = location => {
  */
 export const oneLocationIntersectionsFromLocation = location => {
   return R.map(
-    intersection => ({intersections: [intersection], ...R.omit(['intersections'], location)}),
+    intersection => ({
+      intersections: [intersection],
+      ...R.omit(['intersections'], location)
+    }),
     location.intersections
   );
 };

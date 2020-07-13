@@ -173,12 +173,12 @@ export const organizeResponseFeaturesResultsTask = (
               const filteredWays = R.filter(way => {
                 const geometry = R.prop('geometry', way);
                 if (R.none(type => R.propEq('type', type, geometry))(['LineString', 'MultiLineString'])) {
-                  console.warn(`The following way had an invalid geometry type. Skipping it: ${JSON.stringify(way)}`)
-                  return false
+                  console.warn(`The following way had an invalid geometry type. Skipping it: ${JSON.stringify(way)}`);
+                  return false;
                 }
-                return true
-              }, ways)
-              return _buildPartialBlocks({ways: filteredWays, nodes})
+                return true;
+              }, ways);
+              return _buildPartialBlocks({ways: filteredWays, nodes});
             }
           )(partialBlocks)
         );
@@ -225,7 +225,12 @@ export const _partialBlocksToFeaturesResultsTask = (
             location: R.merge(
               location,
               {
-                intersections: R.values(nodesToIntersectingStreets)
+                intersections: [
+                  R.map(
+                    streets => ({data: {streets}}),
+                    R.values(nodesToIntersectingStreets)
+                  )
+                ]
               }
             )
           });

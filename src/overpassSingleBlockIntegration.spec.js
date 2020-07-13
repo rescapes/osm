@@ -40,7 +40,7 @@ describe('overpassIntegration', () => {
       city: 'Oakland',
       neighborhood: 'Adams Point',
       // Intentionally put Grand Ave a different positions
-      intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
+      intersections: [{data: {streets: ['Grand Ave', 'Perkins St']}}, {data: {streets: ['Lee St', 'Grand Ave']}}], blockname: 'Grand Ave'
     }).run().listen(defaultRunToResultConfig({
         onResolved: ({result, location}) => {
           // Expect it to be two ways
@@ -65,10 +65,10 @@ describe('overpassIntegration', () => {
         city: 'Oakland',
         neighborhood: 'Adams Point',
         // Intentionally put Grand Ave a different positions
-        intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
+        intersections: [{data: {streets: ['Grand Ave', 'Perkins St']}}, {data: {streets: ['Lee St', 'Grand Ave']}}], blockname: 'Grand Ave'
       },
       {
-        intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']
+        geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [-73.8057879, 40.6660816]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [-73.80604, 40.66528]}}]}
       }
     ]).run().listen(defaultRunConfig({
         onResolved: (results) => {
@@ -87,7 +87,7 @@ describe('overpassIntegration', () => {
       country: 'Norway',
       city: 'Oslo',
       neighborhood: 'Sentrum',
-      intersections: [['Kongens gate', 'Myntgata'], ['Kongens gate', 'Revierstredet']]
+      intersections: [{data: {streets: ['Kongens gate', 'Myntgata']}}, {data: {streets: ['Kongens gate', 'Revierstredet']}}], blockname: 'Kongens gate'
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
@@ -110,7 +110,7 @@ describe('overpassIntegration', () => {
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
-      intersections: [['Pedersgata', 'A. B. C. Gata'], ['Pedersgata', 'Vinkelgata']]
+      intersections: [{data: {streets: ['Pedersgata', 'A. B. C. Gata']}}, {data: {streets: ['Pedersgata', 'Vinkelgata']}}], blockname: 'Pedersgata'
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
@@ -132,7 +132,7 @@ describe('overpassIntegration', () => {
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
-      intersections: [['Pedersgata', 'Nykirkebakken'], ['Pedersgata', 'A.B.C Gata']]
+      intersections: [{data: {streets: ['Pedersgata', 'Nykirkebakken']}}, {data: {streets: ['Pedersgata', 'A.B.C Gata']}}], blockname: 'Pedersgata'
     }).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({location, results}) => {
@@ -163,7 +163,7 @@ describe('overpassIntegration', () => {
       // BAD SPELLING
       city: 'Los Angleles',
       neighborhood: 'Boyle Heights',
-      intersections: [['East 1st St', 'North Savannah Street'], ['East 1st St', 'North Saratoga Street']]
+      intersections: [{data: {streets: ['East 1st St', 'North Savannah Street']}}, {data: {streets: ['East 1st St', 'North Saratoga Street']}}], blockname: 'East 1st St'
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.mapError(
@@ -182,11 +182,11 @@ describe('overpassIntegration', () => {
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
-      intersections: [['Langgata', 'Pedersgata'], ['Vinkelgata', 'Pedersgata']],
+      intersections: [{data: {streets: ['Langgata', 'Pedersgata']}}, {data: {streets: ['Vinkelgata', 'Pedersgata']}}], blockname: 'Langgata',
       data: {
         osmOverrides: {
           // We have to override OSM names because they differ from Google
-          intersections: [['Langgata', 'Nytorget'], ['Vinkelgata', 'Nytorget']],
+          intersections: [{data: {streets: ['Langgata', 'Nytorget']}}, {data: {streets: ['Vinkelgata', 'Nytorget']}}], blockname: 'Langgata',
           // Hard code node ids because there are two Nytorget streets that intersect
           nodes: [351103238, 367331193]
         }
@@ -217,7 +217,7 @@ describe('overpassIntegration', () => {
       state: 'NC',
       city: 'Charlotte',
       neighborhood: 'South Park',
-      intersections: [['Barclay Downs Drive', 'Carnegie Boulevard'], ['Barclay Downs Drive', 'Bulfinch Road']],
+      intersections: [{data: {streets: ['Barclay Downs Drive', 'Carnegie Boulevard']}}, {data: {streets: ['Barclay Downs Drive', 'Bulfinch Road']}}], blockname: 'Barclay Downs Drive',
       data: {
         osmOverrides: {
           extraWays: {
@@ -245,8 +245,8 @@ describe('overpassIntegration', () => {
       city: 'Champaign',
       neighborhood: 'Downtown Champaign',
       intersections: [
-        ['East Columbia Avenue', 'North Neil Street'],
-        ['West Columbia Avenue', 'North Randolph Street']
+        {data: {streets: ['East Columbia Avenue', 'North Neil Street']}},
+        {data: {streets: ['West Columbia Avenue', 'North Randolph Street']}}
       ]
     }).run().listen(defaultRunConfig(
       {
@@ -296,6 +296,7 @@ describe('overpassIntegration', () => {
 
   test('fetchBlockWithJogAtIntersectionProducing2Nodes', done => {
     const location = {
+      'street': 'High St',
       'intersections': {data: {streets: [['High St', 'Shortland St'], ['High St', 'Vulcan Ln']]}},
       'neighborhood': 'Viaduct Basin',
       'city': 'Auckland',

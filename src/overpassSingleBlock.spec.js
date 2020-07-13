@@ -27,7 +27,7 @@ describe('overpassSingleBlock', () => {
     expect.assertions(4);
     const osmConfig = {};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
-      intersections: ['40.6660816,-73.8057879', '40.66528,-73.80604']
+      geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [-73.8057879, 40.6660816]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [-73.80604, 40.66528]}}]}
     }).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({results, location}) => {
@@ -83,7 +83,7 @@ describe('overpassSingleBlock', () => {
     // includePedestrianArea isn't currently default functionality
     const osmConfig = {includePedestrianArea: true};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
-      intersections: ['59.952305, 11.047053', '59.952248, 11.045588']
+      geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [11.047053, 59.952305]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [11.045588, 59.952248]}}]}
     }).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({results, location}) => {
@@ -181,7 +181,7 @@ describe('overpassSingleBlock', () => {
     expect.assertions(1);
     const osmConfig = {};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
-      intersections: ['47.5473, 7.5847', '47.5458, 7.5897']
+      geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [7.5847, 47.5473]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [7.5897, 47.5458]}}]}
     }).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({result}) => {
@@ -210,7 +210,7 @@ describe('overpassSingleBlock', () => {
     expect.assertions(1);
     const osmConfig = {};
     _locationToOsmSingleBlockBoundsQueryResultTask(osmConfig, locationWithLocationPoints({
-      intersections: ['47.5473, 7.5847', '47.5458, 7.5897']
+      geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [7.5847, 47.5473]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [7.5897, 47.5458]}}]}
     })).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({result}) => {
@@ -237,7 +237,7 @@ describe('overpassSingleBlock', () => {
     expect.assertions(1);
     const osmConfig = {};
     _locationToOsmSingleBlockBoundsQueryResultTask(osmConfig, locationWithLocationPoints({
-      intersections: ['47.5473, 7.5847', '47.5458, 7.5897']
+      geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [7.5847, 47.5473]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [7.5897, 47.5458]}}]}
     })).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({result}) => {

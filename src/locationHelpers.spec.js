@@ -135,7 +135,7 @@ describe('LocationHeleprs', () => {
       country: 'USA',
       state: 'DC',
       city: 'Washington',
-      street: 'Monroe St',
+      street: 'Monroe St'
     })).toEqual(
       'Intersections N/A (Street Name: Monroe St), Washington, DC, USA'
     )
@@ -329,32 +329,31 @@ describe('LocationHeleprs', () => {
       "country": "New Zealand",
       "neighborhood": "Viaduct Basin",
       "street": "High St",
+      geojson: {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature', geometry: {
+              type: 'Point',
+              coordinates: [174.766344, -36.848499]
+            }
+          },
+          {
+            type: 'Feature', geometry: {
+              type: 'Point',
+              coordinates: [174.766100, -36.849247]
+            }
+          }
+        ]
+      },
       intersections: [
         {
-          data: {streets: ['High St', 'Durham St E']},
-          geojson: {
-            type: 'FeatureCollection',
-            features: [
-              {
-                coordinates: [174.766344, -36.848499]
-              }
-            ]
-          }
+          data: {streets: ['High St', 'Durham St E']}
         },
         {
-
-          data: {streets: ['High St', 'Victoria St E']},
-          geojson: {
-            type: 'FeatureCollection',
-            features: [
-              {
-                coordinates: [174.766100, -36.849247]
-              }
-            ]
-          }
+          data: {streets: ['High St', 'Victoria St E']}
         }
       ],
-      "geojson": null
     }, {
       "id": 2229945,
       "state": "",
@@ -480,7 +479,7 @@ describe('LocationHeleprs', () => {
         "generator": null,
         "copyright": null
       }
-    }))).toEqual(2)
+    }))).toEqual(2);
   });
 
   test('isResolvableAllBlocksLocation', () => {

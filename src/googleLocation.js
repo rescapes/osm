@@ -757,27 +757,30 @@ export const _googleResolveJurisdictionResultTask = location => mapMDeep(2,
       jurisdiction,
       locationWithGoogleAndLocationPoints,
       {
-        intersections: R.zipWith(
-          (googleIntersectionObj, locationIntersection) => {
-            // If our intersection is a 'lat/lon' string, not a pair of streets, just return it
-            if (R.is(String, locationIntersection)) {
-              return locationIntersection;
-            }
-            const googleIntersection = R.prop('intersection', googleIntersectionObj);
-            // Make sure the order of the googleIntersection streets match the original, even though
-            // the Google one might be different to correct the name
-            return R.sort(
-              // Use compareTwoStrings to rank the similarity and subtract from 1 so the most similar
-              // wins
-              googleIntersectionStreetname => 1 - compareTwoStrings(
-                googleIntersectionStreetname,
-                reqStrPathThrowing('data.streets.0', locationIntersection)
-              ),
-              googleIntersection
-            );
-          },
-          googleIntersectionObjs,
-          R.prop('intersections', location)
+        intersections: R.map(
+          streets => ({data: streets}),
+          R.zipWith(
+            (googleIntersectionObj, locationIntersection) => {
+              // If our intersection is a 'lat/lon' string, not a pair of streets, just return it
+              if (R.is(String, locationIntersection)) {
+                return locationIntersection;
+              }
+              const googleIntersection = R.prop('intersection', googleIntersectionObj);
+              // Make sure the order of the googleIntersection streets match the original, even though
+              // the Google one might be different to correct the name
+              return R.sort(
+                // Use compareTwoStrings to rank the similarity and subtract from 1 so the most similar
+                // wins
+                googleIntersectionStreetname => 1 - compareTwoStrings(
+                  googleIntersectionStreetname,
+                  reqStrPathThrowing('data.streets.0', locationIntersection)
+                ),
+                googleIntersection
+              );
+            },
+            googleIntersectionObjs,
+            R.prop('intersections', location)
+          )
         ),
         googleIntersectionObjs
       }

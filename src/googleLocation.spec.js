@@ -25,14 +25,15 @@ import {reverseCoordinatesOfFeature} from './locationHelpers';
 const austinIntersections = [['Salina St', 'E 21st St'], ['Leona St and E 21st St']];
 
 describe('googleLocation', () => {
-  test('geocodeAddressTaskPartialMatchShouldFaile', done => {
+  test('geocodeAddressTaskPartialMatchShouldFail', done => {
       const errors = [];
       geocodeAddressResultTask({
         country: 'USA',
         state: 'DC',
         city: 'Washington',
+        blockname: "Monroe St",
         // This is incomplete, should be Monroe St NE, 13th St NE
-        intersections: ['Monroe St', '13th NE']
+        intersections: {data: {streets: ['Monroe St', '13th NE']}}
       }).run().listen(
         defaultRunConfig({
           onResolved:
@@ -60,8 +61,8 @@ describe('googleLocation', () => {
       state: 'GA',
       city: 'Atlanta',
       intersections: [
-        ['Monroe Dr NE', '10th St. NE'],
-        ['Monroe Dr NE', 'Kanuga Dr.']
+        {data: {streets: ['Monroe Dr NE', '10th St. NE']}},
+        {data: {streets: ['Monroe Dr NE', 'Kanuga Dr.']}}
       ]
     }).run().listen(
       defaultRunConfig({
@@ -117,7 +118,7 @@ describe('googleLocation', () => {
         city: 'Peoria',
         // Google can't handle North North St even though it returns that.
         // Our code overrides values like North that google doesn't like
-        intersections: [['Main St', 'N North St']]
+        intersections: [{data: {streets: ['Main St', 'N North St']}}]
       }).run().listen(
         defaultRunConfig({
           onResolved:
@@ -147,7 +148,7 @@ describe('googleLocation', () => {
         city: 'Peoria',
         // Google can't find this, but if you reverse these names it does find it, sigh
         // This test shows that are code will reverse the intersection if it fails the first time
-        intersections: [['W Main St', 'NE Crescent Ave']]
+        intersections: [{data: {streets: ['W Main St', 'NE Crescent Ave']}}]
       }).run().listen(
         defaultRunConfig({
           onResolved:
@@ -254,7 +255,7 @@ describe('googleLocation', () => {
         city: 'Peoria',
         // Google can't find this, but if you reverse these names it does find it, sigh
         // This test shows that are code will reverse the intersection if it fails the first time
-        intersections: [['W Main St', 'N Maplewood Ave']]
+        intersections: [{data: {streets: ['W Main St', 'N Maplewood Ave']}}]
       }).orElse(reason => {
         // Our task reject handler takes the reason and pushes it too, then rejects again
         errors.push(reason);
@@ -273,72 +274,15 @@ describe('googleLocation', () => {
     },
     20000);
 
-  test('geocodeAddressWithBothIntersectionOrdersTaskWithLatLon', done => {
-      const errors = [];
-      geocodeAddressWithBothIntersectionOrdersTask({
-        country: 'USA',
-        state: 'IL',
-        city: 'Peoria',
-        intersections: ['40.699546, -89.597790']
-      }).run().listen(
-        defaultRunConfig({
-          onResolved:
-            result => result.mapError(
-              errorValue => {
-                // This should not happen
-                expect(R.length(errorValue.results)).toEqual(1);
-                done();
-              }
-            ).map(
-              resultValue => {
-                // We just get back the coords. No need to geocode
-                expect(R.map(
-                  n => n.toFixed(2),
-                  resultValue.geojson.geometry.coordinates)
-                ).toEqual(['-89.60', '40.70']);
-              }
-            )
-        }, errors, done)
-      );
-    },
-    20000);
-
-  test('geocodeAddressWithBothIntersectionOrdersTaskWithLatLonInIntersection', done => {
-      const errors = [];
-      geocodeAddressWithBothIntersectionOrdersTask({
-        country: 'USA',
-        state: 'IL',
-        city: 'Peoria',
-        // Sometimes we have intersections with one lat/lon, so the code just takes the lat/lon and ignores the street
-        intersections: ['Main St & 40.699546, -89.597790']
-      }).run().listen(
-        defaultRunConfig({
-          onResolved:
-            result => result.mapError(
-              errorValue => {
-                // This should not happen
-                expect(R.length(errorValue.results)).toEqual(1);
-                done();
-              }
-            ).map(
-              resultValue => {
-                // We just get back the coords. No need to geocode
-                expect(R.map(
-                  n => n.toFixed(2),
-                  resultValue.geojson.geometry.coordinates)
-                ).toEqual(['-89.60', '40.70']);
-              }
-            )
-        }, errors, done)
-      );
-    },
-    20000);
-
   test('geocodeAddressWithLatLng', done => {
       const errors = [];
-      // Leave the locationWithNominatimData blank since we don't need it when we use a lat/lng
-      const latLon = '60.004471, -44.663669';
-      geocodeAddressResultTask({intersections: [latLon]}).run().listen(
+      const latLon = [-44.663669, 60.004471]
+      geocodeAddressResultTask({
+        geojson: {
+          type: 'FeatureCollection',
+          features: {type: 'Feature', geometry: {type: 'Point', coordinates: latLon}}
+        }
+      }).run().listen(
         defaultRunConfig({
           onResolved:
             result => result.mapError(
@@ -550,7 +494,8 @@ describe('googleLocation', () => {
       state: 'California',
       city: 'Oakland',
       // Intentionally put Grand Ave a different positions
-      intersections: [['Grand Ave', 'Perkins St'], ['Lee St', 'Grand Ave']]
+      intersections: [{data: {streets: ['Grand Ave', 'Perkins St']}}, {data: {streets: ['Lee St', 'Grand Ave']}}],
+      blockname: 'Grand Ave'
     };
     googleIntersectionTask(location).run().listen(
       defaultRunConfig({
@@ -621,8 +566,8 @@ describe('googleLocation', () => {
       city: 'Oakland',
       neighborhood: 'Adams Point',
       intersections: [
-        ['Grand Ave', 'Bay Pl'],
-        ['Grand Ave', 'Harrison St']
+        {data: {streets: ['Grand Ave', 'Bay Pl']}},
+        {data: {streets: ['Grand Ave', 'Harrison St']}}
       ]
     };
     resolveGeoLocationTask(location).run().listen({
@@ -646,8 +591,9 @@ describe('googleLocation', () => {
       state: 'California',
       city: 'Oakland',
       neighborhood: 'Adams Point',
+      street: 'Grand Ave',
       intersections: [
-        ['Grand Ave', 'Bay Pl']
+        {data: {streets: ['Grand Ave', 'Bay Pl']}}
       ]
     };
     resolveGeoLocationTask(location).run().listen({
@@ -700,8 +646,8 @@ describe('googleLocation', () => {
       city: 'Oakland',
       neighborhood: 'Adams Point',
       intersections: [
-        ['Grand Ave', 'Bay Pl'],
-        ['Grand Ave', 'Harrison St']
+        {data: {streets: ['Grand Ave', 'Bay Pl']}},
+        {data: {streets: ['Grand Ave', 'Harrison St']}}
       ]
     };
     // Resolves asynchronously

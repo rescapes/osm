@@ -106,7 +106,7 @@ describe('overpassBlocks', () => {
       state: 'NY',
       city: 'New York',
       neighborhood: 'Battery Park City',
-      intersections: [['Chambers Street', 'Hudson River Greenway'], ['Chambers Street', 'North End Avenue']]
+      intersections: [{data: {streets: ['Chambers Street', 'Hudson River Greenway']}}, {data: {streets: ['Chambers Street', 'North End Avenue']}}], blockname: 'Chambers Street'
     }).run().listen(defaultRunToResultConfig({
       onResolved: location => {
         expect(R.length(reqStrPathThrowing('geojson.features', location))).toEqual(3);

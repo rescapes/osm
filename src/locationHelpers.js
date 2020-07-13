@@ -1112,8 +1112,10 @@ export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersect
       geojson: {
         type: 'FeatureCollection',
         features: [
+          // We don't put in a fake way here. We assume the single block resolution code will find the way from OSM
+          // based on these 2 points
           locationToTurfPoint(intersection1Location),
-          locationToTurfPoint(intersection2Location)
+          locationToTurfPoint(intersection2Location),
         ]
       }
     } : {}

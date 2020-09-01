@@ -225,12 +225,10 @@ export const _partialBlocksToFeaturesResultsTask = (
             location: R.merge(
               location,
               {
-                intersections: [
-                  R.map(
-                    streets => ({data: {streets}}),
-                    R.values(nodesToIntersectingStreets)
-                  )
-                ]
+                intersections: R.map(
+                  streets => ({data: {streets}}),
+                  R.values(nodesToIntersectingStreets)
+                )
               }
             )
           });
@@ -349,7 +347,7 @@ const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
           );
           if (process.env.NODE_ENV !== 'production') {
             // Debugging help will eventually be used for visual feedback of the processing on a website
-            blockToGeojson(updatedBlock);
+            //blockToGeojson(updatedBlock);
           }
           return updatedBlock;
         },

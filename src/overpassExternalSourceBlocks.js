@@ -50,11 +50,11 @@ export const osmCompatibleWayFeaturesFromGeojson = ({nameProp}, lineGeojson) => 
           properties => R.over(
             R.lensProp('tags'),
             tags => R.merge(tags || {}, {
-              name: R.when(
-                R.is(Function),
+              name: R.ifElse(
+                () => R.is(Function, nameProp),
                 properties => nameProp(properties),
                 properties => R.prop(nameProp, properties)
-              )(nameProp)
+              )(properties)
             }),
             properties
           ),

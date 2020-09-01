@@ -54,7 +54,7 @@ export const osmCompatibleWayFeaturesFromGeojson = ({nameProp}, lineGeojson) => 
                 R.is(Function),
                 properties => nameProp(properties),
                 properties => R.prop(nameProp, properties)
-              )
+              )(nameProp)
             }),
             properties
           ),

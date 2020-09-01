@@ -98,8 +98,8 @@ export const _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = v
   } remaining.`);
 
   if (process.env.NODE_ENV !== 'production') {
-    log.debug('_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask: Geojson of current partial block');
-    log.debug(blockToGeojson({nodes, ways}));
+    //log.debug('_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask: Geojson of current partial block');
+    //log.debug(blockToGeojson({nodes, ways}));
   }
   // Get the current final way of the partial block. This is the way we will process
   const way = R.last(ways);

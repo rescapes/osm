@@ -1,6 +1,6 @@
 import {hashPoint, wayFeatureToCoordinates} from './overpassFeatureHelpers';
 import * as R from 'ramda';
-import {composeWithChainMDeep, composeWithMapMDeep} from 'rescape-ramda';
+import {composeWithChainMDeep, composeWithMapMDeep, traverseReduce} from 'rescape-ramda';
 import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers';
 import {
   featureWithReversedCoordinates,
@@ -8,6 +8,9 @@ import {
   nodeFromCoordinate
 } from './locationHelpers';
 import {loggers} from 'rescape-log';
+import {extractSquareGridFeatureCollectionFromGeojson} from 'rescape-helpers';
+import booleanDisjoint from '@turf/boolean-disjoint';
+import {of} from 'folktale/concurrency/task';
 
 const log = loggers.get('rescapeDefault');
 
@@ -27,8 +30,8 @@ const log = loggers.get('rescapeDefault');
  * Namely it adds a name property to properties and an id in the form way/fakeN so that the id form matches
  * that of OSM but we know it's not a real OSM id
  * @param {Object} config
- * @param {String} config.nameProp Extracts the prop from the properties to use for name. If name is already
- * specified just pass 'name'
+ * @param {String|Function} config.nameProp Extracts the prop from the properties to use for name. If name is already
+ * specified just pass 'name'. Alternatively can be a unary function that expects the properties and returns the value
  * @param {Object} lineGeojson FeatureCollection of lines
  * @param {Object} lineGeojson.features The lines features
  * @return {[Object]} A list of unique way features with fake ids and a name property
@@ -47,7 +50,11 @@ export const osmCompatibleWayFeaturesFromGeojson = ({nameProp}, lineGeojson) => 
           properties => R.over(
             R.lensProp('tags'),
             tags => R.merge(tags || {}, {
-              name: R.prop(nameProp, properties)
+              name: R.when(
+                R.is(Function),
+                properties => nameProp(properties),
+                properties => R.prop(nameProp, properties)
+              )
             }),
             properties
           ),
@@ -58,6 +65,7 @@ export const osmCompatibleWayFeaturesFromGeojson = ({nameProp}, lineGeojson) => 
     R.prop('features', lineGeojson)
   );
 };
+
 /**
  * Creates partial blocks from wayFeatures created with osmCompatibleWayFeaturesFromGeojson
  * Each partial block contains one of wayFeature or the reverse of one of wayFeature and a node that
@@ -109,15 +117,60 @@ export const partialBlocksFromNonOsmWayFeatures = wayFeatures => {
  * {country:, [state:], city:} TODO If using geojson that comes from different jurisdictions, this property needs
  * to be updated to be a function that accepts each feature and extracts juridiction information from the feature
  * properties
- * @param {String} featureConfig.nameProp Used to give the lines a name from one of the properties in
+ * @param {String| Function} featureConfig.nameProp Used to give the lines a name from one of the properties in
  * feature.properties. If feature.properties already has a name just specify 'name'. It's required that each way have a
- * name property so we know what to name of the street.
+ * name property so we know what to name of the street. Alternatively can be a unary function that expects properties
  * @param {Object} lineGeojson The feature lines
  * @return {Task<Object>} Task that resolves to success blocks under Ok: [], and errors under Error: []. Note that
  * this isn't really async just uses OSM code paths that needs to query OSM when osmConfig.disableNodesOfWayQueries
  * is false
  */
 export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {location, nameProp}, lineGeojson) => {
+  // Split the lineGeojson into manageable squares
+  // Get .1km squares of the area
+  const bboxes = extractSquareGridFeatureCollectionFromGeojson({
+    cellSize: R.propOr(2000, 'gridSize', osmConfig),
+    units: 'meters'
+  }, lineGeojson).features;
+  const lineGeojsonCollections = [];
+  // Use for loops to reduce memory use
+  R.forEach(
+    lineGeojsonFeature => {
+      const lineGeojsonCollection = [];
+      lineGeojsonCollections.push(lineGeojsonCollection);
+      R.forEach(
+        feature => {
+          if (!booleanDisjoint(feature, lineGeojsonFeature)) {
+            lineGeojsonCollection.push(feature);
+          }
+        },
+        lineGeojson.features
+      );
+    },
+    bboxes
+  );
+
+  return traverseReduce(
+    (acc, value) => {
+      return {
+        Ok: R.concat(acc.Ok, R.propOr([], 'Ok', value)),
+        Error: R.concat(acc.Error, R.propOr([], 'Error', value))
+      };
+    },
+    of({Ok: [], Error: []}),
+    R.map(
+      _lineGeojson => {
+        return _nonOsmGeojsonLinesToLocationBlocksResultsTask({osmConfig}, {
+          location,
+          nameProp
+        }, {type: 'FeatureCollection', features: _lineGeojson});
+      },
+      lineGeojsonCollections
+    )
+  );
+};
+
+export const _nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {location, nameProp}, lineGeojson) => {
   const wayFeatures = osmCompatibleWayFeaturesFromGeojson({nameProp}, lineGeojson);
   const partialBlocks = partialBlocksFromNonOsmWayFeatures(wayFeatures);
   return composeWithMapMDeep(1, [
@@ -141,7 +194,11 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
     ({osmConfig, location, partialBlocks}) => {
       log.debug(`nonOsmGeojsonLinesToLocationBlocksResultsTask: Organizing ${R.length(partialBlocks)} partial blocks`);
       return organizeResponseFeaturesResultsTask(
-        R.merge(osmConfig, {disableNodesOfWayQueries: true}),
+        R.merge(
+          osmConfig,
+          // Prevent querying OSM for extra data, since our datasources is non-OSM
+          {disableNodesOfWayQueries: true}
+        ),
         location,
         {partialBlocks}
       );

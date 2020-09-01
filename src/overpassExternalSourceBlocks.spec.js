@@ -1,7 +1,7 @@
 import * as R from 'ramda';
 import {defaultRunConfig} from 'rescape-ramda';
-import {blocksToGeojson, locationsToGeojson} from './overpassBlockHelpers';
-import grandrapids from './samples/grandrapids.json';
+import {locationsToGeojson} from './overpassBlockHelpers';
+import philly from './samples/philly.json';
 import {nonOsmGeojsonLinesToLocationBlocksResultsTask} from './overpassExternalSourceBlocks';
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -18,9 +18,9 @@ import {nonOsmGeojsonLinesToLocationBlocksResultsTask} from './overpassExternalS
 describe('overpassAllBlocks', () => {
 
   test('Process geojson derived from shapefile', done => {
-    const nameProp = 'SEGNAME';
-    const location = {country: 'USA', state: 'MI', city: 'Grand Rapids'};
-    const geojsonLines = grandrapids;
+    const nameProp = props => `${R.prop('ST_NAME', props)} ${R.prop('ST_TYPE', props)}`;
+    const location = {country: 'USA', state: 'PA', city: 'Philadelphia'};
+    const geojsonLines = philly
     const osmConfig = {}
     const errors = [];
     nonOsmGeojsonLinesToLocationBlocksResultsTask({osmConfig}, {location, nameProp}, geojsonLines).run().listen(
@@ -31,5 +31,5 @@ describe('overpassAllBlocks', () => {
         }
       }, errors, done)
     );
-  });
+  }, 100000000);
 });

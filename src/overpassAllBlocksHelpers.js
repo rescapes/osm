@@ -246,7 +246,7 @@ export const _partialBlocksToFeaturesResultsTask = (
       ({blocks}) => {
         log.debug(`_partialBlocksToFeaturesResultsTask: Checking for small ways on ${R.length(blocks)} blocks`);
         if (process.env.NODE_ENV !== 'production') {
-          blocksToGeojson(blocks);
+          //blocksToGeojson(blocks);
         }
         return of(R.filter(
           block => R.compose(
@@ -517,9 +517,9 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
                 if (process.env.NODE_ENV !== 'production') {
                   // Debugging help will eventually be used for visual feedback of the processing on a website
                   log.debug('Geojson of processed blocks');
-                  blocksToGeojson(processedBlocks);
+                  //blocksToGeojson(processedBlocks);
                   log.debug('Geojson of remaining partial blocks');
-                  blocksToGeojson(partialBlocks);
+                  //blocksToGeojson(partialBlocks);
                 }
                 return Result.Ok({
                   // partialBlocks are reduced by the those newly processed

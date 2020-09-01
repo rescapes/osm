@@ -128,26 +128,26 @@ export const partialBlocksFromNonOsmWayFeatures = wayFeatures => {
 export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {location, nameProp}, lineGeojson) => {
   // Split the lineGeojson into manageable squares
   // Get .1km squares of the area
-  const bboxes = extractSquareGridFeatureCollectionFromGeojson({
+  const featureMasks = extractSquareGridFeatureCollectionFromGeojson({
     cellSize: R.propOr(2000, 'gridSize', osmConfig),
     units: 'meters'
   }, lineGeojson).features;
   const lineGeojsonCollections = [];
   // Use for loops to reduce memory use
   R.forEach(
-    lineGeojsonFeature => {
+    featureMask => {
       const lineGeojsonCollection = [];
       lineGeojsonCollections.push(lineGeojsonCollection);
       R.forEach(
         feature => {
-          if (!booleanDisjoint(feature, lineGeojsonFeature)) {
+          if (!booleanDisjoint(feature, featureMask)) {
             lineGeojsonCollection.push(feature);
           }
         },
         lineGeojson.features
       );
     },
-    bboxes
+    featureMasks
   );
 
   return traverseReduce(

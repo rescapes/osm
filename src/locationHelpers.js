@@ -10,12 +10,14 @@
  */
 import booleanWithin from '@turf/boolean-within';
 import {
+  compact,
   compactEmpty,
-  reqStrPathThrowing,
-  strPathOr,
-  toNamedResponseAndInputs,
   mapKeys,
-  toArrayIfNot, compact, strPath
+  reqStrPathThrowing,
+  strPath,
+  strPathOr,
+  toArrayIfNot,
+  toNamedResponseAndInputs
 } from 'rescape-ramda';
 import {locationToTurfPoint} from 'rescape-helpers';
 import * as R from 'ramda';
@@ -145,7 +147,9 @@ export const locationWithIntersectionInBothOrders = location => {
 export const locationIntersectionAsLatLng = intersection => {
   // TODO why is this expecting address strings instead of arrays?
   return R.cond([
-    [address => isLatLng(address), R.identity],
+    [
+      address => isLatLng(address), R.identity
+    ],
     [
       // If the street
       address => R.both(
@@ -339,17 +343,24 @@ export const addressPair = location => {
 /**
  * Extracts the common street of all given intersection sets
  * @param {Object} location
- * @param streetIntersectionSets
- * @returns {f1}
+ * @param {[Object]} intersections Intersection objects in the form {data: {streets: [..strings..]}}
+ * @returns {String} The common street
  */
-export const commonStreetOfLocation = (location, streetIntersectionSets) => {
+export const commonStreetOfLocation = (location, intersections) => {
   // Extract the common street from the set. There might be weird cases with a street intersecting
   // the same street twice meaning we have two common streets
+  const streetSets = R.map(
+    reqStrPathThrowing('data.streets'),
+    intersections
+  );
   const common = R.reduce(
     (intersecting, b) => R.intersection(intersecting, b),
     // Start with all eligible
-    R.compose(R.uniq, R.flatten)(streetIntersectionSets),
-    streetIntersectionSets
+    R.compose(
+      R.uniq,
+      R.flatten
+    )(streetSets),
+    streetSets
   );
 
   return R.ifElse(
@@ -362,11 +373,11 @@ export const commonStreetOfLocation = (location, streetIntersectionSets) => {
       );
       // Use the name of the way or failing that the id
       // This will probably always match one the names in each intersection, unless the way is super weird
-      // If there is no wayFeature default to the first common or 'Unknown'
+      // If there is no wayFeature default to the first common by alphabet or 'Unknown'
       return R.ifElse(
         R.identity,
         wayFeature => wayFeatureName(wayFeature),
-        () => R.head(common) || 'Unknown'
+        () => R.head(R.sortBy(R.identity)(common)) || 'Unknown'
       )(wayFeature);
     },
     common => R.head(common)
@@ -395,84 +406,117 @@ export const wayFeatureNameOrDefault = (defaultTo, wayFeature) => {
 };
 
 /**
+ * Define a block location as a location with a street and at least one intersection
+ * @param location
+ * @returns {*}
+ */
+export const isBlockLocation = location => {
+  return R.both(
+    R.propOr(false, 'street'),
+    R.compose(R.length, R.propOr([], 'intersections'))
+  )(location);
+};
+
+/**
  * Finds the common street of the intersections then sorts the intersections alphabetically based on the second street.
  * The streets at each intersection are listed alphabetically following the street that represents the block.
  * If a node represents a dead-end rather than an intersection then the one intersection is returned along
  * with a pseudo intersection that is the block name and the dead-end node id.
- * @param {Object} location location.geojson.features are used to help pick the main street
- * @param {Object} nodesToIntersectingStreets Keyed by node id and valued by an array of 2 or more street names
- * @returns {[[String]]} Two intersections (where one might be a pseudo dead-end intersection). Each has a list
- * of two or more street names. The block name is always first followed by the others alphabetically
- * @private
+ * @param {Object} location The location representing a street block. This location can also be an aggregate location,
+ * like a neighborhood, but in that case it can't help resolve streets where their is only one value in
+ * nodesToIntersections. If this occurs, it is assumed that the street is a loop:
+ * See https://www.openstreetmap.org/way/446472696 for an example of such a case
+ * @param {Object} location.geojson
+ * @param {Object} location.geojson.features are used to help pick the main street
+ * @param {Object} nodesToIntersections Keyed by node id and valued an object: {data: streets: [street names]}
+ * If there is only one intersection on the way this will be length one, which means the code will treat the
+ * dead end on the other side of the block as the other intersection
+ * @returns {[[String]]} Two intersections (where one might be a pseudo dead-end intersection).
+ * Each is {data: streets: [...]} with two or more street names.
+ * The common street name is always first followed by the others alphabetically
  */
-export const intersectionsByNodeIdToSortedIntersections = (location, nodesToIntersectingStreets) => {
-  const originalStreetIntersectionSets = R.values(nodesToIntersectingStreets);
-  // If we only have one originalStreetIntersectionSets, we probably have a loop, so double it
-  // TODO do more verification that this is a loop
-  // TODO we should never get nodesToIntersectingStreets missing an intersections. Do this earlier
-  const modifiedStreetIntersectionSets = R.when(
+export const intersectionsByNodeIdToSortedIntersections = (location, nodesToIntersections) => {
+  const originalIntersections = R.values(nodesToIntersections);
+
+  const street = commonStreetOfLocation(location, originalIntersections);
+
+  // If we only have one node in streetIntersectionSets then we need to add the dead-end of the location
+  const intersections = R.when(
     R.compose(R.equals(1), R.length),
-    originalStreetIntersectionSets => R.concat(originalStreetIntersectionSets, originalStreetIntersectionSets)
-  )(originalStreetIntersectionSets);
+    intersections => R.ifElse(
+      // If it's a block location, use the dead end as the other itersectdion
+      location => isBlockLocation(location),
+      location => R.append(
+        // Find the location geojson feature node that doesn't occur in nodesToIntersections.
+        // This must be our dead-end node. Grab it's id and use that as it's street name
+        {
+          data: {
+            streets: [
+              street,
+              // dead-end node id
+              R.compose(
+                featureIds => R.find(
+                  featureId => R.both(
+                    R.includes('node'),
+                    // node id doesn't equal the real intersection's node
+                    R.complement(R.equals)(
+                      R.compose(R.head, R.keys)(nodesToIntersections)
+                    )
+                  )(featureId),
+                  featureIds
+                ),
+                features => R.map(R.prop('id'), features),
+                location => reqStrPathThrowing('geojson.features', location)
+              )(location)
+            ]
+          }
+        },
+        intersections
+      ),
+      // Else duplicate the intersection, hoping it's a loop
+      () => R.times(() => R.head(originalIntersections), 2)
+    )(location)
+  )(originalIntersections);
 
-  const street = commonStreetOfLocation(location, modifiedStreetIntersectionSets);
-
-  // If we only have one node in streetIntersectionSets then we need to add the dead-end
-  const streetIntersectionSets = R.when(
-    R.compose(R.equals(1), R.length),
-    streetIntersectionSets => R.append(
-      // Find the location geojson feature node that doesn't occur in nodesToIntersectingStreets.
-      // This must be our dead-end node. Grab it's id and use that as it's street name
-      [
-        street,
-        // dead-end node id
-        R.find(
-          featureId => R.both(
-            R.includes('node'),
-            // node id doesn't equal the real intersection's node
-            R.complement(R.equals)(
-              R.compose(R.head, R.keys)(nodesToIntersectingStreets)
-            )
-          )(featureId),
-          R.map(R.prop('id'), reqStrPathThrowing('geojson.features', location))
-        )
-      ],
-      streetIntersectionSets
-    )
-  )(modifiedStreetIntersectionSets);
-
-  const ascends = R.compose(
-    // Map that something to R.ascend for each index of the intersections
-    times => R.addIndex(R.map)((_, i) => R.ascend(R.view(R.lensIndex(i))), times),
-    // Create that many of something
-    n => R.times(R.identity, n),
-    // Get the shortest length
-    R.reduce((r, n) => R.min(r, n), Infinity),
-    // Get the length of each list of streets
-    R.map(R.length)
-  )(streetIntersectionSets);
 
   const streetThenAlphabetical = [
     // First sort by the common street
-    R.ascend(
-      R.ifElse(
-        s => R.equals(street, s),
-        R.always(0),
-        R.always(1)
-      )
-    ),
+    R.ascend(strt => R.equals(street, strt) ? 0 : 1),
     // Then alphabetically
     R.ascend(R.identity)
   ];
-  return R.sortWith(
-    // Sort the sets by which has the most alphabetical non-street street(s)
-    ascends,
-    R.map(
-      // Sort each set placing the street first followed by alphabetical
-      R.sortWith(streetThenAlphabetical),
-      streetIntersectionSets
+
+  // Sort intersections
+  const streetsAscendingAlphabetical = intersections => {
+    return R.compose(
+      // Map that something to R.ascend for each index of the intersections
+      times => R.map(
+        i => R.ascend(R.view(R.lensPath(['data', 'streets', i]))),
+        // Skip the index 0, since that's always the common street
+        R.tail(times)
+      ),
+      // Create that many of something
+      n => R.times(R.identity, n),
+      // Get the shortest length
+      streetCounts => R.reduce((r, n) => R.min(r, n), Infinity, streetCounts),
+      // Get the length of each list of streets
+      streetSets => R.map(R.length, streetSets),
+      intersections => R.map(reqStrPathThrowing('data.streets'), intersections)
+    )(intersections);
+  };
+
+  return R.compose(
+    // Sort by the intersection by the most alphabetical non-shared-street street(s)
+    intersections => R.sortWith(streetsAscendingAlphabetical(intersections), intersections),
+    // First, sort each intersection's streets, placing the common street first followed by alphabetical
+    intersections => R.map(
+      intersection => R.over(
+        R.lensPath(['data', 'streets']),
+        streets => R.sortWith(streetThenAlphabetical, streets),
+        intersection),
+      intersections
     )
-  );
+  )(intersections);
 };
 
 
@@ -651,7 +695,6 @@ export const locationAndOsmBlocksToLocationWithGeojson = v((location, block) => 
     {
       // Default geojson properties since we are combining multiple geojson results
       type: 'FeatureCollection',
-      generator: 'overpass-turbo',
       copyright: 'The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.',
       features: R.chain(R.defaultTo([]), [ways, nodes, relations])
     },
@@ -673,19 +716,28 @@ export const locationAndOsmBlocksToLocationWithGeojson = v((location, block) => 
  * @param {Object} config
  * @param {Object} config.preserveLocationGeojson Keeps the geojson of the location and adds the componentLocations
  * unique geojson
- * @param {Object} location Location encompassing the componentLocations
+ * @param {Object} emcompassingLocation Location encompassing the componentLocations
  * @param {[Object]} componentLocations any number of locations that are geospatailly within location
  */
-export const aggregateLocation = ({preserveLocationGeojson}, location, componentLocations) => {
+export const aggregateLocation = ({preserveLocationGeojson}, emcompassingLocation, componentLocations) => {
   return R.compose(
-    featuresByType => locationAndOsmBlocksToLocationWithGeojson(location, featuresByType),
+    featuresByType => locationAndOsmBlocksToLocationWithGeojson(emcompassingLocation, featuresByType),
+    // Sort each type by id for consistency
+    featuresByOsmType => R.map(
+      features => R.sortWith([R.ascend(R.prop('id'))], features),
+      featuresByOsmType
+    ),
     // Get rid of duplicate nodes. We don't want to remove duplicate way ids because
     // we chop ways into individual blocks, so they have the same id but different points
-    featuresByType => R.over(R.lensProp('nodes'), nodes => R.uniqBy(R.prop('id'), nodes || []), featuresByType),
+    featuresByType => R.over(
+      R.lensProp('nodes'),
+      nodes => R.uniqBy(R.prop('id'), nodes || []),
+      featuresByType
+    ),
     features => featuresByOsmType(features),
     // Get features of each location and chain them together
     R.chain(
-      blockLocation => strPathOr([], 'geojson.features', blockLocation)
+      componentLocation => strPathOr([], 'geojson.features', componentLocation)
     )
   )(componentLocations);
 };
@@ -700,7 +752,12 @@ export const featuresByOsmType = v(features => {
   return R.reduceBy(
     R.flip(R.append),
     [],
-    feature => R.compose(R.flip(R.concat)('s'), R.head, R.split('/'), R.prop('id'))(feature),
+    feature => R.compose(
+      R.flip(R.concat)('s'),
+      R.head,
+      R.split('/'),
+      R.prop('id')
+    )(feature),
     features
   );
 }, [['features', PropTypes.arrayOf(PropTypes.shape({
@@ -763,25 +820,29 @@ export const locationWithLocationPoints = blockLocation => {
           )
         )(locationPoints),
 
-        // Then see if the intersections are lat/lons. If so convert it to geojson points
+        // If we have intersections with geojson
         toNamedResponseAndInputs('locationPoints',
-          ({locationPoints, blockLocation}) => R.unless(
+          ({blockLocation, locationPoints}) => R.unless(
             R.length,
-            () => R.ifElse(
-              intersections => R.all(isLatLng)(intersections),
-              strs => R.map(
-                R.compose(
-                  floats => locationToTurfPoint(floats),
-                  R.map(s => parseFloat(s)),
-                  R.split(','))
-              )(strs),
-              () => []
-            )(strPathOr(null, 'intersections', blockLocation))
+            () => R.compose(
+              nodeFeatures => {
+                // If we have 2 use them. We assume they are in the correct order
+                return R.when(
+                  R.compose(R.not, R.equals(2), R.length),
+                  () => []
+                )(nodeFeatures);
+              },
+              // If the intersections have nodes
+              intersections => compact(R.map(strPathOr(null, 'geojson.features.0'), intersections)),
+              blockLocation => {
+                // Get the nodes
+                return strPathOr([], 'intersections', blockLocation)
+              }
+            )(blockLocation)
           )(locationPoints)
         ),
 
         // If we have two geojson nodes use those
-        // Failing that try to get them from the geojson nodes
         toNamedResponseAndInputs('locationPoints',
           ({blockLocation, locationPoints}) => R.unless(
             R.length,
@@ -1089,10 +1150,10 @@ export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersect
       blockname,
       intersections: [
         {
-          data: {streets: compact([blockname, intersc1])},
+          data: {streets: compact([blockname, intersc1])}
         },
         {
-          data: {streets: compact([blockname, intersc2])},
+          data: {streets: compact([blockname, intersc2])}
         }
       ]
     },

@@ -78,9 +78,9 @@ const _queryLocationForOsmSingleBlockAllResultsTask = (osmConfig, location) => {
           Ok: R.map(
             value => {
               // Create the geojson fro the location
-              const {block: {ways, nodes, nodesToIntersectingStreets}} = value;
+              const {block: {ways, nodes, nodesToIntersections}} = value;
               return {
-                block: {nodesToIntersectingStreets},
+                block: {nodesToIntersections},
                 // Assign the geojson to the location if it hasn't been assigned yet or is forced
                 location: R.when(
                   R.either(

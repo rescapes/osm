@@ -109,5 +109,6 @@ export {
 
 export {
   bufferAndUnionGeojson,
-  oldIntersectionUpgrade
+  oldIntersectionUpgrade,
+  isBlockLocation
 } from './locationHelpers'

@@ -20,39 +20,10 @@ import * as R from 'ramda';
 import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
 import {turfPointToLocation} from 'rescape-helpers';
 import {rejected} from 'folktale/concurrency/task';
-import {reverseCoordinatesOfFeature} from './locationHelpers';
 
-const austinIntersections = [['Salina St', 'E 21st St'], ['Leona St and E 21st St']];
+const austinIntersections = [{data: {streets: ['Salina St', 'E 21st St']}}, {data: {streets: ['Leona St and E 21st St']}}];
 
 describe('googleLocation', () => {
-  test('geocodeAddressTaskPartialMatchShouldFail', done => {
-      const errors = [];
-      geocodeAddressResultTask({
-        country: 'USA',
-        state: 'DC',
-        city: 'Washington',
-        blockname: "Monroe St",
-        // This is incomplete, should be Monroe St NE, 13th St NE
-        intersections: {data: {streets: ['Monroe St', '13th NE']}}
-      }).run().listen(
-        defaultRunConfig({
-          onResolved:
-            result => result.mapError(
-              errorValue => {
-                expect(R.length(errorValue.error)).toBeTruthy();
-                done();
-              }
-            ).map(
-              resultValue => {
-                // Should not happen
-                expect(R.length(resultValue)).toEqual(null);
-              }
-            )
-        }, errors, done)
-      );
-    },
-    5000);
-
   // This request is returning 2 results in production. Seems fine here
   test('geocode2Results', done => {
     const errors = [];
@@ -65,19 +36,11 @@ describe('googleLocation', () => {
         {data: {streets: ['Monroe Dr NE', 'Kanuga Dr.']}}
       ]
     }).run().listen(
-      defaultRunConfig({
+      defaultRunToResultConfig({
         onResolved:
-          result => result.mapError(
-            errorValue => {
-              // This should not happen
-              expect(R.length(errorValue.results)).toEqual(1);
-              done();
-            }
-          ).map(
-            resultValue => {
-              expect(resultValue.formatted_address).toEqual('10th St NE & Monroe Dr NE, Atlanta, GA 30306, USA');
-            }
-          )
+          resultValue => {
+            expect(resultValue.formatted_address).toEqual("10th St NE & Monroe Dr NE, Atlanta, GA 30306, USA");
+          }
       }, errors, done)
     );
   }, 5000);
@@ -173,22 +136,29 @@ describe('googleLocation', () => {
   test('geocodeAddressWithBothIntersectionOrdersTaskBadLocation', done => {
     const errors = [];
     geocodeAddressWithBothIntersectionOrdersTask({
-        "intersections": [
-          [
-            "134th Street",
-            "149th Avenue"
-          ],
-          [
-            "134th Street",
-            "South Conduit Avenue"
-          ]
+        "intersections": [{
+          data: {
+            streets:
+              [
+                "134th Street",
+                "149th Avenue"
+              ]
+          }
+        },
+          {
+            data: {
+              streets: [
+                "134th Street",
+                "South Conduit Avenue"
+              ]
+            }
+          }
         ],
         "dataComplete": false,
         "data": {},
         "version": 2,
         "geojson": {
           "type": "FeatureCollection",
-          "generator": "overpass-turbo",
           "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
           "features": [
             {
@@ -272,51 +242,14 @@ describe('googleLocation', () => {
         }, errors, done)
       );
     },
-    20000);
-
-  test('geocodeAddressWithLatLng', done => {
-      const errors = [];
-      const latLon = [-44.663669, 60.004471]
-      geocodeAddressResultTask({
-        geojson: {
-          type: 'FeatureCollection',
-          features: {type: 'Feature', geometry: {type: 'Point', coordinates: latLon}}
-        }
-      }).run().listen(
-        defaultRunConfig({
-          onResolved:
-            result => result.mapError(
-              errorValue => {
-                // This should not happen
-                expect(R.length(errorValue.results)).toEqual(1);
-              }
-            ).map(
-              resultValue => {
-                // Reverse the point to match the geojson format
-                // Slightly different than the input since Google reverse geocodes
-                expect(R.map(
-                  n => parseFloat(n).toFixed(2),
-                  resultValue.geojson.geometry.coordinates)
-                ).toEqual(
-                  R.map(
-                    n => parseFloat(n).toFixed(2), [
-                      -44.663885,
-                      60.0043836
-                    ])
-                );
-              }
-            )
-        }, errors, done)
-      );
-    },
-    5000);
-
+    20000
+  );
 
   test('Resolve correct geocodeAddressResultTask with two results', done => {
     const errors = [];
     const ambiguousIntersections = [
-      ['Monroe', '13th'],
-      ['Monroe', 'Holmead']
+      {data: {streets: ['Monroe', '13th']}},
+      {data: {streets: ['Monroe', 'Holmead']}}
     ];
     // Don't worry which street is listed first
     const expected = actual => R.filter(R.flip(R.contains)([
@@ -331,54 +264,20 @@ describe('googleLocation', () => {
       city: 'Washington',
       intersections: ambiguousIntersections
     }).run().listen(
-      defaultRunConfig({
-        onResolved: resultsResult => resultsResult.map(results => {
+      defaultRunToResultConfig({
+        onResolved: results => {
           const actual = R.map(R.prop('formatted_address'), results);
           expect(actual).toEqual(expected(actual));
-        })
-      }, errors, done)
+        }}, errors, done)
     );
   });
-
-  test('geocodeBlockAddress with lat/lng', done => {
-    const ambiguousBlockAddresses = [
-      ['Monroe', '13th'],
-      '38.931990, -77.030890'
-    ];
-    // Don't worry which street is listed first
-    const expected = actual => R.head(R.filter(R.includes(actual), [
-      "Monroe St NW & 13th St NW, Washington, DC 20010, USA",
-      "13th St NW & Monroe St NW, Washington, DC 20010, USA"
-    ]));
-    geocodeBlockAddressesResultTask({
-      country: 'USA',
-      state: 'DC',
-      city: 'Washington',
-      intersections: ambiguousBlockAddresses
-    }).run().listen(
-      defaultRunConfig({
-        onResolved: resultsResult => resultsResult.map(results => {
-          const actualFirst = R.view(R.lensPath([0, 'formatted_address']), results);
-          expect(actualFirst).toEqual(expected(actualFirst));
-          // We expect a geojson point from the lat,lng. Flip the coordinates and stringify to match original
-          const actualSecond = R.map(
-            n => parseFloat(n).toFixed(2),
-            reverseCoordinatesOfFeature(R.view(R.lensPath(1, 'geojson')))
-          );
-          // Turf rounds off the end 0s
-          expect(actualSecond).toEqual(['38.93', '-77.03']);
-          done();
-        })
-      })
-    );
-  });
-
 
   test('geojsonCenterOfBlockAddress', done => {
     const intersections = [
-      ['Monroe St NW', '13th St NW'],
-      ['Monroe St NW', 'Holmead Pl NW']
+      {data: {streets: ['Monroe St NW', '13th St NW']}},
+      {data: {streets: ['Monroe St NW', 'Holmead Pl NW']}}
     ];
+    const errors = [];
     geojsonCenterOfBlockAddress({country: 'USA', state: 'DC', city: 'Washington', intersections}).run().listen(
       defaultRunConfig({
         onResolved: resultResult => resultResult.mapError(
@@ -392,7 +291,7 @@ describe('googleLocation', () => {
             done();
           }
         )
-      })
+      }, errors, done)
     );
   });
 
@@ -407,7 +306,7 @@ describe('googleLocation', () => {
           routesResult.map(routes => {
             expect(R.map(
               route => R.head(route.json.routes).summary, routes)
-            ).toMatchSnapshot();
+            ).toEqual(['E 21st St', 'E 21st St']);
           });
         }
       }, errors, done)

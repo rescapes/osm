@@ -214,7 +214,6 @@ const intersectionNodesOfWayQuery = (osmConfig, {wayFeature}, wayId) => {
  * in alphabetical order
  */
 export const _queryLocationVariationsUntilFoundResultTask = R.curry((osmConfig, queryLocationResultTasks, locationVariationsOfOsm) => {
-
   return R.composeK(
     result => of(
       // If we had no results report the errors of each query
@@ -654,7 +653,7 @@ export const createSingleBlockFeatures = (osmConfig, location, {wayFeatures, nod
       // If one or both streets change names or for a >4-wayFeatures intersection, there can be more.
       // If we handle roundabouts correctly in the future these could also account for more
       // TODO we should handle Result.Error here
-      nodesToIntersectingStreets: _intersectionStreetNamesFromWaysAndNodesResult(
+      nodesToIntersections: _intersectionStreetNamesFromWaysAndNodesResult(
         osmConfig,
         wayFeatures,
         nodeFeatures,
@@ -871,7 +870,6 @@ export const reverseFirstWayFeatureAndTag = wayFeatures => R.compose(
 export const blockToGeojson = ({nodes, ways}) => {
   return JSON.stringify({
       "type": "FeatureCollection",
-      "generator": "overpass-ide",
       "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
       "timestamp": "",
       "features": R.concat(nodes || [], ways || [])
@@ -1091,7 +1089,6 @@ export const blocksToGeojson = blocks => {
 
   return {
     "type": "FeatureCollection",
-    "generator": "overpass-ide",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
     "timestamp": "",
     "features": R.reduce(

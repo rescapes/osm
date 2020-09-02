@@ -16,7 +16,7 @@ import bbox from '@turf/bbox';
 import distance from '@turf/distance';
 import {featureCollection} from '@turf/helpers';
 import {
-  compact,
+  compact, composeWithChain,
   mapKeysAndValues,
   mapToNamedResponseAndInputs,
   pickDeepPaths,
@@ -94,11 +94,11 @@ export const queryLocationForOsmSingleBlocksResultsTask = (osmConfig, locations)
  * @returns {Task<Result>} Result.Ok with the geojson results and the location in the form {blcok, location}
  * or a Result.Error in the form {error, location}. The location has a new property googleIntersctionObjs if Result.Ok,
  * which is the result of the google geocodings
- * The blocks contain nodes and ways, and nodesToIntersectingStreets ,
+ * The blocks contain nodes and ways, and nodesToIntersections ,
  * where there are normally 2 nodes for the two intersections.
  * There must be at least one way and possibly more, depending on where two ways meet.
  * Some blocks have more than two nodes if they have multiple divided ways.
- * The results also contain nodesToIntersectingStreets, and object keyed by node ids and valued by the ways that intersect
+ * The results also contain nodesToIntersections, and object keyed by node ids and valued by the ways that intersect
  * the node. There is also an intersections array, which is also keyed by node id but valued by an array
  * of street names. The main street of the location's block is listed first followed by the rest (usually one)
  * in alphabetical order
@@ -123,7 +123,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
         block: {
           ways: featuresOfOsmType('way', features),
           nodes,
-          nodesToIntersectingStreets: R.compose(
+          nodesToIntersections: R.compose(
             R.fromPairs,
             R.zipWith((node, intersections) => [
               R.prop('id', node), intersections
@@ -134,7 +134,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
     ));
   }
 
-  return R.composeK(
+  return composeWithChain([
     // Task (Result.Ok Object | Result.Error) -> Task Result.Ok Object | Task Result.Error
     locationResult => {
       return resultToTaskWithResult(
@@ -146,26 +146,22 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
     },
     location => {
       return R.cond([
-        // If we defined explicitly OSM intersections set the intersections to them
-        [R.view(R.lensPath(['data', 'osmOverrides', 'intersections'])),
-          location => of(Result.of(
-            R.over(
-              R.lensProp('intersections'),
-              () => R.view(R.lensPath(['data', 'osmOverrides', 'intersections']), location),
-              location
-            )
-          ))
+        [
+          location => locationHasLocationPoints(location),
+          R.compose(of, Result.Ok)
         ],
-        [location => locationHasLocationPoints(location), R.compose(of, Result.Ok)],
         // Otherwise OSM needs full street names (Avenue not Ave), so use Google to resolve them
         // Use Google to resolve full names. If Google can't resolve either intersection a Result.Error
         // is returned. Otherwise a Result.Ok containing the location with the updated location.intersections
         // Also maintain the Google results. We can use either the intersections or the Google geojson to
         // resolve OSM data.
-        [R.T, location => _googleResolveJurisdictionResultTask(location)]
+        [
+          R.T, location => _googleResolveJurisdictionResultTask(location)
+        ]
       ])(location);
-    }
-  )(locationWithLocationPoints(location));
+    },
+    location => of(locationWithLocationPoints(location))
+  ])(location);
 };
 
 

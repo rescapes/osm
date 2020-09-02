@@ -58,8 +58,8 @@ const log = loggers.get('rescapeDefault');
  * @param {String} nodeQueries The overpass node queries. Like way queries, queries are broken up
  * for efficiency for large areas and the results are uniquely combined
  * @returns {Task<Object>} { Ok: locationWithNominatimData blocks, Error: []
- * Each locationWithNominatimData block, and results containing: {node, way, nodesToIntersectingStreets} in the Ok array
- * node contains node features, way contains way features, and nodesToIntersectingStreets are keyed by node id
+ * Each locationWithNominatimData block, and results containing: {node, way, nodesToIntersections} in the Ok array
+ * node contains node features, way contains way features, and nodesToIntersections are keyed by node id
  * and contain one or more street names representing the intersection. It will be just the block name for
  * a dead end street, and contain the intersecting streets for non-deadends
  * Errors in the errors array
@@ -218,17 +218,14 @@ export const _partialBlocksToFeaturesResultsTask = (
     ({blocks}) => {
       return of(R.map(
         block => {
-          const nodesToIntersectingStreets = strPathOr(null, 'nodesToIntersectingStreets', block);
+          const nodesToIntersections = strPathOr(null, 'nodesToIntersections', block);
           return Result.Ok({
             block,
             // Add the intersections to the location
             location: R.merge(
               location,
               {
-                intersections: R.map(
-                  streets => ({data: {streets}}),
-                  R.values(nodesToIntersectingStreets)
-                )
+                intersections: R.values(nodesToIntersections)
               }
             )
           });
@@ -279,7 +276,7 @@ export const _partialBlocksToFeaturesResultsTask = (
         }
         // Use the nodeIdToWays that was augmented by _traversePartialBlocksToBuildBlocksResultTask to get
         // intersection street names for each block
-        // This adds nodesToIntersectingStreets to each block
+        // This adds nodesToIntersections to each block
         return _addIntersectionsToBlocksTask({osmConfig, nodeIdToWays}, blocks);
       }
     ),
@@ -309,7 +306,7 @@ export const _partialBlocksToFeaturesResultsTask = (
  * @param osmConfig
  * @param nodeIdToWays
  * @param blocks
- * @return {Task<[Object]>} Resolves to the blocks with a key nodesToIntersectingStreets that is keyed by
+ * @return {Task<[Object]>} Resolves to the blocks with a key nodesToIntersections that is keyed by
  * block node and valued by two or more street names
  * @private
  */
@@ -320,7 +317,7 @@ const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
     block => {
       return composeWithMap([
         ({block, newNodeIdToWays}) => {
-          const nodesToIntersectingStreetsResult = _intersectionStreetNamesFromWaysAndNodesResult(
+          const nodesToIntersectionsResult = _intersectionStreetNamesFromWaysAndNodesResult(
             osmConfig,
             reqStrPathThrowing('ways', block),
             reqStrPathThrowing('nodes', block),
@@ -328,12 +325,12 @@ const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
             R.merge(nodeIdToWays, newNodeIdToWays)
           );
           log.debug(`_partialBlocksToFeaturesResultsTask: Resolved the following intersection names for the block nodes: ${
-            JSON.stringify(nodesToIntersectingStreetsResult.value)
+            JSON.stringify(nodesToIntersectionsResult.value)
           }`);
-          const updatedBlock = nodesToIntersectingStreetsResult.matchWith({
-              Ok: ({value: nodesToIntersectingStreets}) => {
+          const updatedBlock = nodesToIntersectionsResult.matchWith({
+              Ok: ({value: nodesToIntersections}) => {
                 return R.merge(block, {
-                    nodesToIntersectingStreets
+                    nodesToIntersections
                   }
                 );
               },

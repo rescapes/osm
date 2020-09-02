@@ -138,7 +138,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/19380819": [
         "Margarethenbrücke",
         "Margarethenstrasse"
@@ -234,7 +234,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/276067693": [
         "Heumattstrasse",
         "Centralbahnstrasse"
@@ -321,7 +321,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/208521585": [
         "Solothurnerstrasse",
         "Meret Oppenheim-Strasse"
@@ -449,7 +449,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/107707744": [
         "Güterstrasse",
         "Gempenstrasse"
@@ -539,7 +539,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/1255373471": [
         "Güterstrasse",
         "way/84594809"
@@ -623,7 +623,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/19388646": [
         "Güterstrasse",
         "Frobenstrasse"
@@ -712,7 +712,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/1255386528": [
         "Güterstrasse"
       ],
@@ -805,7 +805,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/3808510027": [
         "Solothurnerstrasse",
         "way/377476967"
@@ -893,7 +893,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/3808510032": [
         "Solothurnerstrasse",
         "way/377476967"
@@ -1197,7 +1197,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/276067693": [
         "Centralbahnstrasse",
         "Heumattstrasse"
@@ -1285,7 +1285,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/3798272921": [
         "way/28750462",
         "way/376392783"
@@ -1381,7 +1381,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/2971278549": [
         "Güterstrasse",
         "way/377476967"
@@ -1580,7 +1580,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/1506798015": [
         "Meret Oppenheim-Strasse",
         "way/377463668"
@@ -1692,7 +1692,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/1255386528": [
         "Güterstrasse"
       ],
@@ -1779,7 +1779,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/19388646": [
         "Frobenstrasse",
         "Güterstrasse"
@@ -1863,7 +1863,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/107708936": [
         "Gempenstrasse",
         "Dornacherstrasse"
@@ -1967,7 +1967,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/1615532211": [
         "Centralbahnstrasse",
         "way/28750462"
@@ -2071,7 +2071,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/2041669205": [
         "way/193642852",
         "way/84594809"
@@ -2225,7 +2225,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/3972984803": [
         "Meret Oppenheim-Strasse"
       ],
@@ -2325,7 +2325,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/208521579": [
         "Margarethenstrasse",
         "Meret Oppenheim-Strasse"
@@ -2417,7 +2417,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/107708936": [
         "Dornacherstrasse",
         "Gempenstrasse"
@@ -2518,7 +2518,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/1956285389": [
         "Margarethenstrasse",
         "Güterstrasse"
@@ -2620,7 +2620,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/3798272921": [
         "way/376392783",
         "way/28750462"
@@ -2765,7 +2765,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/1506798015": [
         "way/377463668",
         "Meret Oppenheim-Strasse"
@@ -2865,7 +2865,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/1506798015": [
         "way/377463668",
         "Meret Oppenheim-Strasse"
@@ -2958,7 +2958,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/3808510036": [
         "way/377476967",
         "Gempenstrasse"
@@ -3038,7 +3038,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/3808510034": [
         "way/377476969",
         "way/377476967"
@@ -3122,7 +3122,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/4635948531": [
         "way/377476969",
         "way/469211174"
@@ -3224,7 +3224,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/4635948533": [
         "Meret Oppenheim-Strasse",
         "way/469211174"
@@ -3307,7 +3307,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/4635948531": [
         "way/469211174",
         "way/377476969"
@@ -3401,7 +3401,7 @@ const blocks = [
         }
       }
     ],
-    "nodesToIntersectingStreets": {
+    "nodesToIntersections": {
       "node/5744933918": [
         "way/516231720",
         "way/516231722"

@@ -9,39 +9,41 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import * as R from 'ramda';
-import {task, of, waitAll} from 'folktale/concurrency/task';
+import {of, task, waitAll} from 'folktale/concurrency/task';
 import rhumbDistance from '@turf/rhumb-distance';
-import {featureCollection} from '@turf/helpers';
-import {Ok, Error} from 'folktale/result';
+import {featureCollection, lineString} from '@turf/helpers';
+import * as Result from 'folktale/result';
+import {Error, Ok} from 'folktale/result';
 import center from '@turf/center';
 import {compareTwoStrings} from 'string-similarity';
 import {
+  mapMDeep,
+  reqPathThrowing,
   reqStrPath,
   reqStrPathThrowing,
+  strPathOr,
   traverseReduce,
-  traverseReduceWhile,
-  mapMDeep,
-  mapToNamedResponseAndInputs,
-  reqPathThrowing,
-  strPathOr
+  traverseReduceWhile
 } from 'rescape-ramda';
 import googleMapsClient from './googleMapsClient';
 import {
   googleLocationToLocation,
-  googleLocationToTurfPoint, locationToTurfPoint, originDestinationToLatLngString, turfPointToLocation
+  googleLocationToTurfPoint,
+  locationToTurfPoint,
+  originDestinationToLatLngString,
+  turfPointToLocation
 } from 'rescape-helpers';
 import {
   addressString,
-  locationWithIntersectionInBothOrders,
   addressStrings,
-  isLatLng, locationIntersectionAsLatLng, locationWithLocationPoints,
+  jurisdictionString,
+  locationIntersectionAsLatLng,
+  locationWithIntersectionInBothOrders,
+  locationWithLocationPoints,
   oneLocationIntersectionsFromLocation,
-  removeStateFromSomeCountriesForSearch, jurisdictionString
+  removeStateFromSomeCountriesForSearch
 } from './locationHelpers';
-import * as Result from 'folktale/result';
-import {lineString} from '@turf/helpers';
 import {loggers} from 'rescape-log';
-import {fetchOsmRawTask, osmResultTask} from './overpassHelpers';
 
 const log = loggers.get('rescapeDefault');
 
@@ -289,8 +291,8 @@ export const geocodeBlockAddressesResultTask = location => {
 /**
  * Geocodes the locationWithNominatimData with the intersection streets in each order until one returns a result
  * @param {Object} locationWithOneIntersectionPair Location with only one intersection pair
- * @param {[[String]|String]} locationWithOneIntersectionPair.intersections one item array with a pair of
- * intersections names or just a lat/lon string
+ * @param {[[String]|String]} locationWithOneIntersectionPair.intersections one item array with item as
+ * {data: streets: [...]} where streets are the street names of an intersection
  * @return {Task<Result>} Result.Ok if one ordering succeeds. Result.Error if neither succeeds
  */
 export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneIntersectionPair => {
@@ -413,23 +415,26 @@ export const findClosest = (firstResultSet, secondResultSet) => {
  * @return {Task} resolves with Google Directions Route Response if the status is OK, else rejects
  */
 export const calculateRouteTask = R.curry((directionsService, origin, destination) => {
-  return task(resolver => {
-    directionsService({
-      origin: originDestinationToLatLngString(origin),
-      destination: originDestinationToLatLngString(destination),
-      mode: 'walking'
-    }, (error, response) => {
-      if (response && response.status === OK_STATUS) {
-        log.debug(`Successfully resolved ${origin.formatted_address} to ${destination.formatted_address} to
+  return R.map(
+    routeResponse => Result.of(routeResponse),
+    task(resolver => {
+      directionsService({
+        origin: originDestinationToLatLngString(origin),
+        destination: originDestinationToLatLngString(destination),
+        mode: 'walking'
+      }, (error, response) => {
+        if (response && response.status === OK_STATUS) {
+          log.debug(`Successfully resolved ${origin.formatted_address} to ${destination.formatted_address} to
         ${R.length(response.json.routes)} route(s)`);
-        resolver.resolve(response);
-      } else {
-        log.warn(`Failed to resolve ${origin.formatted_address} to ${destination.formatted_address}`);
-        resolver.reject(Result.Error({error: error}));
-      }
-    });
-    // Wrap the response in a Result.Ok
-  }).map(routeResponse => Result.of(routeResponse));
+          resolver.resolve(response);
+        } else {
+          log.warn(`Failed to resolve ${origin.formatted_address} to ${destination.formatted_address}`);
+          resolver.reject(Result.Error({error: error}));
+        }
+      });
+      // Wrap the response in a Result.Ok
+    })
+  );
 });
 
 /**
@@ -446,19 +451,22 @@ export const calculateRouteTask = R.curry((directionsService, origin, destinatio
  * if the status is OK. The response is wrapped in a Result.Ok. Task rejections send a Result.Error
  */
 export const calculateOpposingRoutesTask = R.curry((directionsService, origin, destination) => {
-  return waitAll(
-    R.map(
-      odPair => calculateRouteTask(directionsService, ...odPair),
-      [[origin, destination], [destination, origin]]
-    )
-  ).map(
+  return R.map(
     // Combine the Results into a single Result.Ok or Result.Error
     // [Result] -> Result.Ok<[Object]> | Result.Error<[Object]>
-    routeResponseResults => R.ifElse(
-      R.all(R.is(Result.Ok)),
-      R.sequence(Result.of),
-      R.sequence(Result.Error)
-    )(routeResponseResults)
+    routeResponseResults => {
+      return R.ifElse(
+        R.all(R.is(Result.Ok)),
+        R.sequence(Result.of),
+        R.sequence(Result.Error)
+      )(routeResponseResults);
+    },
+    waitAll(
+      R.map(
+        odPair => calculateRouteTask(directionsService, ...odPair),
+        [[origin, destination], [destination, origin]]
+      )
+    )
   );
 });
 
@@ -532,7 +540,9 @@ export const googleIntersectionTask = location => {
               // Split at &
               response => R.split(' & ', reqStrPathThrowing('address_components.0.long_name', response)),
               // Use the intersection from locationWithNominatimData instead
-              () => reqPathThrowing(['intersections', i], location)
+              () => {
+                return reqPathThrowing(['intersections', i, 'data', 'streets'], location);
+              }
             )(response)
           }, response),
           responses
@@ -551,8 +561,8 @@ export const googleIntersectionTask = location => {
  * @param {Object} location.country
  * @param {String} location.state Optional
  * @param {String} location.city
- * @param {[[String]]} location.intersections Zero, one or two arrays of two-item intersections:
- * e.g. [['Main St', 'Chestnut St'], ['Main St', 'Elm St']] or 0 or 1 of theses
+ * @param {[[String]]} location.intersections Zero, one or two arrays of two-street intersections
+ * in the form {data: {streets: [...]}} e.g.[{data: {streeets: ['Main St', 'Chestnut St']}}, {data: {streets: ['Main St', 'Elm St']}}] or 0 or 1 of theses
  * @return {Task<Result<[Number, Number]>>} The resolved center latitude and longitude of the locationWithNominatimData in a Result
  * If nothing or too many results occur an Error is returned instead of a Result
  */
@@ -565,7 +575,7 @@ export const resolveGeoLocationTask = location => {
   }
     // If we have both intersection pairs, resolve the center point between them.
   // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
-  else if (R.equals(2, R.length(location.intersections))) {
+  else if (R.equals(2, R.length(strPathOr([], 'intersections', location)))) {
     // Task Result -> Task Result
     return mapMDeep(2,
       center => turfPointToLocation(center),
@@ -590,7 +600,11 @@ export const resolveGeoLocationTask = location => {
           // If we have 1 intersection pair, resolve that intersection.
           // We try the intersection name with both name orderings because sometimes Google only knows one
           // Call the API, returning an Task<Result.Ok> if the resolution succeeds or Task<Result.Error> if it fails
-          ({location}) => R.equals(2, R.length(location.intersections)),
+          ({location}) => R.compose(
+            R.equals(2),
+            R.length,
+            strPathOr([], 'intersections')
+          )(location),
           // Otherwise take whatever is in the locationWithNominatimData, maybe just country or also state, city, neighborhood, etc
           // and give a center point. If we have a named intersection this task will try to resolve the intersection
           // by trying names in both orders until one resolves. E.g. it tries Main St and Elm St and then Elm St and Main St
@@ -758,13 +772,9 @@ export const _googleResolveJurisdictionResultTask = location => mapMDeep(2,
       locationWithGoogleAndLocationPoints,
       {
         intersections: R.map(
-          streets => ({data: streets}),
+          streets => ({data: {streets}}),
           R.zipWith(
             (googleIntersectionObj, locationIntersection) => {
-              // If our intersection is a 'lat/lon' string, not a pair of streets, just return it
-              if (R.is(String, locationIntersection)) {
-                return locationIntersection;
-              }
               const googleIntersection = R.prop('intersection', googleIntersectionObj);
               // Make sure the order of the googleIntersection streets match the original, even though
               // the Google one might be different to correct the name

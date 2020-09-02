@@ -168,12 +168,12 @@ describe('LocationHeleprs', () => {
         }
       },
       {
-        ['node/idological']: ['CantEscape Corral', 'Purpose St', 'Quagmire Ct'],
-        ['node/idation']: ['Ataboy Alley', 'Purpose St', 'Quirky Dock', 'Zebra Steps']
+        ['node/idological']: {data: {streets: ['CantEscape Corral', 'Purpose St', 'Quagmire Ct']}},
+        ['node/idation']: {data: {streets: ['Ataboy Alley', 'Purpose St', 'Quirky Dock', 'Zebra Steps']}}
       }
     )).toEqual([
-        ['Purpose St', 'Ataboy Alley', 'Quirky Dock', 'Zebra Steps'],
-        ['Purpose St', 'CantEscape Corral', 'Quagmire Ct']
+        {data: {streets: ['Purpose St', 'Ataboy Alley', 'Quirky Dock', 'Zebra Steps']}},
+        {data: {streets: ['Purpose St', 'CantEscape Corral', 'Quagmire Ct']}}
       ]
     );
   });
@@ -209,12 +209,12 @@ describe('LocationHeleprs', () => {
         }
       },
       {
-        ['node/4896277399']: ['CantEscape Corral', 'Purpose St', 'Quagmire Ct'],
-        ['node/4896277397']: ['Ataboy Alley', 'Purpose St', 'Quagmire Ct', 'Zebra Steps']
+        ['node/4896277399']: {data: {streets: ['CantEscape Corral', 'Purpose St', 'Quagmire Ct']}},
+        ['node/4896277397']: {data: {streets: ['Ataboy Alley', 'Purpose St', 'Quagmire Ct', 'Zebra Steps']}}
       }
     )).toEqual([
-        ['Purpose St', 'Ataboy Alley', 'Quagmire Ct', 'Zebra Steps'],
-        ['Purpose St', 'CantEscape Corral', 'Quagmire Ct']
+        {data: {streets: ['Purpose St', 'Ataboy Alley', 'Quagmire Ct', 'Zebra Steps']}},
+        {data: {streets: ['Purpose St', 'CantEscape Corral', 'Quagmire Ct']}}
       ]
     );
   });
@@ -224,12 +224,17 @@ describe('LocationHeleprs', () => {
       "country": "Canada",
       "state": "BC",
       "city": "Fernie",
-      "intersections": [
-        [
-          "Cokato Road",
-          "Earle Road"
-        ]
-      ],
+      "street": "Cokato Road",
+      "intersections": [{
+        data: {
+          streets: [
+            [
+              "Cokato Road",
+              "Earle Road"
+            ]
+          ]
+        }
+      }],
       "geojson": {
         "type": "FeatureCollection",
         "features": [
@@ -263,15 +268,19 @@ describe('LocationHeleprs', () => {
         ]
       }
     };
-    const nodesToIntersectingStreets = {
-      "node/1859551276": [
-        "Cokato Road",
-        "Earle Road"
-      ]
+    const nodesToIntersections = {
+      "node/1859551276": {
+        data: {
+          streets: [
+            "Cokato Road",
+            "Earle Road"
+          ]
+        }
+      }
     };
-    expect(intersectionsByNodeIdToSortedIntersections(location, nodesToIntersectingStreets)).toEqual([
-      ["Cokato Road", "Earle Road"],
-      ["Cokato Road", "node/4505199830"]
+    expect(intersectionsByNodeIdToSortedIntersections(location, nodesToIntersections)).toEqual([
+      {data: {streets: ["Cokato Road", "Earle Road"]}},
+      {data: {streets: ["Cokato Road", "node/4505199830"]}}
     ]);
   });
 
@@ -280,159 +289,153 @@ describe('LocationHeleprs', () => {
   });
 
   test('aggregateLocationsWithNoGeojson', () => {
-    const location = {
+    const neighborhoodLocation = {
       "country": "New Zealand",
       "state": "",
       "city": "Auckland",
       "neighborhood": "Viaduct Basin",
       "street": "High St",
       "intersections": [],
-      "osmId": 665064256
+      "osmId": 665064256,
+      "geojson": {
+        "features": [],
+        "type": "FeatureCollection"
+      }
     };
-    const componentLocationWithoutGeojson = [{
-      "id": 2229946,
-      "state": "",
-      "city": "Auckland",
-      "country": "New Zealand",
-      "neighborhood": "Viaduct Basin",
-      "street": "High St",
-      intersections: [
-        {
-          data: {streets: ['High St', 'Durham St E']},
-          geojson: {
-            type: 'FeatureCollection',
-            features: [
-              {
-                coordinates: [174.766344, -36.848499]
-              }
-            ]
-          }
-        },
-        {
-
-          data: {streets: ['High St', 'Victoria St E']},
-          geojson: {
-            type: 'FeatureCollection',
-            features: [
-              {
-                coordinates: [174.766100, -36.849247]
-              }
-            ]
-          }
-        }
-      ],
-      "geojson": null
-    }, {
-      "id": 2229955,
-      "state": "",
-      "city": "Auckland",
-      "country": "New Zealand",
-      "neighborhood": "Viaduct Basin",
-      "street": "High St",
+    const highShortland = {
+      data: {streets: ['High St', 'Shortland St']},
       geojson: {
         type: 'FeatureCollection',
         features: [
           {
-            type: 'Feature', geometry: {
-              type: 'Point',
+            type: 'Point',
+            id: 'node/0',
+            geometry: {
+              coordinates: [174.766872, -36.846571]
+            }
+          }
+        ]
+      }
+    };
+    const highVulcan = {
+      data: {streets: ['High St', 'Vulcan Ln']},
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: 'Point',
+            id: 'node/1',
+            geometry: {
+              coordinates: [174.766720, -36.847199]
+            }
+          }
+        ]
+      }
+    };
+    const highDurham = {
+      data: {streets: ['High St', 'Durham St E']},
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: 'Point',
+            id: 'node/2',
+            geometry: {
               coordinates: [174.766344, -36.848499]
             }
-          },
+          }
+        ]
+      }
+    };
+    const highVictoria = {
+      data: {streets: ['High St', 'Victoria St E']},
+      geojson: {
+        type: "FeatureCollection",
+        features: [
           {
-            type: 'Feature', geometry: {
-              type: 'Point',
+            type: 'Point',
+            id: 'node/3',
+            geometry: {
               coordinates: [174.766100, -36.849247]
             }
           }
         ]
+      }
+    };
+    // Create a fake way from the nodes
+    const addWay = (id, nodes) => {
+      return R.concat([
+          {
+            type: 'LineString',
+            id: `way/${id}`,
+            geometry: {
+              coordinates: R.map(
+                node => node.geojson.features[0].geometry.coordinates,
+                nodes
+              )
+            }
+          }],
+        R.map(node => node.geojson.features[0], nodes)
+      );
+    };
+    const streetLocations = [
+      {
+        "id": 2229946,
+        "state": "",
+        "city": "Auckland",
+        "country": "New Zealand",
+        "neighborhood": "Viaduct Basin",
+        "street": "High St",
+        intersections: [highDurham, highVictoria],
+        "geojson": {
+          type: 'FeatureCollection',
+          features: addWay(1, [highDurham, highVictoria])
+        }
       },
-      intersections: [
-        {
-          data: {streets: ['High St', 'Durham St E']}
-        },
-        {
-          data: {streets: ['High St', 'Victoria St E']}
+      , {
+        "id": 2229945,
+        "state": "",
+        "city": "Auckland",
+        "country": "New Zealand",
+        "neighborhood": "Viaduct Basin",
+        "street": "High St",
+        intersections: [highShortland, highVulcan],
+        "geojson": {
+          type: 'FeatureCollection',
+          features: addWay(2, [highShortland, highVulcan])
         }
-      ],
-    }, {
-      "id": 2229945,
-      "state": "",
-      "city": "Auckland",
-      "country": "New Zealand",
-      "neighborhood": "Viaduct Basin",
-      intersections: [
-        {
-          data: {streets: ['High St', 'Shortland St']},
-          geojson: {
-            type: 'FeatureCollection',
-            features: [
-              {
-                coordinates: [174.766872, -36.846571]
-              }
-            ]
-          }
-        },
-        {
-
-          data: {streets: ['High St', 'Vulcan Ln']},
-          geojson: {
-            type: 'FeatureCollection',
-            features: [
-              {
-                coordinates: [174.766720, -36.847199]
-              }
-            ]
-          }
+      }, {
+        "id": 2229947,
+        "state": "",
+        "city": "Auckland",
+        "country": "New Zealand",
+        "neighborhood": "Viaduct Basin",
+        "street": "High St",
+        intersections: [highVulcan, highDurham],
+        "geojson": {
+          type: 'FeatureCollection',
+          features: addWay(3, [highVulcan, highDurham])
         }
-      ],
-      "point_of_interest": "",
-      "point_of_interest_location": "",
-      "geojson": null
-    }, {
-      "id": 2229947,
-      "state": "",
-      "city": "Auckland",
-      "country": "New Zealand",
-      "neighborhood": "Viaduct Basin",
-      intersections: [
-        {
-          data: {streets: ['High St', 'Vulcan Ln']},
-          geojson: {
-            type: 'FeatureCollection',
-            features: [
-              {
-                coordinates: [174.766720, -36.847199]
-              }
-            ]
-          }
-        },
-        {
+      }];
 
-          data: {streets: ['High St', 'Durham St E']},
-          geojson: {
-            type: 'FeatureCollection',
-            features: [
-              {
-                coordinates: [174.766344, -36.848499]
-              }
-            ]
-          }
-        }
-      ],
-      "street": "High St",
-      "geojson": null
-    }];
-
-    expect(aggregateLocation({}, location, componentLocationWithoutGeojson)).toEqual(
+    expect(
+      aggregateLocation({}, neighborhoodLocation, streetLocations)
+    ).toEqual(
       R.merge(
-        location,
+        neighborhoodLocation,
         {
           "geojson": {
-
-            "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
-            "features": [],
-            "generator": "overpass-turbo",
-            "type": "FeatureCollection"
+            type: 'FeatureCollection',
+            copyright: "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.",
+            features:
+              R.concat(
+                [
+                  addWay(1, [highDurham, highVictoria])[0],
+                  addWay(2, [highShortland, highVulcan])[0],
+                  addWay(3, [highVulcan, highDurham])[0]
+                ],
+                R.map(intersection => intersection.geojson.features[0], [highShortland, highVulcan, highDurham, highVictoria])
+              )
           }
         }
       )
@@ -565,12 +568,16 @@ describe('LocationHeleprs', () => {
   });
 
   test('TestLoopHandlingInintersectionsByNodeIdToSortedIntersections', () => {
-    const nodesToIntersectingStreetsWithNull = {
-      "node/4437341913": [
-        "way/665350226",
-        "Victoria Avenue",
-        "way/446472694"
-      ]
+    const nodesToIntersectionsWithNull = {
+      "node/4437341913": {
+        data: {
+          streets: [
+            "way/665350226",
+            "Victoria Avenue",
+            "way/446472694"
+          ]
+        }
+      }
     };
     const location = {
       country: 'Kenya',
@@ -588,22 +595,38 @@ describe('LocationHeleprs', () => {
         ]
       }
     };
-    expect(intersectionsByNodeIdToSortedIntersections(location, nodesToIntersectingStreetsWithNull)).toEqual(
-      [["Victoria Avenue", "way/446472694", "way/665350226"], ["Victoria Avenue", "way/446472694", "way/665350226"]]
-    );
-    const normalNodesToIntersectingStreets = {
-      "node/4437341913": [
-        "way/665350226",
-        "Victoria Avenue",
-        "way/446472694"
-      ],
-      "node/4437341413": [
-        "way/665350226",
-        "Jasper St"
+    // TODO, should the location in context here always be the block location?
+    // If we are generating blocks, why wouldn't we have the block location at this point?
+    expect(intersectionsByNodeIdToSortedIntersections(location, nodesToIntersectionsWithNull)).toEqual(
+      [
+        {data: {streets: ["Victoria Avenue", "way/446472694", "way/665350226"]}},
+        {data: {streets: ["Victoria Avenue", "way/446472694", "way/665350226"]}}
       ]
+    );
+    const normalnodesToIntersections = {
+      "node/4437341913": {
+        data: {
+          streets: [
+            "way/665350226",
+            "Victoria Avenue",
+            "way/446472694"
+          ]
+        }
+      },
+      "node/4437341413": {
+        data: {
+          streets: [
+            "way/665350226",
+            "Jasper St"
+          ]
+        }
+      }
     };
-    expect(intersectionsByNodeIdToSortedIntersections(location, normalNodesToIntersectingStreets)).toEqual(
-      [["way/665350226", "Jasper St"], ["way/665350226", "Victoria Avenue", "way/446472694"]]
+    expect(intersectionsByNodeIdToSortedIntersections(location, normalnodesToIntersections)).toEqual(
+      [
+        {data: {streets: ["way/665350226", "Jasper St"]}},
+        {data: {streets: ["way/665350226", "Victoria Avenue", "way/446472694"]}}
+      ]
     );
   });
 
@@ -758,41 +781,15 @@ describe('LocationHeleprs', () => {
       "name": "Untitled layer",
       "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
       "features": [
-        /*
-        Takes too long, so just do one
-        {
-          "type": "Feature",
-          "properties": {"Name": "Line 1", "description": null, "tessellate": 1},
-          "geometry": {"type": "LineString", "coordinates": [[-114.1412794, 51.0378554], [-114.1134703, 51.0378015]]}
-        },
-        {
-          "type": "Feature",
-          "properties": {"Name": "Line 2", "description": null, "tessellate": 1},
-          "geometry": {"type": "LineString", "coordinates": [[-114.1412756, 51.0451478], [-114.1412756, 51.0224241]]}
-        },
-        {
-          "type": "Feature",
-          "properties": {"Name": "Line 3", "description": null, "tessellate": 1},
-          "geometry": {
-            "type": "LineString",
-            "coordinates": [[-114.1708005, 51.0773893], [-114.1677535, 51.0753401], [-114.1651356, 51.075421], [-114.1639769, 51.0751244], [-114.1542351, 51.0678976]]
-          }
-        },
-        {
-          "type": "Feature",
-          "properties": {"Name": "Line 4", "description": null, "tessellate": 1},
-          "geometry": {"type": "LineString", "coordinates": [[-114.117886, 51.0239661], [-114.0947546, 51.0239931]]}
-        },
-         */
         {
           "type": "Feature",
           "properties": {"Name": "Line 5", "description": null, "tessellate": 1},
-          "geometry": {"type": "LineString", "coordinates": [[-114.0517016, 51.0532901], [-114.0450283, 51.0532699]]}
+          "geometry": {"type": "LineString", "coordinates": [[-114.0517016, 51.0532901], [-114.050221, 51.053310]]}
         }
       ]
     };
     const errors = [];
-    const radius = 40;
+    const radius = 2;
     const units = 'meters';
     const resultsTask = bufferedFeaturesToOsmAllBlocksQueryResultsTask({
       osmConfig: {},
@@ -860,8 +857,10 @@ describe('LocationHeleprs', () => {
     );
   }, 10000000);
 
+  /*
+  // Takes too long
   test('bufferedFeaturesToOsmAllBlocksQueryResultsTaskFromStreetResults', done => {
-    const radius = 10;
+    const radius = 12;
     const units = 'meters';
 
     const locationGeojson = locationsToGeojson(R.map(reqStrPathThrowing('location'), sampleStreetLocationsAndBlocks));
@@ -892,6 +891,7 @@ describe('LocationHeleprs', () => {
       }, errors, done)
     );
   }, 10000000);
+   */
 
   test('bufferAndUnionGeojson', () => {
     const featuresAndCollections = [

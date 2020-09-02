@@ -34,7 +34,7 @@ import * as Result from 'folktale/result';
 import {_queryLocationVariationsUntilFoundResultTask, locationsToGeojson} from './overpassBlockHelpers';
 import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch';
 import {
-  bufferAndUnionGeojson,
+  bufferAndUnionGeojson, commonStreetOfLocation,
   geojsonFeaturesHaveRadii,
   geojsonFeaturesHaveShape,
   geojsonFeaturesHaveShapeOrRadii,
@@ -134,7 +134,7 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                       latLon => R.fromPairs(R.zip(['lat', 'lon'], latLon)),
                       point => turfPointToLocation(point),
                       geojson => center(geojson),
-                      ({line, length}) => along(line, length / 2 , {units: 'meters'}),
+                      ({line, length}) => along(line, length / 2, {units: 'meters'}),
                       line => ({line, length: length(line, {units: 'meters'})}),
                       ways => lineString(R.reduce(
                         (acc, way) => R.uniq(R.concat(acc, reqStrPathThrowing('geometry.coordinates', way))),
@@ -147,19 +147,19 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                     return composeWithChainMDeep(2, [
                       nominatimProperties => {
                         // If we didn't get a street name from OSM, use that from nominatim
-                        const checkStreet = reqStrPathThrowing('intersections.0.0', location);
+                        const checkStreet = commonStreetOfLocation(location, reqStrPathThrowing('intersections', location));
                         const updatedStreet = R.when(
                           checkStreet => isOsmType('way', {id: checkStreet}),
                           checkStreet => strPathOr(checkStreet, 'street', nominatimProperties)
                         )(checkStreet);
-                        // Update the nodesToIntersectingStreets
+                        // Update the nodesToIntersections
                         const updatedBlock = R.over(
-                          R.lensProp('nodesToIntersectingStreets'),
+                          R.lensProp('nodesToIntersections'),
                           obj => R.map(
-                            obj => R.over(
-                              R.lensIndex(0),
-                              () => updatedStreet,
-                              obj
+                            intersection => R.set(
+                              R.lensPath(['data', 'streets', 0]),
+                              updatedStreet,
+                              intersection
                             ),
                             obj
                           ),
@@ -169,10 +169,10 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                         const updatedLocation = R.over(
                           R.lensProp('intersections'),
                           obj => R.map(
-                            obj => R.over(
-                              R.lensIndex(0),
-                              () => updatedStreet,
-                              obj
+                            intersection => R.set(
+                              R.lensPath(['data', 'streets', 0]),
+                              updatedStreet,
+                              intersection
                             )
                           )(obj),
                           location
@@ -184,7 +184,7 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                           location: R.merge(nominatimProperties, updatedLocation)
                         }));
                       },
-                      // Reverse geocode the center of the block to get missing jurisdiction data
+                      // Else, reverse geocode the center of the block to get missing jurisdiction data
                       location => nominatimReverseGeocodeToLocationResultTask(
                         searchLatLon
                       )
@@ -256,26 +256,28 @@ export const processJurisdictionOrGeojsonResponsesResultTask = (osmConfig, locat
   return R.cond([
     [R.length,
       // If we have variations, query then in order until a positive result is returned
-      locationVariationsWithOsm => _queryLocationVariationsUntilFoundResultTask(
-        osmConfig,
-        (osmConfig, locationWithOsm) => {
-          return R.map(
-            // _queryOverpassWithLocationForAllBlocksResultsTask returns a {Ok: [block locations], Error: [Error]}
-            // We need to reduce this: If anything is in error, we know the query failed, so we pass a Result.Error
-            results => {
-              return R.ifElse(
-                R.compose(R.length, R.prop('Error')),
-                // Put in a Result.Error so this result is skipped
-                results => Result.Error(R.prop('Error', results)),
-                // Put in a Result.Ok so this result is processed
-                results => Result.Ok(R.prop('Ok', results))
-              )(results);
-            },
-            _queryOverpassWithLocationForAllBlocksResultsTask(osmConfig, locationWithOsm)
-          );
-        },
-        locationVariationsWithOsm
-      )
+      locationVariationsWithOsm => {
+        return _queryLocationVariationsUntilFoundResultTask(
+          osmConfig,
+          (osmConfig, locationWithOsm) => {
+            return R.map(
+              // _queryOverpassWithLocationForAllBlocksResultsTask returns a {Ok: [block locations], Error: [Error]}
+              // We need to reduce this: If anything is in error, we know the query failed, so we pass a Result.Error
+              results => {
+                return R.ifElse(
+                  R.compose(R.length, R.prop('Error')),
+                  // Put in a Result.Error so this result is skipped
+                  results => Result.Error(R.prop('Error', results)),
+                  // Put in a Result.Ok so this result is processed
+                  results => Result.Ok(R.prop('Ok', results))
+                )(results);
+              },
+              _queryOverpassWithLocationForAllBlocksResultsTask(osmConfig, locationWithOsm)
+            );
+          },
+          locationVariationsWithOsm
+        );
+      }
     ],
     // If no query produced results return a Result.Error so we can give up gracefully
     [R.T,
@@ -402,8 +404,8 @@ export const nominatimOrGoogleJurisdictionGeojsonResultTask = (osmConfig, locati
  * @param {Object} locationWithOsm Location object with  bbox, osmId, placeId from
  * @private
  * @returns  {Task<Object>} { Ok: locationWithNominatimData blocks, Error: []
- * Each locationWithNominatimData block, and results containing: {node, way, nodesToIntersectingStreets} in the Ok array
- * node contains node features, way contains way features, and nodesToIntersectingStreets are keyed by node id
+ * Each locationWithNominatimData block, and results containing: {node, way, nodesToIntersections} in the Ok array
+ * node contains node features, way contains way features, and nodesToIntersections are keyed by node id
  * and contain one or more street names representing the intersection. It will be just the block name for
  * a dead end street, and contain the intersecting streets for non-deadends
  * Errors in the errors array
@@ -499,7 +501,7 @@ function _constructHighwayQueriesForType(osmConfig, {type}, location) {
   // Don't calculate this if we didn't pass an osmId
   const areaId = R.when(R.identity, osmIdToAreaId)(osmId);
   // If configured, query by just the areaId when one is available without breaking queries into grids
-  const useAreaIdWithoutGrids = strPathOr(false, 'useAreaIdWithoutGrids', osmConfig)
+  const useAreaIdWithoutGrids = strPathOr(false, 'useAreaIdWithoutGrids', osmConfig);
 
   // If the we are filtering by geojson features, we need at least one query per feature. Large features
   // are broken down into smaller square features that are each converted to a bbox for querying Overpass
@@ -515,7 +517,10 @@ function _constructHighwayQueriesForType(osmConfig, {type}, location) {
           return {areaId, geojson: {features: [feature]}};
         },
         // Get .1km squares of the area
-        extractSquareGridFeatureCollectionFromGeojson({cellSize: R.propOr(1000, 'gridSize', osmConfig), units: 'meters'}, geojson).features
+        extractSquareGridFeatureCollectionFromGeojson({
+          cellSize: R.propOr(1000, 'gridSize', osmConfig),
+          units: 'meters'
+        }, geojson).features
       )
     ],
     // If feature properties have radii split them up into features.

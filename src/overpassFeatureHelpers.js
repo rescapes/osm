@@ -13,7 +13,7 @@ import {
   chainExceptMapDeepestMDeep,
   chainObjToValues,
   compact,
-  composeWithChainMDeep,
+  composeWithChainMDeep, composeWithMap,
   composeWithMapMDeep,
   filterWithKeys,
   findOneThrowing,
@@ -606,12 +606,11 @@ export const cleanGeojson = feature => {
  * than just the needed nodes if you are calling this function multiple times on many blocks and have a comprehensive
  * list of lookups. This lookup lacks matches for dead-end nodes since they are not intersections. We handle
  * this case
- * @returns {Result<Object>} An object keyed by the same node ids but valued by a list of street names of the
+ * @returns {Result<Object>} An object keyed by the same node ids but valued by an object
+ * in the form {data: streets: [...]} where streets is list of street names of the
  * ways that intersect the node. The street names list first the street matching one of the wayFeatures
  * (i.e. the block name) and the remaining are alphabetical. If a way has no name the way's id string is used
  * (e.g. 'way/12345').
- * TODO for future wayfinding visualizations it might be better to return these keyed by degrees from the block,
- * such as {0: street, 24: street name 24 degrees clockwise or counterclockwise from block, 180:..., etc }
  * Returns Result.Error if anything goes wrong
  * @private
  */
@@ -628,15 +627,18 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
         const nodeId = R.prop('id', nodeFeature);
         return [
           nodeId,
-          R.when(R.isNil, () => {
-            // If we can't find the wayFeatures it's because we have a non-intersection dead-end node
-            // That means the only way of the node is the last of wayFeatures, because our ways always flow from
-            // an intersection the dead end can only be at the end of an intersection (unless we have have an
-            // isolated way, which isn't handled anywhere in the code yet)
-            // We put the nodeFeature as the second feature to represent the cross-street, since there is no cross street
-            // This can be removed in the future when we don't need a cross street
-            return [R.last(wayFeatures), nodeFeature];
-          })(R.propOr(null, nodeId, nodeIdToWayFeatures))
+          R.when(
+            R.isNil,
+            () => {
+              // If we can't find the wayFeatures it's because we have a non-intersection dead-end node
+              // That means the only way of the node is the last of wayFeatures, because our ways always flow from
+              // an intersection the dead end can only be at the end of an intersection (unless we have have an
+              // isolated way, which isn't handled anywhere in the code yet)
+              // We put the nodeFeature as the second feature to represent the cross-street, since there is no cross street
+              // This can be removed in the future when we don't need a cross street
+              return [R.last(wayFeatures), nodeFeature];
+            }
+          )(R.propOr(null, nodeId, nodeIdToWayFeatures))
         ];
       }, nodeFeatures)
   );
@@ -767,10 +769,14 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
     )(nodeIdToResult),
     // Put the object in a Result.Ok without the internal Result.Oks
     nodeIdToResult => {
-      return composeWithMapMDeep(1, [
+      return composeWithMap([
+        // Map the values to the final format {data: {streets: streets}}
+        R.map(streets => ({data: {streets}})),
         pairs => R.fromPairs(pairs),
         nodeIdToResult => traverseReduce(
-          (accum, pair) => R.concat(accum, [pair]),
+          (accum, pair) => {
+            return R.concat(accum, [pair]);
+          },
           Result.Ok([]),
           objOfMLevelDeepMonadsToListWithPairs(1, Result.Ok, nodeIdToResult)
         )

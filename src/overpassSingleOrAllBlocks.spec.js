@@ -20,8 +20,8 @@ describe('overpassSingleOrAllBlocks', () => {
     const errors = [];
     const location = {
       "intersections": [
-        ["2nd St", "K St"],
-        ["2nd St", "L St"]
+        {data: {streets: ["2nd St", "K St"]}},
+        {data: {streets: ["2nd St", "L St"]}}
       ],
       "neighborhood": "Downtown",
       "city": "Sacramento",
@@ -53,7 +53,7 @@ describe('overpassSingleOrAllBlocks', () => {
       }
     ).run().listen(defaultRunConfig({
         onResolved: ({Ok: locationsWithBlocks, Error: errors}) => {
-          expect(R.length(locationsWithBlocks)).toEqual(41);
+          expect(R.length(locationsWithBlocks)).toEqual(33);
         }
       }, errors, done)
     );

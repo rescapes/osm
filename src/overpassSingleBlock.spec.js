@@ -27,7 +27,13 @@ describe('overpassSingleBlock', () => {
     expect.assertions(4);
     const osmConfig = {};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
-      geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [-73.8057879, 40.6660816]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [-73.80604, 40.66528]}}]}
+      geojson: {
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          geometry: {type: 'Point', coordinates: [-73.8057879, 40.6660816]}
+        }, {type: 'Feature', geometry: {type: 'Point', coordinates: [-73.80604, 40.66528]}}]
+      }
     }).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({results, location}) => {
@@ -61,7 +67,7 @@ describe('overpassSingleBlock', () => {
           expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/5707230']);
           expect(R.map(R.prop('id'), R.prop('nodes', results))).toEqual(['node/42875319', 'node/42901997']);
           // Expect our intersection names
-          expect(reqStrPathThrowing('nodesToIntersectingStreets', results)).toEqual({
+          expect(reqStrPathThrowing('nodesToIntersections', results)).toEqual({
             'node/42875319': [
               '134th Street',
               'South Conduit Avenue'
@@ -83,7 +89,13 @@ describe('overpassSingleBlock', () => {
     // includePedestrianArea isn't currently default functionality
     const osmConfig = {includePedestrianArea: true};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
-      geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [11.047053, 59.952305]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [11.045588, 59.952248]}}]}
+      geojson: {
+        type: 'FeatureCollection',
+        features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [11.047053, 59.952305]}}, {
+          type: 'Feature',
+          geometry: {type: 'Point', coordinates: [11.045588, 59.952248]}
+        }]
+      }
     }).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({results, location}) => {
@@ -91,7 +103,7 @@ describe('overpassSingleBlock', () => {
           expect(R.map(R.prop('id'), R.prop('ways', results))).toEqual(['way/570781859']);
           expect(R.map(R.prop('id'), R.prop('nodes', results))).toEqual(['node/706705268', 'node/1287797787']);
           // Expect our intersection names
-          expect(reqStrPathThrowing('nodesToIntersectingStreets', results)).toEqual({
+          expect(reqStrPathThrowing('nodesToIntersections', results)).toEqual({
             'node/706705268': [
               'way/570781859',
               'Tærudgata'
@@ -112,7 +124,18 @@ describe('overpassSingleBlock', () => {
     expect.assertions(3);
     const osmConfig = {};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
-      'intersections': {data: {streets: [['High St', 'Durham St E'], ['High St', 'Victoria St E']]}},
+      'intersections': [
+        {
+          data: {
+            streets: ['High St', 'Durham St E']
+          }
+        },
+        {
+          data: {
+            streets: ['High St', 'Victoria St E']
+          }
+        }
+      ],
       'neighborhood': 'Viaduct Basin',
       'city': 'Auckland',
       'country': 'New Zealand'
@@ -155,8 +178,8 @@ describe('overpassSingleBlock', () => {
     const errors = [];
     const location = {
       "intersections": [
-        ["2nd St", "K St"],
-        ["2nd St", "L St"]
+        {data: {streets: ["2nd St", "K St"]}},
+        {data: {streets: ["2nd St", "L St"]}}
       ],
       "neighborhood": "Downtown",
       "city": "Sacramento",
@@ -181,7 +204,13 @@ describe('overpassSingleBlock', () => {
     expect.assertions(1);
     const osmConfig = {};
     queryLocationForOsmSingleBlockResultTask(osmConfig, {
-      geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [7.5847, 47.5473]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [7.5897, 47.5458]}}]}
+      geojson: {
+        type: 'FeatureCollection',
+        features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [7.5847, 47.5473]}}, {
+          type: 'Feature',
+          geometry: {type: 'Point', coordinates: [7.5897, 47.5458]}
+        }]
+      }
     }).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({result}) => {
@@ -210,7 +239,13 @@ describe('overpassSingleBlock', () => {
     expect.assertions(1);
     const osmConfig = {};
     _locationToOsmSingleBlockBoundsQueryResultTask(osmConfig, locationWithLocationPoints({
-      geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [7.5847, 47.5473]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [7.5897, 47.5458]}}]}
+      geojson: {
+        type: 'FeatureCollection',
+        features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [7.5847, 47.5473]}}, {
+          type: 'Feature',
+          geometry: {type: 'Point', coordinates: [7.5897, 47.5458]}
+        }]
+      }
     })).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({result}) => {
@@ -237,7 +272,13 @@ describe('overpassSingleBlock', () => {
     expect.assertions(1);
     const osmConfig = {};
     _locationToOsmSingleBlockBoundsQueryResultTask(osmConfig, locationWithLocationPoints({
-      geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [7.5847, 47.5473]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [7.5897, 47.5458]}}]}
+      geojson: {
+        type: 'FeatureCollection',
+        features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [7.5847, 47.5473]}}, {
+          type: 'Feature',
+          geometry: {type: 'Point', coordinates: [7.5897, 47.5458]}
+        }]
+      }
     })).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({result}) => {

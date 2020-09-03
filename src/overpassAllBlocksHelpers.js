@@ -227,7 +227,7 @@ export const _partialBlocksToFeaturesResultsTask = (
             location: R.merge(
               location,
               {
-                blockname: commonStreetOfLocation(location, intersections),
+                street: commonStreetOfLocation(location, intersections),
                 intersections
               }
             )

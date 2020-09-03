@@ -112,12 +112,12 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
   if (R.allPass([
     location => locationHasGeojsonFeatures(location),
     () => R.not(strPathOr(false, 'forceOsmQuery', osmConfig)),
-    location => R.propOr([], 'intersections', location)
+    location => R.length(R.propOr([], 'intersections', location))
   ])(location)) {
     const features = reqStrPathThrowing('geojson.features', location);
     // We already have the geojson and intersections. Mimic the response from OSM
     const nodes = featuresOfOsmType('node', features);
-    const intersections = reqStrPathThrowing('intersections', location);
+    const intersections = strPathOr(null, 'intersections', location);
     return of(Result.Ok({
         location,
         block: {
@@ -125,8 +125,8 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
           nodes,
           nodesToIntersections: R.compose(
             R.fromPairs,
-            R.zipWith((node, intersections) => [
-              R.prop('id', node), intersections
+            R.zipWith((node, intersection) => [
+              R.prop('id', node), intersection
             ])
           )(nodes, intersections)
         }
@@ -390,13 +390,15 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
 
   return R.composeK(
     matchingLocationsWithBlocks => of(_locationToOsmSingleBlockBoundsResolve(location, matchingLocationsWithBlocks)),
-    location => locationToOsmAllBlocksQueryResultsTask(osmConfig, location)
+    location => {
+      return locationToOsmAllBlocksQueryResultsTask(osmConfig, location);
+    }
   )(locationWithGeojsonBounds);
 };
 
 const _locationToOsmSingleBlockBoundsResolve = (location, {Ok: locationsWithBlocks, Errors: errors}) => {
   // Debug
-  //blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
+  blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
   // Find the block that has nodes within an acceptable tolerance of location.locationPoints to be
   // considered the correct block
   const matchingLocationsWithBlocks = compact(

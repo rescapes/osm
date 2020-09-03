@@ -13,11 +13,16 @@
 import 'regenerator-runtime';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
 import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
-import {aggregateLocation, featuresByOsmType} from './locationHelpers';
+import {
+  aggregateLocation,
+  commonStreetOfLocation,
+  featuresByOsmType,
+  sortIntersectionsAndStreets
+} from './locationHelpers';
 import {fetchOsmRawTask, osmResultTask} from './overpassHelpers';
 import {
   chainObjToValues,
-  eqStrPathsAll,
+  eqStrPathsAllCustomizable,
   mapToNamedResponseAndInputs,
   resultToTaskNeedingResult,
   resultToTaskWithResult, strPathOr
@@ -54,18 +59,39 @@ rel(id:${osmId}) -> .rel;
  * @private
  */
 const _matchingComponentLocations = (componentLocations, filterLocation) => R.filter(
-  componentLocation => eqStrPathsAll(
-    // If filterLocation has intersections we match on that property. Otherwise we just match on street
-    R.ifElse(
-      l => {
-        return R.compose(R.length, strPathOr([], 'intersections'))(l);
+  componentLocation => {
+    const common = ['country', 'state', 'city', 'neighborhood'];
+    return eqStrPathsAllCustomizable(
+      // If filterLocation has intersections we match on that property. Otherwise we just match on street
+      R.ifElse(
+        l => {
+          return R.compose(R.length, strPathOr([], 'intersections'))(l);
+        },
+        () => R.concat(common, ['intersections']),
+        () => R.concat(common, ['street'])
+      )(filterLocation),
+      {
+        intersections: (strPath, componentLocation, filterLocation) => {
+          const [componentLocationIntersections, filterLocationIntersections] = R.map(
+            R.prop(strPath),
+            [componentLocation, filterLocation]
+          );
+          // Make sure the intersections streets are sorted before comparison
+          return R.equals(
+            ...R.map(
+              ([location, intersections]) => sortIntersectionsAndStreets(
+                commonStreetOfLocation(location, intersections),
+                intersections
+              ),
+              [[componentLocation, componentLocationIntersections], [filterLocation, filterLocationIntersections]]
+            )
+          );
+        }
       },
-      () => ['country', 'state', 'city', 'neighborhood', 'intersections'],
-      () => ['country', 'state', 'city', 'neighborhood', 'street']
-    )(filterLocation),
-    filterLocation,
-    componentLocation
-  ),
+      filterLocation,
+      componentLocation
+    );
+  },
   R.defaultTo([], componentLocations)
 );
 
@@ -179,18 +205,20 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
 
               // Collect blocks from the matching componentLocations or by querying OSM
               mapToNamedResponseAndInputs('blockLocationsResult',
-                ({locationWithOsm, blockLocations}) => R.ifElse(
-                  // Do we have component locations that match the street?
-                  R.length,
-                  // If so just use those locations geojson, hoping we have all we need
-                  matchingComponentLocations => of(Result.Ok(
-                    matchingComponentLocations
-                  )),
-                  // Otherwise query OSM and create the blockLocations
-                  () => {
-                    return queryOverpassWithLocationForStreetResultTask(osmConfig, locationWithOsm);
-                  }
-                )(blockLocations)
+                ({locationWithOsm, blockLocations}) => {
+                  return R.ifElse(
+                    // Do we have component locations that match the street?
+                    R.length,
+                    // If so just use those locations geojson, hoping we have all we need
+                    matchingComponentLocations => of(Result.Ok(
+                      matchingComponentLocations
+                    )),
+                    // Otherwise query OSM and create the blockLocations
+                    () => {
+                      return queryOverpassWithLocationForStreetResultTask(osmConfig, locationWithOsm);
+                    }
+                  )(blockLocations);
+                }
               )
             )({
               locationWithOsm: R.merge(filterLocation, {osmId}),

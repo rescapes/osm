@@ -644,25 +644,34 @@ export const mapWaysByNodeIdToCleanedFeatures = waysByNodeId => mapMDeep(2,
  * @returns {Object} {wayFeatures: wayFeatures features, nodeFeatures: nodeFeatures features, intersections: ... }
  */
 export const createSingleBlockFeatures = (osmConfig, location, {wayFeatures, nodeFeatures, wayFeaturesByNodeId}) => {
+  // Calculate the street names and put them in intersections
+  // intersections is an object keyed by nodeFeatures id and valued by the unique list of streets.
+  // The first street is always street matching the wayFeatures's street and the remaining are alphabetical
+  // Normally there are only two unique streets for each intersection.
+  // If one or both streets change names or for a >4-wayFeatures intersection, there can be more.
+  // If we handle roundabouts correctly in the future these could also account for more
+  // TODO we should handle Result.Error here
+  const nodesToIntersections =  _intersectionStreetNamesFromWaysAndNodesResult(
+    osmConfig,
+    wayFeatures,
+    nodeFeatures,
+    wayFeaturesByNodeId
+  ).value;
   return R.merge(
     {
-      // Calculate the street names and put them in intersections
-      // intersections is an object keyed by nodeFeatures id and valued by the unique list of streets.
-      // The first street is always street matching the wayFeatures's street and the remaining are alphabetical
-      // Normally there are only two unique streets for each intersection.
-      // If one or both streets change names or for a >4-wayFeatures intersection, there can be more.
-      // If we handle roundabouts correctly in the future these could also account for more
-      // TODO we should handle Result.Error here
-      nodesToIntersections: _intersectionStreetNamesFromWaysAndNodesResult(
-        osmConfig,
-        wayFeatures,
-        nodeFeatures,
-        wayFeaturesByNodeId
-      ).value
+      nodesToIntersections
     },
     // Organize the ways and nodes, trimming the ways down to match the nodes
     // Then store the features in {ways: ..., nodes: ...}
-    getFeaturesOfBlock(location, wayFeatures, nodeFeatures)
+    getFeaturesOfBlock(
+      R.over(
+        R.lensProp('intersections'),
+        intersections => intersections || R.values(nodesToIntersections),
+        location
+      ),
+      wayFeatures,
+      nodeFeatures
+    )
   );
 };
 
@@ -721,8 +730,6 @@ export const getFeaturesOfBlock = v((location, wayFeatures, nodeFeatures) => {
   const wayFeaturesOfStreet = R.filter(
     wayFeature => R.anyPass([
       R.isNil,
-      // If any intersection is a lat lon than we can't filter by street name, so leave the feature alone
-      () => R.any(isLatLng, strPathOr([], 'intersections', location)),
       // If we have street names in locationWithNominatimData.intersections we can eliminate way features that don't match
       // the street. TODO. This probably isn't 100% certain to work, but works in most cases. The danger
       // is we filter out a valid way feature that is named weird
@@ -730,7 +737,7 @@ export const getFeaturesOfBlock = v((location, wayFeatures, nodeFeatures) => {
         name,
         // Take the first block of each intersection, this is our main block.
         // I believe they're always the same value, but maybe there's a case where the name changes mid-block
-        R.uniq(R.map(R.head, location.intersections))
+        R.uniq(R.map(reqStrPathThrowing('data.streets.0'), location.intersections))
       )
     ])(wayFeatureNameOrDefault(null, wayFeature)),
     wayFeatures

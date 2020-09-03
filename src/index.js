@@ -48,7 +48,6 @@ export {
   normalizedIntersectionNames,
   addressStringForBlock,
   locationWithLocationPoints,
-  locationIntersectionAsLatLng,
   locationWithIntersectionInBothOrders,
   commonStreetOfLocation,
   aggregateLocation,

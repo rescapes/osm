@@ -4,7 +4,7 @@ import {
   _resolveIncompleteWayResultTask
 } from './overpassBuildBlocks';
 import {defaultRunToResultConfig} from 'rescape-ramda';
-import {partialBlocks, ways, nodes, rawBlockData} from 'samplePartialBlocks.sample';
+import {partialBlocks, nodes} from 'samplePartialBlocks.sample';
 import * as R from 'ramda';
 
 describe('overpassBuildBlocks', () => {
@@ -9200,15 +9200,6 @@ describe('overpassBuildBlocks', () => {
         expect(R.length(block.ways)).toEqual(1);
         expect(R.length(block.nodes)).toEqual(2);
         expect(R.length(partialBlocks)).toEqual(65);
-      }
-    }, errors, done));
-  }, 200000);
-
-  test('_resolveIncompleteWayResultTask', done => {
-    const errors = [];
-    _resolveIncompleteWayResultTask({}, partialBlocks, {nodes, ways}).run().listen(defaultRunToResultConfig({
-      onResolved: ({block, remainingPartialBlocks, nodeIdToWays}) => {
-        expect(R.length(R.keys(nodeIdToWays))).toEqual(1);
       }
     }, errors, done));
   }, 200000);

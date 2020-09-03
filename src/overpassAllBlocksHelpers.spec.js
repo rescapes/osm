@@ -23,7 +23,7 @@ describe("overpassAllBlockHelpers", () => {
     const errors = []
     processJurisdictionOrGeojsonResponsesResultTask({}, location, [locationWithNominatimData]).run().listen(defaultRunToResultConfig({
       onResolved: blocks => {
-        expect(R.length(blocks)).toEqual(41);
+        expect(R.length(blocks)).toBeGreaterThan(30);
       }
     }, errors, done))
   }, 200000)

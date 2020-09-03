@@ -348,11 +348,11 @@ export const osmResultTask = ({tries, name, context}, taskFunc) => {
         }).chain(server => {
           return taskFunc({overpassUrl: server, context: context});
         }).orElse(error => {
-          return {
+          return of({
             error,
             name,
-            context: context
-          };
+            context
+          });
         })
       ).map(v => {
         return v.mapError(e => ({value: e, server}));
@@ -446,9 +446,9 @@ export const _filterForIntersectionNodesAroundPoint = (osmConfig, intersection, 
   const possibleNodes = `${outputNodeName}Possible`;
   const oneOfPossibleNodes = `oneOf${outputNodeName}Possible`;
   const waysOfOneOfPossibleNodes = `waysOfOneOf${outputNodeName}Possible`;
-  // If the intersection is given use it to limit the ways to the streets of the intersection
+  // If the intersection with streets is given use it to limit the ways to the streets of the intersection
   const intersectionNamesFilter = R.ifElse(
-    R.identity,
+    intersection => R.length(strPathOr([], 'data.streets', intersection)),
     intersection => osmIf(
       osmOr(
         R.map(

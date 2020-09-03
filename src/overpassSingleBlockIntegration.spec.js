@@ -40,7 +40,8 @@ describe('overpassIntegration', () => {
       city: 'Oakland',
       neighborhood: 'Adams Point',
       // Intentionally put Grand Ave a different positions
-      intersections: [{data: {streets: ['Grand Ave', 'Perkins St']}}, {data: {streets: ['Lee St', 'Grand Ave']}}], blockname: 'Grand Ave'
+      intersections: [{data: {streets: ['Grand Ave', 'Perkins St']}}, {data: {streets: ['Lee St', 'Grand Ave']}}],
+      blockname: 'Grand Ave'
     }).run().listen(defaultRunToResultConfig({
         onResolved: ({result, location}) => {
           // Expect it to be two ways
@@ -65,10 +66,17 @@ describe('overpassIntegration', () => {
         city: 'Oakland',
         neighborhood: 'Adams Point',
         // Intentionally put Grand Ave a different positions
-        intersections: [{data: {streets: ['Grand Ave', 'Perkins St']}}, {data: {streets: ['Lee St', 'Grand Ave']}}], blockname: 'Grand Ave'
+        intersections: [{data: {streets: ['Grand Ave', 'Perkins St']}}, {data: {streets: ['Lee St', 'Grand Ave']}}],
+        blockname: 'Grand Ave'
       },
       {
-        geojson: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'Point', coordinates: [-73.8057879, 40.6660816]}}, {type: 'Feature', geometry: {type: 'Point', coordinates: [-73.80604, 40.66528]}}]}
+        geojson: {
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            geometry: {type: 'Point', coordinates: [-73.8057879, 40.6660816]}
+          }, {type: 'Feature', geometry: {type: 'Point', coordinates: [-73.80604, 40.66528]}}]
+        }
       }
     ]).run().listen(defaultRunConfig({
         onResolved: (results) => {
@@ -87,7 +95,8 @@ describe('overpassIntegration', () => {
       country: 'Norway',
       city: 'Oslo',
       neighborhood: 'Sentrum',
-      intersections: [{data: {streets: ['Kongens gate', 'Myntgata']}}, {data: {streets: ['Kongens gate', 'Revierstredet']}}], blockname: 'Kongens gate'
+      intersections: [{data: {streets: ['Kongens gate', 'Myntgata']}}, {data: {streets: ['Kongens gate', 'Revierstredet']}}],
+      blockname: 'Kongens gate'
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
@@ -110,7 +119,8 @@ describe('overpassIntegration', () => {
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
-      intersections: [{data: {streets: ['Pedersgata', 'A. B. C. Gata']}}, {data: {streets: ['Pedersgata', 'Vinkelgata']}}], blockname: 'Pedersgata'
+      intersections: [{data: {streets: ['Pedersgata', 'A. B. C. Gata']}}, {data: {streets: ['Pedersgata', 'Vinkelgata']}}],
+      blockname: 'Pedersgata'
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.map(
@@ -132,7 +142,8 @@ describe('overpassIntegration', () => {
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
-      intersections: [{data: {streets: ['Pedersgata', 'Nykirkebakken']}}, {data: {streets: ['Pedersgata', 'A.B.C Gata']}}], blockname: 'Pedersgata'
+      intersections: [{data: {streets: ['Pedersgata', 'Nykirkebakken']}}, {data: {streets: ['Pedersgata', 'A.B.C Gata']}}],
+      blockname: 'Pedersgata'
     }).run().listen(defaultRunToResultConfig(
       {
         onResolved: ({location, results}) => {
@@ -163,7 +174,8 @@ describe('overpassIntegration', () => {
       // BAD SPELLING
       city: 'Los Angleles',
       neighborhood: 'Boyle Heights',
-      intersections: [{data: {streets: ['East 1st St', 'North Savannah Street']}}, {data: {streets: ['East 1st St', 'North Saratoga Street']}}], blockname: 'East 1st St'
+      intersections: [{data: {streets: ['East 1st St', 'North Savannah Street']}}, {data: {streets: ['East 1st St', 'North Saratoga Street']}}],
+      blockname: 'East 1st St'
     }).run().listen(defaultRunConfig(
       {
         onResolved: responseResult => responseResult.mapError(
@@ -182,11 +194,13 @@ describe('overpassIntegration', () => {
       country: 'Norway',
       city: 'Stavanger',
       neighborhood: 'Stavanger Sentrum',
-      intersections: [{data: {streets: ['Langgata', 'Pedersgata']}}, {data: {streets: ['Vinkelgata', 'Pedersgata']}}], blockname: 'Langgata',
+      intersections: [{data: {streets: ['Langgata', 'Pedersgata']}}, {data: {streets: ['Vinkelgata', 'Pedersgata']}}],
+      blockname: 'Langgata',
       data: {
         osmOverrides: {
           // We have to override OSM names because they differ from Google
-          intersections: [{data: {streets: ['Langgata', 'Nytorget']}}, {data: {streets: ['Vinkelgata', 'Nytorget']}}], blockname: 'Langgata',
+          intersections: [{data: {streets: ['Langgata', 'Nytorget']}}, {data: {streets: ['Vinkelgata', 'Nytorget']}}],
+          blockname: 'Langgata',
           // Hard code node ids because there are two Nytorget streets that intersect
           nodes: [351103238, 367331193]
         }
@@ -217,7 +231,8 @@ describe('overpassIntegration', () => {
       state: 'NC',
       city: 'Charlotte',
       neighborhood: 'South Park',
-      intersections: [{data: {streets: ['Barclay Downs Drive', 'Carnegie Boulevard']}}, {data: {streets: ['Barclay Downs Drive', 'Bulfinch Road']}}], blockname: 'Barclay Downs Drive',
+      intersections: [{data: {streets: ['Barclay Downs Drive', 'Carnegie Boulevard']}}, {data: {streets: ['Barclay Downs Drive', 'Bulfinch Road']}}],
+      blockname: 'Barclay Downs Drive',
       data: {
         osmOverrides: {
           extraWays: {
@@ -268,15 +283,23 @@ describe('overpassIntegration', () => {
       "city": "Stavanger",
       "neighborhood": "Stavanger Sentrum",
       "street": "Hetlandsgata",
-      "intersections": [
-        [
-          "Hetlandsgata",
-          "Bergelandsgata "
-        ],
-        [
-          "Hetlandsgata",
-          "Vaisenhusgata"
-        ]
+      "intersections": [{
+        data: {
+          streets:
+            [
+              "Hetlandsgata",
+              "Bergelandsgata "
+            ]
+        }
+      },
+        {
+          data: {
+            streets: [
+              "Hetlandsgata",
+              "Vaisenhusgata"
+            ]
+          }
+        }
       ]
     };
     const errors = [];

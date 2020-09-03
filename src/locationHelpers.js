@@ -125,9 +125,15 @@ export const normalizedIntersectionNames = intersection => {
  * give different results for each order.
  * Example: [[Main St, Chestnut St], [Chestnut St, Main St]]
  * @param location
- * @returns {[Object]} Two locations, one with the first intersection streets reversed
+ * @returns {[Object]} Two locations, one with the first intersection streets reversed. If there are no
+ * streets just return the single location
  */
 export const locationWithIntersectionInBothOrders = location => {
+  if (!strPathOr(false, 'intersections.0.data.streets', location)) {
+    // If no streets
+    return [location]
+  }
+
   return [
     location,
     R.over(
@@ -136,42 +142,6 @@ export const locationWithIntersectionInBothOrders = location => {
       location
     )
   ];
-};
-
-/**
- * Extracts a 'lat, lon' string from an intersection already in the form 'lat, lon' or 'Main St & lat, lon'
- * @param {Object} intersection
- * @param {[String]} intersection.streets All streets of the intersections
- * @returns {String}
- */
-export const locationIntersectionAsLatLng = intersection => {
-  // TODO why is this expecting address strings instead of arrays?
-  return R.cond([
-    [
-      address => isLatLng(address), R.identity
-    ],
-    [
-      // If the street
-      address => R.both(
-        address => R.is(String, address),
-        address => R.any(
-          eitherStreet => isLatLng(eitherStreet),
-          R.map(
-            str => str.trim(),
-            R.split('&', address)
-          )
-        )
-      )(address),
-      address => R.find(
-        eitherStreet => isLatLng(eitherStreet),
-        R.map(
-          str => str.trim(),
-          R.split('&', address)
-        )
-      )
-    ],
-    [R.T, () => null]
-  ])(strPathOr([], 'data.streets', intersection));
 };
 
 /**
@@ -294,7 +264,7 @@ export const oneLocationIntersectionsFromLocation = location => {
       intersections: [intersection],
       ...R.omit(['intersections'], location)
     }),
-    location.intersections
+    reqStrPathThrowing('intersections', location)
   );
 };
 
@@ -431,7 +401,7 @@ export const isBlockLocation = location => {
  * @param {Object} nodesToIntersections Keyed by node id and valued an object: {data: streets: [street names]}
  * If there is only one intersection on the way this will be length one, which means the code will treat the
  * dead end on the other side of the block as the other intersection
- * @returns {[[String]]} Two intersections (where one might be a pseudo dead-end intersection).
+ * @returns {[Object]} Two intersections (where one might be a pseudo dead-end intersection).
  * Each is {data: streets: [...]} with two or more street names.
  * The common street name is always first followed by the others alphabetically
  */
@@ -478,7 +448,25 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
     )(location)
   )(originalIntersections);
 
+  // Sort the intersections and their streets
+  return sortIntersectionsAndStreets(street, intersections);
+}
 
+/**
+ * Sorts intersections and streets of all the given intersections (normally 2 representing both ends of a street block)
+ * The param street is the common street of the intersections. It is always listed first, and remaining
+ * streets are listed alphabetical (TODO we might list simply alphabetically in the future since intersections
+ * are now shared by street blocks, so there is no common street)
+ * Intersections are sorted based on which has the most alphabetical non-common street.
+ * The point of sorting intersections is so that they can be compared. If intersections are stored objects with ids,
+ * then this is only relevant for identifying duplicates
+ * @param {String} street The common street. TODO this might become null in the future and not used
+ * @param {Object} intersections Intersection objects
+ * @param {Object} intersections[].data
+ * @param {[String]} intersections[].data.streets The streets to sort
+ * @returns {[Object]} Sort intersections with sorted streets.
+ */
+export const sortIntersectionsAndStreets = (street, intersections) => {
   const streetThenAlphabetical = [
     // First sort by the common street
     R.ascend(strt => R.equals(street, strt) ? 0 : 1),

@@ -26,10 +26,9 @@ describe('overpassAllBlocks', () => {
     nonOsmGeojsonLinesToLocationBlocksResultsTask({osmConfig}, {location, nameProp}, geojsonLines).run().listen(
       defaultRunConfig({
         onResolved: ({Ok: locationBlocks, Error: errorBlocks}) => {
-          locationsToGeojson(locationBlocks);
-          expect(R.length(locationBlocks)).toEqual(16);
+          expect(R.length(locationBlocks)).toBeGreaterThan(50);
         }
       }, errors, done)
     );
-  }, 100000000);
+  }, 100000);
 });

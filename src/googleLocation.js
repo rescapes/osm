@@ -127,10 +127,10 @@ export const geocodeJursidictionResultTask = location => {
  * if the request goes through Google. If the address is already a lat,lon Google isn't used
  */
 export const geocodeAddressResultTask = location => {
-  // If the locationWithNominatimData intersections[0] is a lat/lon  don't bother to call Google's geocoder
+  // If the we already have geojson for the intersections, grab it as a latLng
   // Sometimes we have data where one of the intersection street names is the lat/lon of the intersection.
   // In this case just use that lat/lon for the intersection
-  const latLng = locationIntersectionAsLatLng(strPathOr('', 'intersections.0', location));
+  const latLng = R.when(R.identity, turfPointToLocation, strPathOr(null, 'intersections.0.geojson.features.0', location));
   const address = addressString(location);
 
   return task(resolver => {
@@ -309,24 +309,26 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
       log.warn(modifiedErrorObj.error);
       return modifiedErrorObj;
     })),
-    locationWithBothIntersectionOrderings => traverseReduceWhile(
-      {
-        // Return false when it's not an error to stop
-        predicate: (accumulated, value) => Result.Error.hasInstance(value),
-        // After a task returns false still add it to the accumulation since it's the answer we want
-        accumulateAfterPredicateFail: true
-      },
-      // Always the lastest returned value, either the Result.Ok or last Result.Error
-      // TODO we could combine the two errors here (when both directions fail) if it mattered
-      (accum, value) => value,
-      of(),
-      R.map(
-        // Seek the geocode of each intersection ordering if we have named intersections
-        // Since this creates 2 tasks we only run as many as are needed to get a definitive answer from Google
-        locationWithOneIntersectionOrdering => geocodeAddressResultTask(locationWithOneIntersectionOrdering),
-        locationWithBothIntersectionOrderings
-      )
-    ),
+    locationWithBothIntersectionOrderings => {
+      return traverseReduceWhile(
+        {
+          // Return false when it's not an error to stop
+          predicate: (accumulated, value) => Result.Error.hasInstance(value),
+          // After a task returns false still add it to the accumulation since it's the answer we want
+          accumulateAfterPredicateFail: true
+        },
+        // Always the lastest returned value, either the Result.Ok or last Result.Error
+        // TODO we could combine the two errors here (when both directions fail) if it mattered
+        (accum, value) => value,
+        of(),
+        R.map(
+          // Seek the geocode of each intersection ordering if we have named intersections
+          // Since this creates 2 tasks we only run as many as are needed to get a definitive answer from Google
+          locationWithOneIntersectionOrdering => geocodeAddressResultTask(locationWithOneIntersectionOrdering),
+          locationWithBothIntersectionOrderings
+        )
+      );
+    },
     // Produce the two intersection name orderings if the intersections are named and we don't have lat/lons
     locationWithOneIntersectionPair => of(locationWithIntersectionInBothOrders(locationWithOneIntersectionPair))
   )(locationWithOneIntersectionPair);

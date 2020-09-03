@@ -40,6 +40,7 @@ import {
 import {length} from '@turf/turf';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
 import {loggers} from 'rescape-log';
+import {commonStreetOfLocation} from './locationHelpers';
 
 const log = loggers.get('rescapeDefault');
 
@@ -219,13 +220,15 @@ export const _partialBlocksToFeaturesResultsTask = (
       return of(R.map(
         block => {
           const nodesToIntersections = strPathOr(null, 'nodesToIntersections', block);
+          const intersections = R.values(nodesToIntersections)
           return Result.Ok({
             block,
             // Add the intersections to the location
             location: R.merge(
               location,
               {
-                intersections: R.values(nodesToIntersections)
+                blockname: commonStreetOfLocation(location, intersections),
+                intersections
               }
             )
           });

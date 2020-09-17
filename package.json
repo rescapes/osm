@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@google/maps": "^1.1.0",
+    "@googlemaps/google-maps-services-js": "^3.1.6",
     "@turf/along": "^6.0.1",
     "@turf/area": "^6.0.1",
     "@turf/bbox": "^6.0.1",

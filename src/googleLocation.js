@@ -8,6 +8,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+import {Client} from "@googlemaps/google-maps-services-js";
 import * as R from 'ramda';
 import {of, task, waitAll} from 'folktale/concurrency/task';
 import rhumbDistance from '@turf/rhumb-distance';
@@ -25,7 +26,7 @@ import {
   traverseReduce,
   traverseReduceWhile
 } from 'rescape-ramda';
-import googleMapsClient from './googleMapsClient';
+
 import {
   googleLocationToLocation,
   googleLocationToTurfPoint,
@@ -37,7 +38,6 @@ import {
   addressString,
   addressStrings,
   jurisdictionString,
-  locationIntersectionAsLatLng,
   locationWithIntersectionInBothOrders,
   locationWithLocationPoints,
   oneLocationIntersectionsFromLocation,
@@ -51,7 +51,6 @@ const log = loggers.get('rescapeDefault');
 // https://log.developers.google.com/apis/api/geocoding_backend?project=_
 // https://log.developers.google.com/apis/api/directions_backend?project=_
 const apiKey = reqStrPathThrowing('GOOGLE_API_KEY', process.env);
-const googleMaps = googleMapsClient(apiKey);
 // HTTP OK response
 const OK_STATUS = 200;
 
@@ -76,14 +75,12 @@ export const geocodeJursidictionResultTask = location => {
   const jurisdictionalString = jurisdictionString(location);
 
   return task(resolver => {
-    let promise = null;
-    promise = googleMaps.geocode({
+    return initGeocodeService(process.env['GOOGLE_API_KEY'])({
       address: jurisdictionalString
-    }).asPromise();
-    promise.then(
+    }).then(
       // Only accept exact results, not approximate, if the locationWithNominatimData search involves intersections
       response => {
-        const results = response.json.results;
+        const results = reqStrPathThrowing('data.results', response);
         if (R.compose(R.equals(1), R.length)(results)) {
           const result = R.head(results);
           // Result to indicate success
@@ -134,17 +131,12 @@ export const geocodeAddressResultTask = location => {
   const address = addressString(location);
 
   return task(resolver => {
-    let promise = null;
-    if (latLng) {
-      promise = googleMaps.reverseGeocode({
-        latlng: latLng
-      }).asPromise();
-    } else {
-      promise = googleMaps.geocode({
+    return latLng ?
+      initReverseGeocodeService(process.env['GOOGLE_API_KEY'])({
+        latlng
+      }) :  initGeocodeService(process.env['GOOGLE_API_KEY'])({
         address
-      }).asPromise();
-    }
-    promise.then(
+      }).then(
       // Only accept exact results, not approximate, if the locationWithNominatimData search involves intersections
       response => {
         const results = R.ifElse(
@@ -187,7 +179,7 @@ export const geocodeAddressResultTask = location => {
             )(result),
             results
           )
-        )(response.json.results);
+        )(reqStrPathThrowing('data.results', response));
 
         if (latLng) {
           // Always resolve lat lons
@@ -424,14 +416,14 @@ export const calculateRouteTask = R.curry((directionsService, origin, destinatio
         origin: originDestinationToLatLngString(origin),
         destination: originDestinationToLatLngString(destination),
         mode: 'walking'
-      }, (error, response) => {
+      }).then(response => {
         if (response && response.status === OK_STATUS) {
           log.debug(`Successfully resolved ${origin.formatted_address} to ${destination.formatted_address} to
-        ${R.length(response.json.routes)} route(s)`);
+        ${R.length(reqStrPathThrowing('data.routes', response))} route(s)`);
           resolver.resolve(response);
         } else {
           log.warn(`Failed to resolve ${origin.formatted_address} to ${destination.formatted_address}`);
-          resolver.reject(Result.Error({error: error}));
+          resolver.reject(Result.Error({error: response.error}));
         }
       });
       // Wrap the response in a Result.Ok
@@ -505,18 +497,37 @@ export const createOpposingRoutesFromOriginAndDestination = R.curry((directionSe
   );
 });
 
+
+export const googleMapsClient = () => new Client({});
 /**
- * Inits the Google Directions Service
- * @return {Object} Directions service
+ * Returns a function expecting params for the directions service
+ * @param {String} key The google api key. This doesn't have to be passed again
+ * @returns {Function<Promise>} function expecting params that returns a directions promise
  */
-export const initDirectionsService = () => {
-  return googleMaps.directions;
+export const initService = (key, service) => {
+  const client = googleMapsClient();
+  return params => {
+    return client[service]({
+      params: R.merge({key}, params)
+    });
+  };
 };
+export const initDirectionsService = key => {
+  return initService(key, 'directions')
+}
+export const initGeocodeService = key => {
+  return initService(key, 'geocode')
+}
+export const initReverseGeocodeService = key => {
+  return initService(key, 'reversegeocode')
+}
 
 /**
  * Shortcut to create a route from origin and destination with a predefined Google directions service
  */
-export const routeFromOriginAndDestination = createOpposingRoutesFromOriginAndDestination(initDirectionsService());
+export const routeFromOriginAndDestination = createOpposingRoutesFromOriginAndDestination(initDirectionsService(
+  process.env['GOOGLE_API_KEY']
+));
 
 
 /**

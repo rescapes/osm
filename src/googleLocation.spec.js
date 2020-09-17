@@ -298,20 +298,20 @@ describe('googleLocation', () => {
   test('createOpposingRoutesFromOriginAndDestination', done => {
     const errors = [];
     createOpposingRoutesFromOriginAndDestination(
-      initDirectionsService(),
+      initDirectionsService(process.env['GOOGLE_API_KEY']),
       {country: 'USA', state: 'Texas', city: 'Austin', intersections: austinIntersections}
     ).run().listen(
       defaultRunConfig({
         onResolved: routesResult => {
           routesResult.map(routes => {
             expect(R.map(
-              route => R.head(route.json.routes).summary, routes)
+              route => R.head(reqStrPathThrowing('data.routes', route)).summary, routes)
             ).toEqual(['E 21st St', 'E 21st St']);
           });
         }
       }, errors, done)
     );
-  });
+  }, 100000);
 
   test('calculateRouteTask', done => {
     const errors = [];
@@ -376,11 +376,11 @@ describe('googleLocation', () => {
         }
       }
     };
-    calculateRouteTask(initDirectionsService(), origin, destination).run().listen(
+    calculateRouteTask(initDirectionsService(process.env['GOOGLE_API_KEY']), origin, destination).run().listen(
       defaultRunConfig({
         onResolved: routeResult => {
           routeResult.map(route => {
-            expect(R.head(route.json.routes).summary).toMatchSnapshot();
+            expect(R.head(route.data.routes).summary).toMatchSnapshot();
           });
         }
       }, errors, done)

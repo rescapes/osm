@@ -133,6 +133,14 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
     units: 'meters'
   }, lineGeojson).features;
   const lineGeojsonCollections = [];
+  // For each feature mask, loop through all of the features and include them in the collection.
+  // TODO
+  // If one end of a line is outside the mask, we won't know the streets that represent its intersection
+  // However since intersections accumulate street names as they are updated in the database, this shouldn't
+  // be a problem. We might initially accumulate some node ids for street end that seem to be dead-end, so
+  // we might have to remove streets named after nodes from the intersections after we process all the blocks.
+  // This can be done easily be seeing the node id "street" has at least 2 other streets that are in the intersection,
+  // meaning it's not actually a dead-end but we thought it was whilst we were processing each collection.
   // Use for loops to reduce memory use
   R.forEach(
     featureMask => {
@@ -170,6 +178,25 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
   );
 };
 
+/**
+ * Converts geojsonLines from a nonOSM source, like ESRI files to locationWithNominatimData blocks.
+ * TODO To convert ESRI files, use online tools or integrate a library that property converts here
+ * @param {Object} config
+ * @param {Object} config.osmConfig The OSM Config. This will be merged with disableNodesOfWayQueries: true to prevent
+ * querying OpenStreetMap for missing way information about the lines, since the lines aren't from OSM
+ * @param {Object} featureConfig
+ * @param {Object} featureConfig.location The locationWithNominatimData info to merge into each street. This is normally
+ * {country:, [state:], city:} TODO If using geojson that comes from different jurisdictions, this property needs
+ * to be updated to be a function that accepts each feature and extracts juridiction information from the feature
+ * properties
+ * @param {String| Function} featureConfig.nameProp Used to give the lines a name from one of the properties in
+ * feature.properties. If feature.properties already has a name just specify 'name'. It's required that each way have a
+ * name property so we know what to name of the street. Alternatively can be a unary function that expects properties
+ * @param {Object} lineGeojson The feature lines
+ * @return {Task<Object>} Task that resolves to success blocks under Ok: [], and errors under Error: []. Note that
+ * this isn't really async just uses OSM code paths that needs to query OSM when osmConfig.disableNodesOfWayQueries
+ * is false
+ */
 export const _nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {location, nameProp}, lineGeojson) => {
   const wayFeatures = osmCompatibleWayFeaturesFromGeojson({nameProp}, lineGeojson);
   const partialBlocks = partialBlocksFromNonOsmWayFeatures(wayFeatures);

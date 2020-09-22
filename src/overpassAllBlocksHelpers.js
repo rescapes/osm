@@ -220,7 +220,7 @@ export const _partialBlocksToFeaturesResultsTask = (
       return of(R.map(
         block => {
           const nodesToIntersections = strPathOr(null, 'nodesToIntersections', block);
-          const intersections = R.values(nodesToIntersections)
+          const intersections = R.values(nodesToIntersections);
           return Result.Ok({
             block,
             // Add the intersections to the location
@@ -319,6 +319,9 @@ const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
     // Add intersections to the blocks based on the ways and nodes' properties
     block => {
       return composeWithMap([
+        x => {
+          return x;
+        },
         ({block, newNodeIdToWays}) => {
           const nodesToIntersectionsResult = _intersectionStreetNamesFromWaysAndNodesResult(
             osmConfig,

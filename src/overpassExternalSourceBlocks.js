@@ -160,6 +160,7 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
 
   return traverseReduce(
     (acc, value) => {
+      log.debug(`Accumulated ${R.length(acc.Ok)} blocks thus far, and ${R.length(acc.Error)} blocks`)
       return {
         Ok: R.concat(acc.Ok, R.propOr([], 'Ok', value)),
         Error: R.concat(acc.Error, R.propOr([], 'Error', value))

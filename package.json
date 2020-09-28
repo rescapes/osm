@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.3.76",
+  "version": "0.3.77",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "repository": {
     "type": "git",
@@ -184,6 +184,6 @@
     "parser": "babel-eslint"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com/"
+    "registry": "https://registry.npmjs.org"
   }
 }

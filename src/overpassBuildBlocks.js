@@ -719,8 +719,8 @@ export function _resolveIncompleteWayResultTask(
             // If we disableNodesOfWayQueries all we can do is create a node from the last way coordinate
             const endBlockNode = R.compose(
               coordinate => nodeFromCoordinate(
-                // We assume the way id is marked as a fake id, so so will this node id
-                {id: `node/${R.compose(reqStrPathThrowing('1'), R.split('/'), R.prop('id'))(way)}Last`},
+                // Use the standard non-OSM node naming convention node/lon:lat
+                {id: `node/${R.join(':', coordinate)}`},
                 coordinate
               ),
               coordinates => R.last(coordinates),

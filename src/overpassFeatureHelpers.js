@@ -393,7 +393,7 @@ const orderedWayFeatureGenerator = (lookup, nodeFeatures) => {
         }
 
         // We expect exactly one intermediate pointLookup to match the wayFeature
-        // This is a pointLookup that has a last and head. Last matches our wayFeature and head indicates
+        // This is a pointLookup that has a last and head. 'last' matches our wayFeature and head indicates
         // the next wayFeature we want to follow
         // -wayFeature--> <tail, head> -next wayFeature-->
         const nextHeadAndLastPointLookup = findOneThrowing(

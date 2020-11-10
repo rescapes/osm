@@ -1,10 +1,6 @@
-import {loggers} from 'rescape-log';
-import {
-  _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask,
-  _resolveIncompleteWayResultTask
-} from './overpassBuildBlocks';
+import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
 import {defaultRunToResultConfig} from 'rescape-ramda';
-import {partialBlocks, nodes} from 'samplePartialBlocks.sample';
+import {partialBlocks} from 'samplePartialBlocks.sample';
 import * as R from 'ramda';
 
 describe('overpassBuildBlocks', () => {

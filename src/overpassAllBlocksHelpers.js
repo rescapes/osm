@@ -40,7 +40,7 @@ import {
 import {length} from '@turf/turf';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
 import {loggers} from 'rescape-log';
-import {commonStreetOfLocation} from './locationHelpers';
+import {commonStreetOfLocation, wayFeatureNameOrDefault} from './locationHelpers';
 
 const log = loggers.get('rescapeDefault');
 
@@ -224,13 +224,17 @@ export const _partialBlocksToFeaturesResultsTask = (
           return Result.Ok({
             block,
             // Add the intersections to the location
-            location: R.merge(
+            location: R.mergeAll([
               location,
+              // Mix in jurisdiction data collected from the feature.
+              // For now this is only for data that came from external source not OSM
+              // This jurisdiction data was stored earlier in wayFeatures` properties.tags
+              strPathOr({}, 'ways.0.properties.tags.jurisdiction', block),
               {
                 street: commonStreetOfLocation(location, intersections),
                 intersections
               }
-            )
+            ])
           });
         },
         blocks

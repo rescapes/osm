@@ -1,7 +1,8 @@
 import * as R from 'ramda';
-import {defaultRunConfig} from 'rescape-ramda';
+import {defaultRunConfig, moveToKeys} from 'rescape-ramda';
 import {locationsToGeojson} from './overpassBlockHelpers';
 import philly from './samples/philly.json';
+import california from './samples/californiaBlocks.json';
 import {nonOsmGeojsonLinesToLocationBlocksResultsTask} from './overpassExternalSourceBlocks';
 /**
  * Created by Andy Likuski on 2019.06.14
@@ -15,18 +16,45 @@ import {nonOsmGeojsonLinesToLocationBlocksResultsTask} from './overpassExternalS
  */
 
 
-describe('overpassAllBlocks', () => {
-
+describe('overpassAllBlocksPhilly', () => {
   test('Process geojson derived from shapefile', done => {
     const nameProp = props => `${R.prop('ST_NAME', props)} ${R.prop('ST_TYPE', props)}`;
     const location = {country: 'USA', state: 'PA', city: 'Philadelphia'};
-    const geojsonLines = philly
-    const osmConfig = {}
+    const geojsonLines = philly;
+    const osmConfig = {};
     const errors = [];
     nonOsmGeojsonLinesToLocationBlocksResultsTask({osmConfig}, {location, nameProp}, geojsonLines).run().listen(
       defaultRunConfig({
         onResolved: ({Ok: locationBlocks, Error: errorBlocks}) => {
           expect(R.length(locationBlocks)).toBeGreaterThan(50);
+        }
+      }, errors, done)
+    );
+  }, 100000);
+});
+
+describe('overpassAllBlocksCalifornia', () => {
+  test('Process geojson derived from shapefile', done => {
+    const nameProp = props => R.prop('FULLNAME', props);
+    const jurisdictionFunc = props => {
+      return R.compose(
+        props => moveToKeys(R.lensPath([]), 'Nearby_City___to_help_approxima', ['city'], props),
+        props => R.pick(['Nearby_City___to_help_approxima'], props)
+      )(props);
+    };
+    const location = {country: 'USA', state: 'CA'};
+    const geojsonLines = california;
+    const osmConfig = {};
+    const errors = [];
+    nonOsmGeojsonLinesToLocationBlocksResultsTask({osmConfig}, {
+      location,
+      nameProp,
+      jurisdictionFunc
+    }, geojsonLines).run().listen(
+      defaultRunConfig({
+        onResolved: ({Ok: locationBlocks, Error: errorBlocks}) => {
+          expect(R.length(locationBlocks)).toEqual(12)
+          expect(R.all(R.propOr(false, 'city'), locationBlocks))
         }
       }, errors, done)
     );

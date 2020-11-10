@@ -32,12 +32,14 @@ const log = loggers.get('rescapeDefault');
  * @param {Object} config
  * @param {String|Function} config.nameProp Extracts the prop from the properties to use for name. If name is already
  * specified just pass 'name'. Alternatively can be a unary function that expects the properties and returns the value
+ * @param {Function} config.jurisdictionFunc Extracts props from each location to merge with the static location props
  * @param {Object} lineGeojson FeatureCollection of lines
  * @param {Object} lineGeojson.features The lines features
- * @return {[Object]} A list of unique way features with fake ids and a name property
+ * @return {[Object]} A list of unique way features with fake ids and at properties.tags: a name property and possibly a jurisdiction object
  */
-export const osmCompatibleWayFeaturesFromGeojson = ({nameProp}, lineGeojson) => {
+export const osmCompatibleWayFeaturesFromGeojson = ({nameProp, jurisdictionFunc}, lineGeojson) => {
   // Add an id and name to each way feature.properties.tags.name
+  // If jurisdictionFunc is defined
   return R.addIndex(R.map)(
     (feature, index) => R.compose(
       feature => {
@@ -54,7 +56,13 @@ export const osmCompatibleWayFeaturesFromGeojson = ({nameProp}, lineGeojson) => 
                 () => R.is(Function, nameProp),
                 properties => nameProp(properties),
                 properties => R.prop(nameProp, properties)
-              )(properties)
+              )(properties),
+              // Add jurisdiction data when jurisdictionFunc is specified
+              // These properties are later merged with static location data to make the jurisdiction
+              jurisdiction: R.when(
+                R.identity,
+                jurisdictionFunc => jurisdictionFunc(properties)
+              )(jurisdictionFunc)
             }),
             properties
           ),
@@ -120,12 +128,14 @@ export const partialBlocksFromNonOsmWayFeatures = wayFeatures => {
  * @param {String| Function} featureConfig.nameProp Used to give the lines a name from one of the properties in
  * feature.properties. If feature.properties already has a name just specify 'name'. It's required that each way have a
  * name property so we know what to name of the street. Alternatively can be a unary function that expects properties
+ * @param {Function} [featureConfig.jurisdictionFunc] Optional function to merge location with props to complete the jurisdiction.
+ * For instance, if props has a city prop
  * @param {Object} lineGeojson The feature lines
  * @return {Task<Object>} Task that resolves to success blocks under Ok: [], and errors under Error: []. Note that
  * this isn't really async just uses OSM code paths that needs to query OSM when osmConfig.disableNodesOfWayQueries
  * is false
  */
-export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {location, nameProp}, lineGeojson) => {
+export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {location, nameProp, jurisdictionFunc}, lineGeojson) => {
   // Split the lineGeojson into manageable squares
   // Get .1km squares of the area
   const featureMasks = extractSquareGridFeatureCollectionFromGeojson({
@@ -171,7 +181,8 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
       _lineGeojson => {
         return _nonOsmGeojsonLinesToLocationBlocksResultsTask({osmConfig}, {
           location,
-          nameProp
+          nameProp,
+          jurisdictionFunc
         }, {type: 'FeatureCollection', features: _lineGeojson});
       },
       lineGeojsonCollections
@@ -193,13 +204,14 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
  * @param {String| Function} featureConfig.nameProp Used to give the lines a name from one of the properties in
  * feature.properties. If feature.properties already has a name just specify 'name'. It's required that each way have a
  * name property so we know what to name of the street. Alternatively can be a unary function that expects properties
+ * @param {Function} featureConfig.jurisdictionFunc
  * @param {Object} lineGeojson The feature lines
  * @return {Task<Object>} Task that resolves to success blocks under Ok: [], and errors under Error: []. Note that
  * this isn't really async just uses OSM code paths that needs to query OSM when osmConfig.disableNodesOfWayQueries
  * is false
  */
-export const _nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {location, nameProp}, lineGeojson) => {
-  const wayFeatures = osmCompatibleWayFeaturesFromGeojson({nameProp}, lineGeojson);
+export const _nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {location, nameProp, jurisdictionFunc}, lineGeojson) => {
+  const wayFeatures = osmCompatibleWayFeaturesFromGeojson({nameProp, jurisdictionFunc}, lineGeojson);
   const partialBlocks = partialBlocksFromNonOsmWayFeatures(wayFeatures);
   return composeWithMapMDeep(1, [
     locationWithBlockResults => {

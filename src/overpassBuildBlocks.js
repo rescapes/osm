@@ -13,7 +13,7 @@ import {
   waysOfNodeQuery
 } from './overpassBlockHelpers';
 import {_calculateNodeAndWayRelationships, fetchOsmRawTask, osmResultTask} from './overpassHelpers';
-import {hashNodeFeature, hashWayFeature, wayFeatureToCoordinates} from './overpassFeatureHelpers';
+import {hashNodeFeature, hashPoint, hashWayFeature, wayFeatureToCoordinates} from './overpassFeatureHelpers';
 import {
   compact, composeWithChain,
   composeWithChainMDeep, mapToMergedResponseAndInputs, mapToNamedResponseAndInputs,
@@ -715,12 +715,12 @@ export function _resolveIncompleteWayResultTask(
             return R.propOr(false, 'disableNodesOfWayQueries', osmConfig);
           },
           () => {
-            // If we don't allow further querying, we have to use the last point of the way as the end node
-            // If we disableNodesOfWayQueries all we can do is create a node from the last way coordinate
+            // If we don't allow further querying (disableNodesOfWayQueries is true),
+            // we have to use the last point of the way as the end node
             const endBlockNode = R.compose(
               coordinate => nodeFromCoordinate(
                 // Use the standard non-OSM node naming convention node/lon:lat
-                {id: `node/${R.join(':', coordinate)}`},
+                {id: `node/${hashPoint(coordinate)}`},
                 coordinate
               ),
               coordinates => R.last(coordinates),

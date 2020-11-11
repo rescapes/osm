@@ -701,7 +701,10 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
               }
             ],
             [
-              // If we got 1 feature and disableNodesOfWayQueries is true, use the node id for the intersection name
+              // If we got 1 feature and disableNodesOfWayQueries is true,
+              // use the node 'TEMPORARILY_UNKNOWN_STREET-{nodeId}' for the intersection name
+              // This indicates that we don't know the name of the street that connects at this intersection yet
+              // because we aren't allowed to query for more ways
               () => {
                 return R.both(
                   () => R.propEq('disableNodesOfWayQueries', true, osmConfig),
@@ -709,7 +712,7 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
                 )(features);
               },
               features => {
-                return Result.Ok(R.concat(features, [{name: nodeId}]));
+                return Result.Ok(R.concat(features, [{name: `TEMPORARILY_UNKNOWN_STREET-${nodeId}`}]));
               }
             ],
             [

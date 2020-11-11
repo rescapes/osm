@@ -155,7 +155,16 @@ describe('overpassFeatureHelpers', () => {
       expect(
         _intersectionStreetNamesFromWaysAndNodesResult({}, wayFeatures, nodeFeatures, nodeIdToWaysOfNodeFeatures).value
       ).toEqual(
-        {"node/42875319": {data: {streets: ["134th Street", "South Conduit Avenue"]}}, "node/42901997": {data: {streets: ["134th Street", "149th Avenue"]}}}
+        {
+          "node/42875319": {
+            geojson: nodeFeatures[0],
+            data: {streets: ["134th Street", "South Conduit Avenue"]}
+          },
+          "node/42901997": {
+            geojson: nodeFeatures[1],
+            data: {streets: ["134th Street", "149th Avenue"]}
+          }
+        }
       );
     }
   );

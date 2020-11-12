@@ -1,6 +1,6 @@
 {
   "name": "rescape-osm",
-  "version": "0.3.86",
+  "version": "0.3.87",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "repository": {
     "type": "git",
@@ -9,8 +9,7 @@
   "author": "calocan <andy@likuski.org>",
   "license": "MIT",
   "main": "lib/index.js",
-  "type": "module",
-  "module": "src/index.js",
+  "module": "src/index.mjs",
   "files": [
     "lib",
     "esm",

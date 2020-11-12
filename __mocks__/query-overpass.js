@@ -9,29 +9,31 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-const _unmocked = require('../node_modules/query-overpass')
-const {loggers} = require('rescape-log');
-const log = loggers.get('rescapeDefault');
-const {
+import _unmocked from '../node_modules/query-overpass';
+import {loggers} from 'rescape-log';
+import R from 'ramda';
+import {
+  FERNIE_NODES,
+  FERNIE_WAYS,
+  LA_BOUNDS,
+  LA_SAMPLE,
   LILLESTROM_PEDESTRIAN_AREA_NODES,
   LILLESTROM_PEDESTRIAN_AREA_WAYS,
   LILLESTROM_PEDESTRIAN_AREA_WAYS_OF_NODE_1287797787,
   LILLESTROM_PEDESTRIAN_AREA_WAYS_OF_NODE_706705268,
+  PARIS_BOUNDS,
+  PARIS_SAMPLE,
   QUEENS_NODES,
   QUEENS_WAYS,
-  QUEENS_WAYS_OF_NODE_42875319, QUEENS_WAYS_OF_NODE_42901997,
-  PARIS_BOUNDS,
-  LA_BOUNDS,
-  PARIS_SAMPLE,
-  LA_SAMPLE,
-  FERNIE_NODES,
-  FERNIE_WAYS,
-} = require('../src/samples/queryOverpass.sample');
-const {
-  flattenObj
-} = require('rescape-ramda');
+  QUEENS_WAYS_OF_NODE_42875319,
+  QUEENS_WAYS_OF_NODE_42901997
+} from '../src/samples/queryOverpass.sample';
 
-const R = require('ramda');
+const log = loggers.get('rescapeDefault');
+
+import {
+  flattenObj
+} from 'rescape-ramda';
 
 
 // Use Map for equality matching of keys
@@ -127,7 +129,7 @@ const responses = R.map(
     [{
       "nodeId": "node/1287797787",
       "type": "waysOfNode"
-    }, LILLESTROM_PEDESTRIAN_AREA_WAYS_OF_NODE_1287797787],
+    }, LILLESTROM_PEDESTRIAN_AREA_WAYS_OF_NODE_1287797787]
   ]
 );
 
@@ -171,7 +173,7 @@ module.exports = (query, cb, options) => {
   const response = getResponse(options.context);
   // If our mock doesn't have the right data it gives a warning and we query for real
   if (!response) {
-    return _unmocked(query, cb, options)
+    return _unmocked(query, cb, options);
   }
   process.nextTick(
     () => response ?

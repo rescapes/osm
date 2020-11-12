@@ -19,6 +19,7 @@ import R from 'ramda';
 import T from 'folktale/concurrency/task';
 const {of} = T;
 import {loggers} from 'rescape-log';
+import phillySamples from '../samples/philadelphia_neighborhoods_to_locations'
 
 const log = loggers.get('rescapeDefault');
 
@@ -27,9 +28,7 @@ describe('queryForGeojson', () => {
     expect.assertions(1);
     const osmConfig = {};
     // Process .json or the default value of a .js file export
-    const propSets = processParamsFromJsonOrJsToList(require(
-      '/Users/andy/code/rescape/rescape-osm/src/samples/philadelphia_neighborhoods_to_locations.js'
-    ));
+    const propSets = processParamsFromJsonOrJsToList(phillySamples);
     log.debug(`Config: ${JSON.stringify({osmConfig}, null, '\t')}`);
 
     const sequencedTask = composeWithChain([

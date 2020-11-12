@@ -120,13 +120,12 @@ describe('nominatimLocationSearch', () => {
               "placeId": 154462321,
               "osmId": 276650359,
               "street": "Highway 507",
-              "county": "Municipal District of Pincher Creek",
+              "county": "Municipal District of Pincher Creek No. 9",
               "state": "AB",
               "country": "Canada",
               "countryCode": "ca",
               "stateLong": "Alberta",
-              // City is set based on the county this location lacks a city and we currently require one
-              "city": "Municipal District of Pincher Creek"
+              "city": "Municipal District of Pincher Creek No. 9"
             }
           );
         }

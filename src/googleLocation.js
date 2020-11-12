@@ -341,7 +341,7 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
 export const geojsonCenterOfBlockAddress = location => R.composeK(
   // Find the center of the two points
   featureCollectionResult => of(featureCollectionResult.map(featureCollection => {
-    return center(featureCollection);
+    return center.default(featureCollection);
   })),
   // Create a FeatureCollection from the two Turf Points
   featuresResult => of(featuresResult.map(features => {

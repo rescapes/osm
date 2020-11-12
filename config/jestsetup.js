@@ -10,6 +10,7 @@
  */
 
 import {rescapeDefaultTransports} from 'rescape-log';
+import {jest} from '@jest/globals';
 
 // Set the loggers to debug level
 rescapeDefaultTransports.fileCombined.level = 'debug';

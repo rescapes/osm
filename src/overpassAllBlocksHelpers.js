@@ -324,9 +324,6 @@ const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
     // Add intersections to the blocks based on the ways and nodes' properties
     block => {
       return composeWithMap([
-        x => {
-          return x;
-        },
         ({block, newNodeIdToWays}) => {
           const nodesToIntersectionsResult = _intersectionStreetNamesFromWaysAndNodesResult(
             osmConfig,

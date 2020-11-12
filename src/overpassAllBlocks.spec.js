@@ -29,6 +29,8 @@ import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from '.
 describe('overpassAllBlocks', () => {
   // This mocks the overall response but has to go to the server to get node dead end queries.
   // There are too many of the latter to bother mocking and they run fast on the server
+  // TOO Slow
+  /*
   test('locationToOsmAllBlocksQueryResultsTask', done => {
     expect.assertions(1);
     const errors = [];
@@ -47,29 +49,9 @@ describe('overpassAllBlocks', () => {
       }, errors, done)
     );
   }, 1000000);
-
-  // Note we no longer elimintate short blocks, so this isn't really relevant
-  /*
-  test('smallLocationToOsmAllBlocksQueryResultsTask', done => {
-    expect.assertions(1);
-    const errors = [];
-    const location = {
-      country: 'USA',
-      state: 'North Carolina',
-      city: 'Durham',
-      neighborhood: 'Old North Durham'
-    };
-    locationToOsmAllBlocksQueryResultsTask({}, location).run().listen(defaultRunConfig(
-      {
-        onResolved: ({Ok: locationsWithBlocks, Error: errors}) => {
-          // Paste the results f this into a geojson viewer for debugging
-          //blocksToGeojson(R.map(R.prop('block'), locationsWithBlocks));
-          expect(R.length(locationsWithBlocks)).toBeGreatherThan(50);
-        }
-      }, errors, done)
-    );
-  }, 1000000);
    */
+
+
 
   test('Remove blocks that are too short', done => {
     expect.assertions(1);

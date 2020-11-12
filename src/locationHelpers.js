@@ -20,7 +20,7 @@ import {
   toNamedResponseAndInputs
 } from 'rescape-ramda';
 import {locationToTurfPoint} from 'rescape-helpers';
-import * as R from 'ramda';
+import R from 'ramda';
 import PropTypes from 'prop-types';
 import {v} from 'rescape-validate';
 import {point} from '@turf/helpers';
@@ -1035,7 +1035,7 @@ export const featureWithRadiusToCirclePolygon = (feature, options) => {
       }, options);
       const radius = reqStrPathThrowing('properties.radius', feature);
       // Create a polygon circle feature, converting the radius property to _radius
-      return circle(
+      return circle.default(
         feature,
         radius,
         mergedOptions

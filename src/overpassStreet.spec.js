@@ -6,10 +6,11 @@ import {
   mapResultTaskWithOtherInputs, defaultRunConfig
 } from 'rescape-ramda';
 import {osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks';
-import * as R from 'ramda';
+import R from 'ramda';
 import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
 import {nominatimLocationResultTask} from './nominatimLocationSearch';
-import {of} from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task';
+const {of} = T;
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 import {point} from '@turf/helpers';
 import {locationsToGeojson, locationsToGeojsonWaysAndBoth} from './overpassBlockHelpers';

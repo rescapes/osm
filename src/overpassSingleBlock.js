@@ -9,7 +9,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import * as R from 'ramda';
+import R from 'ramda';
 import bboxPolygon from '@turf/bbox-polygon';
 import buffer from '@turf/buffer';
 import bbox from '@turf/bbox';
@@ -26,8 +26,9 @@ import {
   strPathOr,
   traverseReduceDeepResults
 } from 'rescape-ramda';
-import {of} from 'folktale/concurrency/task';
-import * as Result from 'folktale/result';
+import T from 'folktale/concurrency/task';
+const {of} = T;
+import Result from 'folktale/result';
 import {
   _filterForIntersectionNodesAroundPoint,
   AROUND_LAT_LON_TOLERANCE,
@@ -378,7 +379,7 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
     // Make a polygon box from the bounds
     points => bboxPolygon(points),
     // Get the bounds
-    features => bbox(features),
+    features => bbox.default(features),
     // Make a feature collection of points
     points => featureCollection(points),
     // Buffer the points by 20 meters so we don't miss the intersection nodes at the corners of the bounding box

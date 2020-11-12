@@ -15,8 +15,9 @@ import {locationsToGeojsonFileResultTask} from '../overpassBlockHelpers';
 import {locationToOsmAllBlocksQueryResultsTask} from '../overpassAllBlocks';
 import moment from 'moment';
 import "regenerator-runtime/runtime";
-import * as R from 'ramda';
-import {of} from 'folktale/concurrency/task';
+import R from 'ramda';
+import T from 'folktale/concurrency/task';
+const {of} = T;
 import {loggers} from 'rescape-log';
 
 const log = loggers.get('rescapeDefault');

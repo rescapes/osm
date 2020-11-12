@@ -19,8 +19,8 @@ import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
 import 'regenerator-runtime';
 import {loggers} from 'rescape-log';
-import * as R from 'ramda';
-import * as Result from 'folktale/result';
+import R from 'ramda';
+import Result from 'folktale/result';
 
 const log = loggers.get('rescapeDefault');
 import {toArrayIfNot, strPathOr} from 'rescape-ramda';

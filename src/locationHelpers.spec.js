@@ -1,4 +1,4 @@
-import * as R from 'ramda';
+import R from 'ramda';
 import buffer from '@turf/buffer';
 import {point} from '@turf/helpers';
 import {

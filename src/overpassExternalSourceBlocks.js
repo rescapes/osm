@@ -1,5 +1,5 @@
 import {hashPoint, wayFeatureToCoordinates} from './overpassFeatureHelpers';
-import * as R from 'ramda';
+import R from 'ramda';
 import {composeWithChainMDeep, composeWithMapMDeep, traverseReduce} from 'rescape-ramda';
 import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers';
 import {
@@ -10,7 +10,8 @@ import {
 import {loggers} from 'rescape-log';
 import {extractSquareGridFeatureCollectionFromGeojson} from 'rescape-helpers';
 import booleanDisjoint from '@turf/boolean-disjoint';
-import {of} from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task';
+const {of} = T;
 
 const log = loggers.get('rescapeDefault');
 

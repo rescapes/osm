@@ -8,13 +8,12 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import {Client} from "@googlemaps/google-maps-services-js";
-import * as R from 'ramda';
-import {of, task, waitAll} from 'folktale/concurrency/task';
+import googleMapsServices from "@googlemaps/google-maps-services-js";
+import R from 'ramda';
+import T from 'folktale/concurrency/task';
 import rhumbDistance from '@turf/rhumb-distance';
 import {featureCollection, lineString} from '@turf/helpers';
-import * as Result from 'folktale/result';
-import {Error, Ok} from 'folktale/result';
+import Result from 'folktale/result';
 import center from '@turf/center';
 import {compareTwoStrings} from 'string-similarity';
 import {
@@ -44,6 +43,10 @@ import {
   removeStateFromSomeCountriesForSearch
 } from './locationHelpers';
 import {loggers} from 'rescape-log';
+
+const {Client} = googleMapsServices;
+
+const {of, task, waitAll} = T;
 
 const log = loggers.get('rescapeDefault');
 
@@ -134,84 +137,84 @@ export const geocodeAddressResultTask = location => {
     return latLng ?
       initReverseGeocodeService(process.env['GOOGLE_API_KEY'])({
         latlng
-      }) :  initGeocodeService(process.env['GOOGLE_API_KEY'])({
+      }) : initGeocodeService(process.env['GOOGLE_API_KEY'])({
         address
       }).then(
-      // Only accept exact results, not approximate, if the locationWithNominatimData search involves intersections
-      response => {
-        const results = R.ifElse(
-          R.always(latLng),
-          // If we had a lat/lon use the reverse geocoding to get country, state, city, neighborhood
-          // if we don't already have them
-          results => {
-            return {
-              // Just use our lat lon for the geojson, not what Google found, which might be less accurate
-              geojson: locationToTurfPoint(R.map(parseFloat, R.split(',', latLng))),
-              // Add this special property that can be used to modify our locationWithNominatimData later with
-              // the jurisdictions found by Google
-              locationWithJurisdictions: resolveJurisdictionFromGeocodeResult(location, results).matchWith({
-                Ok: ({value}) => value,
-                // If there's an error just assign this to the locationWithJurisdictions
-                Error: ({value}) => value
-              })
-            };
-          },
-          // Otherwise find the best result from the geocoding
-          results => R.filter(
-            result => R.when(
-              R.always(R.and(
-                R.has('intersections', location),
-                R.length(R.prop('intersections', location))
-              )),
-              r => R.allPass([
-                // The first address component must be 'intersection'
-                r => reqStrPath('address_components.0.types.0', r).matchWith({
-                  Ok: ({value}) => R.equals('intersection', value),
-                  Error: R.F
-                }),
-                // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE locationWithNominatimData
-                r => R.includes(r.geometry.location_type, ['GEOMETRIC_CENTER']),
-                // No partial matches allowed.
-                r => R.not(R.prop('partial_match', r)),
-                // It must be an intersection, thus have & in the address
-                r => R.includes('&', r.formatted_address)
-              ])(r)
-            )(result),
-            results
-          )
-        )(reqStrPathThrowing('data.results', response));
-
-        if (latLng) {
-          // Always resolve lat lons
-          resolver.resolve(Result.of(results));
-        } else if (R.equals(1, R.length(results))) {
-          const result = R.head(results);
-          // Result to indicate success
-          log.debug(`Successfully geocoded location ${R.propOr('(no id given)', 'id', location)}, ${address} to Google address ${result.formatted_address}`);
-          // If an error occurs here Google swallows it, so catch it
-          resolver.resolve(
-            Result.of(addGeojsonToGoogleResult(result))
-          );
-        } else {
-          // Ambiguous or no results. We can potentially resolve ambiguous ones
-          log.warn(`Failed to find exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${address}. ${R.length(results)} results`);
-          resolver.resolve(Result.Error({
-            error: 'Did not receive exactly one locationWithNominatimData',
-            results: R.map(
-              result => addGeojsonToGoogleResult(result),
+        // Only accept exact results, not approximate, if the locationWithNominatimData search involves intersections
+        response => {
+          const results = R.ifElse(
+            R.always(latLng),
+            // If we had a lat/lon use the reverse geocoding to get country, state, city, neighborhood
+            // if we don't already have them
+            results => {
+              return {
+                // Just use our lat lon for the geojson, not what Google found, which might be less accurate
+                geojson: locationToTurfPoint(R.map(parseFloat, R.split(',', latLng))),
+                // Add this special property that can be used to modify our locationWithNominatimData later with
+                // the jurisdictions found by Google
+                locationWithJurisdictions: resolveJurisdictionFromGeocodeResult(location, results).matchWith({
+                  Ok: ({value}) => value,
+                  // If there's an error just assign this to the locationWithJurisdictions
+                  Error: ({value}) => value
+                })
+              };
+            },
+            // Otherwise find the best result from the geocoding
+            results => R.filter(
+              result => R.when(
+                R.always(R.and(
+                  R.has('intersections', location),
+                  R.length(R.prop('intersections', location))
+                )),
+                r => R.allPass([
+                  // The first address component must be 'intersection'
+                  r => reqStrPath('address_components.0.types.0', r).matchWith({
+                    Ok: ({value}) => R.equals('intersection', value),
+                    Error: R.F
+                  }),
+                  // If 1 or more intersections are defined, insist on a GEOMETRIC_CENTER, not APPROXIMATE locationWithNominatimData
+                  r => R.includes(r.geometry.location_type, ['GEOMETRIC_CENTER']),
+                  // No partial matches allowed.
+                  r => R.not(R.prop('partial_match', r)),
+                  // It must be an intersection, thus have & in the address
+                  r => R.includes('&', r.formatted_address)
+                ])(r)
+              )(result),
               results
-            ),
-            response
-          }));
+            )
+          )(reqStrPathThrowing('data.results', response));
+
+          if (latLng) {
+            // Always resolve lat lons
+            resolver.resolve(Result.of(results));
+          } else if (R.equals(1, R.length(results))) {
+            const result = R.head(results);
+            // Result to indicate success
+            log.debug(`Successfully geocoded location ${R.propOr('(no id given)', 'id', location)}, ${address} to Google address ${result.formatted_address}`);
+            // If an error occurs here Google swallows it, so catch it
+            resolver.resolve(
+              Result.of(addGeojsonToGoogleResult(result))
+            );
+          } else {
+            // Ambiguous or no results. We can potentially resolve ambiguous ones
+            log.warn(`Failed to find exact geocode location ${R.propOr('(no id given)', 'id', location)}, ${address}. ${R.length(results)} results`);
+            resolver.resolve(Result.Error({
+              error: 'Did not receive exactly one locationWithNominatimData',
+              results: R.map(
+                result => addGeojsonToGoogleResult(result),
+                results
+              ),
+              response
+            }));
+          }
+        },
+        err => {
+          // Handle error
+          // Error to give up
+          log.warn(`Failed to geocode ${R.propOr('(no id given)', 'id', location)}, ${address}. Error ${strPathOr('Unknown', 'json.error_message', err)}`);
+          resolver.resolve(Result.Error({error: JSON.stringify(err), response: err}));
         }
-      },
-      err => {
-        // Handle error
-        // Error to give up
-        log.warn(`Failed to geocode ${R.propOr('(no id given)', 'id', location)}, ${address}. Error ${strPathOr('Unknown', 'json.error_message', err)}`);
-        resolver.resolve(Result.Error({error: JSON.stringify(err), response: err}));
-      }
-    );
+      );
   });
 };
 
@@ -378,7 +381,7 @@ export const findClosest = (firstResultSet, secondResultSet) => {
           },
           [firstResult, secondResult]
         );
-        const distance = rhumbDistance(...points);
+        const distance = rhumbDistance.default(...points);
         return {
           firstResult,
           secondResult,
@@ -513,14 +516,14 @@ export const initService = (key, service) => {
   };
 };
 export const initDirectionsService = key => {
-  return initService(key, 'directions')
-}
+  return initService(key, 'directions');
+};
 export const initGeocodeService = key => {
-  return initService(key, 'geocode')
-}
+  return initService(key, 'geocode');
+};
 export const initReverseGeocodeService = key => {
-  return initService(key, 'reversegeocode')
-}
+  return initService(key, 'reversegeocode');
+};
 
 /**
  * Shortcut to create a route from origin and destination with a predefined Google directions service
@@ -721,8 +724,8 @@ export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResu
         prop => R.prop(prop, location),
         ['country', 'city']
       ),
-      location => Ok(location),
-      location => Error({error: 'Could not extract country and/or city from Google geocode results', location})
+      location => Resul.Ok(location),
+      location => Result.Error({error: 'Could not extract country and/or city from Google geocode results', location})
     )(location),
     names => R.merge(location, names),
     values => R.mapObjIndexed(

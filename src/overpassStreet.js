@@ -10,10 +10,11 @@
  */
 
 import {configuredHighwayWayFilters, osmEquals, osmIdToAreaId, osmLike} from './overpassHelpers';
-import * as R from 'ramda';
+import R from 'ramda';
 import {composeWithChainMDeep, mapToNamedResponseAndInputs, mapToNamedResponseAndInputsMDeep} from 'rescape-ramda';
-import {of} from 'folktale/concurrency/task';
-import * as Result from 'folktale/result';
+import T from 'folktale/concurrency/task';
+const {of} = T;
+import Result from 'folktale/result';
 import {loggers} from 'rescape-log';
 import {commonStreetOfLocation, locationAndOsmBlocksToLocationWithGeojson} from './locationHelpers';
 import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers';

@@ -12,7 +12,7 @@
 import {
   cleanGeojson, _intersectionStreetNamesFromWaysAndNodesResult, _linkedFeatures
 } from './overpassFeatureHelpers';
-import * as R from 'ramda';
+import R from 'ramda';
 
 describe('overpassFeatureHelpers', () => {
 
@@ -153,7 +153,12 @@ describe('overpassFeatureHelpers', () => {
         ]
       };
       expect(
-        _intersectionStreetNamesFromWaysAndNodesResult({}, wayFeatures, nodeFeatures, nodeIdToWaysOfNodeFeatures).value
+        _intersectionStreetNamesFromWaysAndNodesResult(
+          {},
+          wayFeatures,
+          nodeFeatures,
+          nodeIdToWaysOfNodeFeatures
+        ).value
       ).toEqual(
         {
           "node/42875319": {

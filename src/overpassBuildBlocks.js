@@ -24,9 +24,10 @@ import {
   strPathOr
 } from 'rescape-ramda';
 
-import * as R from 'ramda';
-import {of} from 'folktale/concurrency/task';
-import * as Result from 'folktale/result';
+import R from 'ramda';
+import T from 'folktale/concurrency/task';
+const {of} = T;
+import Result from 'folktale/result';
 import {loggers} from 'rescape-log';
 import {v} from 'rescape-validate';
 import PropTypes from 'prop-types';

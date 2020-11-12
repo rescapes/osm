@@ -1,4 +1,4 @@
-import * as R from 'ramda';
+import R from 'ramda';
 import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from 'rescape-ramda';
 import {
   locationToOsmAllBlocksQueryResultsTask,

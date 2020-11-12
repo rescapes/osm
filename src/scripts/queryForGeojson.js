@@ -12,13 +12,14 @@
  */
 import moment from 'moment';
 import "regenerator-runtime/runtime";
-import * as R from 'ramda';
+import R from 'ramda';
 import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from 'rescape-ramda';
 import meow from 'meow';
 import {loggers, rescapeDefaultTransports} from 'rescape-log';
 import {locationsToGeojsonFileResultTask} from '../overpassBlockHelpers';
 import {locationToOsmAllBlocksQueryResultsTask} from '../overpassAllBlocks';
-import {of} from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task';
+const {of} = T;
 import {processParamsFromJsonOrJsToList} from './scriptHelpers';
 
 Error.stackTraceLimit = Infinity;

@@ -21,9 +21,10 @@ import {
   toNamedResponseAndInputs,
   traverseReduceWhileBucketedTasks
 } from 'rescape-ramda';
-import * as R from 'ramda';
-import {of} from 'folktale/concurrency/task';
-import * as Result from 'folktale/result';
+import R from 'ramda';
+import T from 'folktale/concurrency/task';
+const {of} = T;
+import Result from 'folktale/result';
 import {
   _buildPartialBlocks,
   _hashBlock,
@@ -447,7 +448,7 @@ const _removeOpposingDuplicateBlocks = blocks => {
  * Another exception is dead end ways and ways whose final intersection node was not part of the query results.
  * When a dead end is encountered, we query the way to find out if actually has an intersection node that wasn't
  * part of the original query results. Then we use that result. If the way is truly a dead end, we use the way
- * as node the that the block has a node at both ends of the way(s)
+ node the that the block has a node at both ends of the way(s)
  * @param {Object} osmConfig used for query settings
  * @param {Object} context Context for linking the nodes and ways
  * @param {Object} context.nodeIdToWays

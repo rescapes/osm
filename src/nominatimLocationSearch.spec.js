@@ -15,8 +15,9 @@ import {
   nominatimReverseGeocodeToLocationResultTask
 } from './nominatimLocationSearch';
 import {defaultRunConfig, defaultRunToResultConfig} from 'rescape-ramda';
-import * as R from 'ramda';
-import {rejected} from 'folktale/concurrency/task';
+import R from 'ramda';
+import T from 'folktale/concurrency/task';
+const {rejected} = T;
 
 describe('nominatimLocationSearch', () => {
   // TODO Relations aren't being returned by this anymore, so this breaks

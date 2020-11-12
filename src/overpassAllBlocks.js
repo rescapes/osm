@@ -22,19 +22,20 @@ import length from '@turf/length';
 import along from '@turf/along';
 import center from '@turf/center';
 import bbox from '@turf/bbox';
-import * as R from 'ramda';
-import {of} from 'folktale/concurrency/task';
+import R from 'ramda';
+import T from 'folktale/concurrency/task';
 import {
   aroundPointDeclaration,
   configuredHighwayWayFilters,
   highwayNodeFilters,
   osmIdToAreaId
 } from './overpassHelpers';
-import * as Result from 'folktale/result';
+import Result from 'folktale/result';
 import {_queryLocationVariationsUntilFoundResultTask, locationsToGeojson} from './overpassBlockHelpers';
 import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch';
 import {
-  bufferAndUnionGeojson, commonStreetOfLocation,
+  bufferAndUnionGeojson,
+  commonStreetOfLocation,
   geojsonFeaturesHaveRadii,
   geojsonFeaturesHaveShape,
   geojsonFeaturesHaveShapeOrRadii,
@@ -50,6 +51,8 @@ import {geocodeJursidictionResultTask} from './googleLocation';
 import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers';
 import buffer from '@turf/buffer';
 import {_constructStreetQuery} from './overpassStreet';
+
+const {of} = T;
 
 const log = loggers.get('rescapeDefault');
 
@@ -584,7 +587,7 @@ const _createQueryWaysDeclarations = v((osmConfig, {areaId, geojson}) => {
       ({geojson}) => {
         return R.map(
           feature => {
-            const bounds = R.compose(turfBboxToOsmBbox, bbox)(feature);
+            const bounds = R.compose(turfBboxToOsmBbox, bbox.default)(feature);
             // Include an area filter if specified in addition to the bbox
             const areaFilterStr = R.when(
               R.identity,

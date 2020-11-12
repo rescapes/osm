@@ -54,9 +54,10 @@ import {
   hashWayFeature,
   nodeMatchesWayEnd
 } from './overpassFeatureHelpers';
-import * as R from 'ramda';
-import {of, waitAll, task, rejected} from 'folktale/concurrency/task';
-import * as Result from 'folktale/result';
+import R from 'ramda';
+import T from 'folktale/concurrency/task';
+const {of, waitAll, task, rejected} = T;
+import Result from 'folktale/result';
 import fs from 'fs';
 import {scaleOrdinal} from 'd3-scale';
 import {schemeCategory10} from 'd3-scale-chromatic';

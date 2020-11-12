@@ -10,8 +10,9 @@
  */
 
 import xhr from 'xhr';
-import {task, waitAll, of} from 'folktale/concurrency/task';
-import * as R from 'ramda';
+import T from 'folktale/concurrency/task';
+const {task, waitAll, of} = T;
+import R from 'ramda';
 import {
   traverseReduceWhile,
   mapObjToValues,
@@ -30,7 +31,7 @@ import {
 import {locationToTurfPoint} from 'rescape-helpers';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
-import * as Result from 'folktale/result';
+import Result from 'folktale/result';
 import {addressString, featuresByOsmType, featuresOfOsmType, stateCodeLookup} from './locationHelpers';
 import area from '@turf/area';
 import bboxPolygon from '@turf/bbox-polygon';

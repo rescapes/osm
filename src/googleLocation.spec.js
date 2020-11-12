@@ -9,17 +9,22 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import {
-  initDirectionsService,
+  calculateRouteTask,
   createOpposingRoutesFromOriginAndDestination,
   geocodeAddressResultTask,
-  geojsonCenterOfBlockAddress, googleIntersectionTask, resolveGeojsonTask, resolveGeoLocationTask,
-  geocodeBlockAddressesResultTask, createRouteFromOriginDestinationGeocodes, calculateRouteTask,
-  geocodeAddressWithBothIntersectionOrdersTask
+  geocodeAddressWithBothIntersectionOrdersTask,
+  geocodeBlockAddressesResultTask,
+  geojsonCenterOfBlockAddress,
+  googleIntersectionTask,
+  initDirectionsService,
+  resolveGeojsonTask,
+  resolveGeoLocationTask
 } from './googleLocation';
-import * as R from 'ramda';
-import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
+import R from 'ramda';
+import {defaultRunConfig, defaultRunToResultConfig, reqStrPathThrowing} from 'rescape-ramda';
 import {turfPointToLocation} from 'rescape-helpers';
-import {rejected} from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task';
+const {rejected} = T;
 
 const austinIntersections = [{data: {streets: ['Salina St', 'E 21st St']}}, {data: {streets: ['Leona St and E 21st St']}}];
 

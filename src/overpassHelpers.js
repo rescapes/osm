@@ -19,9 +19,10 @@ import {
 } from 'rescape-ramda';
 import {loggers} from 'rescape-log';
 import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers';
-import * as R from 'ramda';
-import {of, task} from 'folktale/concurrency/task';
-import * as Result from 'folktale/result';
+import R from 'ramda';
+import T from 'folktale/concurrency/task';
+const {of, task} = T;
+import Result from 'folktale/result';
 
 import queryOverpass from 'query-overpass';
 import os from 'os';

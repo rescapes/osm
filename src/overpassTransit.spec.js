@@ -2,6 +2,7 @@ import {LA_BOUNDS, LA_SAMPLE} from './samples/queryOverpass.sample';
 import {osmAlways, osmNotEqual} from './overpassHelpers';
 import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
 import {fetchTransitOsm} from './overpassTransit';
+import {jest} from '@jest/globals';
 
 /**
  * Created by Andy Likuski on 2019.06.14

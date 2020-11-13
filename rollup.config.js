@@ -5,7 +5,7 @@ import R from 'ramda';
 
 const config = {
   input: [
-    'src/index.js',
+    'src/index.mjs',
     'src/googleLocation.js',
     'src/overpassExternalSourceBlocks.js',
     'src/locationHelpers.js',
@@ -53,6 +53,7 @@ const configs = R.map(c => {
     ])
   },
   // ES
+  /*
   {
     output: {
       dir: 'esm',
@@ -71,7 +72,6 @@ const configs = R.map(c => {
     )
   }
 
-  /*
   // ES for Browsers
   {
     output: {

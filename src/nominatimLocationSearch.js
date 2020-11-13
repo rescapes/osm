@@ -329,7 +329,7 @@ export const nominatimResultTask = location => {
             // Prefer small areas
             R.ascend(match => R.compose(
               area,
-              nominatimBbox => bboxPolygon(
+              nominatimBbox => bboxPolygon.default(
                 R.map(
                   i => parseFloat(nominatimBbox[i]), [2, 0, 3, 1]
                 )

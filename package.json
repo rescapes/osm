@@ -1,6 +1,6 @@
 {
   "name": "@rescapes/osm",
-  "version": "0.3.93",
+  "version": "0.3.94",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "repository": {
     "type": "git",
@@ -142,8 +142,5 @@
       "node",
       "mjs"
     ]
-  },
-  "publishConfig": {
-    "registry": "https://registry.npmjs.org"
   }
 }

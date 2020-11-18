@@ -13,7 +13,7 @@ export {
   nonOsmGeojsonLinesToLocationBlocksResultsTask,
   osmCompatibleWayFeaturesFromGeojson,
   partialBlocksFromNonOsmWayFeatures
-} from './overpassExternalSourceBlocks';
+} from './overpassExternalSourceBlocks.js';
 
 export {
   calculateRouteTask,
@@ -30,7 +30,7 @@ export {
   resolveGeoLocationTask,
   resolveGeojsonTask,
   resolveJurisdictionFromGeocodeResult
-} from './googleLocation';
+} from './googleLocation.js';
 
 export {
   addressString,
@@ -68,22 +68,22 @@ export {
   isNominatimEligible,
   locationHasGeojsonFeatures,
   fixWordsThatTripUpGoogle
-} from './locationHelpers';
-export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch';
-export {fetchTransitOsm} from './overpassTransit';
-export {queryLocationForOsmSingleBlockResultTask, queryLocationForOsmSingleBlocksResultsTask} from './overpassSingleBlock';
+} from './locationHelpers.js';
+export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch.js';
+export {fetchTransitOsm} from './overpassTransit.js';
+export {queryLocationForOsmSingleBlockResultTask, queryLocationForOsmSingleBlocksResultsTask} from './overpassSingleBlock.js';
 export {
   locationToOsmAllBlocksQueryResultsTask, nominatimOrGoogleJurisdictionGeojsonResultTask, bufferedFeaturesToOsmAllBlocksQueryResultsTask,
   locationToOsmAllBlocksThenBufferedMoreBlocksResultsTask
-} from './overpassAllBlocks';
+} from './overpassAllBlocks.js';
 export {
   osmLocationToLocationWithGeojsonResultTask,
   osmRelationshipGeojsonResultTask
-} from './overpassBlocks';
+} from './overpassBlocks.js';
 export {
   queryLocationForOsmBlockOrAllResultsTask
-} from './overpassSingleOrAllBlocks';
-export {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
+} from './overpassSingleOrAllBlocks.js';
+export {queryOverpassWithLocationForStreetResultTask} from './overpassStreet.js';
 export {
   cleanGeojson,
   hashWayFeatureExtents,
@@ -93,7 +93,7 @@ export {
   findMatchingNodes,
   hashPointsToWayCoordinates,
   nodeMatchesWayEnd
-} from './overpassFeatureHelpers';
+} from './overpassFeatureHelpers.js';
 export {
   blockToGeojson,
   blocksToGeojson,
@@ -104,10 +104,10 @@ export {
   generateFileTask,
   locationsToGeojsonFileResultTask,
   locationsToGeojsonString
-} from './overpassBlockHelpers';
+} from './overpassBlockHelpers.js';
 
 export {
   bufferAndUnionGeojson,
   oldIntersectionUpgrade,
   isBlockLocation
-} from './locationHelpers'
+} from './locationHelpers.js'

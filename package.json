@@ -1,6 +1,6 @@
 {
   "name": "@rescapes/osm",
-  "version": "0.3.95",
+  "version": "0.3.96",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "repository": {
     "type": "git",
@@ -19,9 +19,9 @@
     "clear-jest": "jest --clearCache",
     "clean": "rimraf lib dist es coverage",
     "lint": "eslint src",
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest test",
     "build": "rollup -c",
-    "prepare": "yarn run && cross-env ENABLE_INTEGRATION_TESTS=false yarn run clean && yarn run build",
+    "prepare": "cross-env ENABLE_INTEGRATION_TESTS=false yarn run clean && yarn run build",
     "docs:clean": "rimraf _book",
     "docs:prepare": "gitbook install",
     "docs:build": "yarn run docs:prepare && gitbook build -g reactjs/redux && cp logo/apple-touch-icon.png _book/gitbook/images/apple-touch-icon-precomposed-152.png && cp logo/favicon.ico _book/gitbook/images",

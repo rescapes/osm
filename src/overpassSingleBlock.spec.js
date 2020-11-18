@@ -1,12 +1,12 @@
 import {
   _locationToOsmSingleBlockBoundsQueryResultTask,
   queryLocationForOsmSingleBlockResultTask
-} from './overpassSingleBlock';
-import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing, pickDeepPaths} from 'rescape-ramda';
+} from './overpassSingleBlock.js';
+import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing, pickDeepPaths} from '@rescapes/ramda';
 import R from 'ramda';
-import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
-import {blocksToGeojson, blockToGeojson} from './overpassBlockHelpers';
-import {locationWithLocationPoints} from './locationHelpers';
+import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks.js';
+import {blocksToGeojson, blockToGeojson} from './overpassBlockHelpers.js';
+import {locationWithLocationPoints} from './locationHelpers.js';
 
 /**
  * Created by Andy Likuski on 2019.06.14

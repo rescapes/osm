@@ -22,11 +22,11 @@ import {
   objOfMLevelDeepMonadsToListWithPairs,
   reqStrPathThrowing, strPathOr,
   traverseReduce
-} from 'rescape-ramda';
+} from '@rescapes/ramda';
 import Result from 'folktale/result';
 import 'regenerator-runtime';
-import {wayFeatureNameOrDefault} from './locationHelpers';
-import {loggers} from 'rescape-log';
+import {wayFeatureNameOrDefault} from './locationHelpers.js';
+import {loggers} from '@rescapes/log';
 
 const log = loggers.get('rescapeDefault');
 

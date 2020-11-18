@@ -10,11 +10,11 @@
  */
 
 import R from 'ramda';
-import {mergeAllWithKey, removeDuplicateObjectsByProp, reqStrPathThrowing} from 'rescape-ramda';
-import {loggers} from 'rescape-log';
-import {buildFilterQuery, queryTask} from './overpassHelpers';
-import {concatFeatures} from 'rescape-helpers';
-import {extractSquareGridBboxesFromBounds} from 'rescape-helpers';
+import {mergeAllWithKey, removeDuplicateObjectsByProp, reqStrPathThrowing} from '@rescapes/ramda';
+import {loggers} from '@rescapes/log';
+import {buildFilterQuery, queryTask} from './overpassHelpers.js';
+import {concatFeatures} from '@rescapes/helpers';
+import {extractSquareGridBboxesFromBounds} from '@rescapes/helpers';
 
 /**
  * fetches transit data from OpenStreetMap using the Overpass API.

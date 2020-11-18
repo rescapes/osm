@@ -11,23 +11,23 @@
 
 
 import 'regenerator-runtime';
-import {nominatimLocationResultTask} from './nominatimLocationSearch';
-import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
+import {nominatimLocationResultTask} from './nominatimLocationSearch.js';
+import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet.js';
 import {
   aggregateLocation,
   commonStreetOfLocation,
   featuresByOsmType,
   sortIntersectionsAndStreets
-} from './locationHelpers';
-import {fetchOsmRawTask, osmResultTask} from './overpassHelpers';
+} from './locationHelpers.js';
+import {fetchOsmRawTask, osmResultTask} from './overpassHelpers.js';
 import {
   chainObjToValues,
   eqStrPathsAllCustomizable,
   mapToNamedResponseAndInputs,
   resultToTaskNeedingResult,
   resultToTaskWithResult, strPathOr
-} from 'rescape-ramda';
-import {loggers} from 'rescape-log';
+} from '@rescapes/ramda';
+import {loggers} from '@rescapes/log';
 import R from 'ramda';
 import T from 'folktale/concurrency/task';
 const {of} = T;

@@ -9,17 +9,17 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {processParamsFromJsonOrJsToList} from './scriptHelpers';
-import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from 'rescape-ramda';
-import {locationsToGeojsonFileResultTask} from '../overpassBlockHelpers';
-import {locationToOsmAllBlocksQueryResultsTask} from '../overpassAllBlocks';
+import {processParamsFromJsonOrJsToList} from './scriptHelpers.js';
+import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from '@rescapes/ramda';
+import {locationsToGeojsonFileResultTask} from '../overpassBlockHelpers.js';
+import {locationToOsmAllBlocksQueryResultsTask} from '../overpassAllBlocks.js';
 import moment from 'moment';
 import "regenerator-runtime/runtime";
 import R from 'ramda';
 import T from 'folktale/concurrency/task';
 const {of} = T;
-import {loggers} from 'rescape-log';
-import phillySamples from '../samples/philadelphia_neighborhoods_to_locations'
+import {loggers} from '@rescapes/log';
+import phillySamples from '../samples/philadelphia_neighborhoods_to_locations.js'
 
 const log = loggers.get('rescapeDefault');
 

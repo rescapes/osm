@@ -4,16 +4,16 @@ import {
   mapToNamedResponseAndInputs,
   resultToTaskWithResult,
   mapResultTaskWithOtherInputs, defaultRunConfig
-} from 'rescape-ramda';
-import {osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks';
+} from '@rescapes/ramda';
+import {osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks.js';
 import R from 'ramda';
-import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet';
-import {nominatimLocationResultTask} from './nominatimLocationSearch';
+import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet.js';
+import {nominatimLocationResultTask} from './nominatimLocationSearch.js';
 import T from 'folktale/concurrency/task';
 const {of} = T;
-import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
+import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks.js';
 import {point} from '@turf/helpers';
-import {locationsToGeojson, locationsToGeojsonWaysAndBoth} from './overpassBlockHelpers';
+import {locationsToGeojson, locationsToGeojsonWaysAndBoth} from './overpassBlockHelpers.js';
 import buffer from '@turf/buffer';
 import union from '@turf/union';
 

@@ -10,14 +10,14 @@
  */
 
 import moment from 'moment';
-import {reqStrPathThrowing, defaultRunToResultConfig, omitDeep, chainObjToValues} from 'rescape-ramda';
+import {reqStrPathThrowing, defaultRunToResultConfig, omitDeep, chainObjToValues} from '@rescapes/ramda';
 import R from 'ramda';
 import {
   blocksToGeojson,
   getFeaturesOfBlock,
   locationsToGeojson, locationsToGeojsonFileResultTask, locationsToGeojsonWaysAndBoth,
   nodesAndIntersectionNodesForIncompleteWayResultTask
-} from './overpassBlockHelpers';
+} from './overpassBlockHelpers.js';
 
 const blocks = [
   {

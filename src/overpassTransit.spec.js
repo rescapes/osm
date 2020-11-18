@@ -1,7 +1,7 @@
-import {LA_BOUNDS, LA_SAMPLE} from './samples/queryOverpass.sample';
-import {osmAlways, osmNotEqual} from './overpassHelpers';
-import {defaultRunConfig, removeDuplicateObjectsByProp} from 'rescape-ramda';
-import {fetchTransitOsm} from './overpassTransit';
+import {LA_BOUNDS, LA_SAMPLE} from './samples/queryOverpass.sample.js';
+import {osmAlways, osmNotEqual} from './overpassHelpers.js';
+import {defaultRunConfig, removeDuplicateObjectsByProp} from '@rescapes/ramda';
+import {fetchTransitOsm} from './overpassTransit.js';
 import {jest} from '@jest/globals';
 
 /**

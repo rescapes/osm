@@ -1,4 +1,4 @@
-import {loggers} from 'rescape-log';
+import {loggers} from '@rescapes/log';
 import {
   composeWithChain,
   composeWithChainMDeep,
@@ -14,10 +14,10 @@ import {
   toArrayIfNot,
   traverseReduce,
   traverseReduceDeep
-} from 'rescape-ramda';
+} from '@rescapes/ramda';
 import {lineString} from '@turf/helpers';
 import distance from '@turf/distance';
-import {extractSquareGridFeatureCollectionFromGeojson, turfBboxToOsmBbox, turfPointToLocation} from 'rescape-helpers';
+import {extractSquareGridFeatureCollectionFromGeojson, turfBboxToOsmBbox, turfPointToLocation} from '@rescapes/helpers';
 import length from '@turf/length';
 import along from '@turf/along';
 import center from '@turf/center';
@@ -29,10 +29,10 @@ import {
   configuredHighwayWayFilters,
   highwayNodeFilters,
   osmIdToAreaId
-} from './overpassHelpers';
+} from './overpassHelpers.js';
 import Result from 'folktale/result';
-import {_queryLocationVariationsUntilFoundResultTask, locationsToGeojson} from './overpassBlockHelpers';
-import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch';
+import {_queryLocationVariationsUntilFoundResultTask, locationsToGeojson} from './overpassBlockHelpers.js';
+import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch.js';
 import {
   bufferAndUnionGeojson,
   commonStreetOfLocation,
@@ -44,13 +44,13 @@ import {
   isOsmType,
   locationAndOsmBlocksToLocationWithGeojson,
   osmFeaturesOfLocationForType
-} from './locationHelpers';
-import {v} from 'rescape-validate';
+} from './locationHelpers.js';
+import {v} from '@rescapes/validate';
 import PropTypes from 'prop-types';
-import {geocodeJursidictionResultTask} from './googleLocation';
-import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers';
+import {geocodeJursidictionResultTask} from './googleLocation.js';
+import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers.js';
 import buffer from '@turf/buffer';
-import {_constructStreetQuery} from './overpassStreet';
+import {_constructStreetQuery} from './overpassStreet.js';
 
 const {of} = T;
 
@@ -136,9 +136,9 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                     const searchLatLon = R.compose(
                       latLon => R.fromPairs(R.zip(['lat', 'lon'], latLon)),
                       point => turfPointToLocation(point),
-                      geojson => center(geojson),
-                      ({line, length}) => along(line, length / 2, {units: 'meters'}),
-                      line => ({line, length: length(line, {units: 'meters'})}),
+                      geojson => center.default(geojson),
+                      ({line, length}) => along.default(line, length / 2, {units: 'meters'}),
+                      line => ({line, length: length.default(line, {units: 'meters'})}),
                       ways => lineString(R.reduce(
                         (acc, way) => R.uniq(R.concat(acc, reqStrPathThrowing('geometry.coordinates', way))),
                         [],
@@ -308,7 +308,7 @@ export const nominatimOrGoogleJurisdictionGeojsonResultTask = (osmConfig, locati
       // If we get a googleLocation that is more than 100 meters from the nominatim point,
       // use the Google center point for the geojson
       const nominatimLocation = R.head(nominatimLocations || []);
-      const dist = (nominatimLocationGeojson, googleLocationGeojson) => distance(
+      const dist = (nominatimLocationGeojson, googleLocationGeojson) => distance.default(
         nominatimLocationGeojson,
         googleLocationGeojson,
         {units: 'meters'}

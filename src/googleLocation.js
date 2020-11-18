@@ -24,7 +24,7 @@ import {
   strPathOr,
   traverseReduce,
   traverseReduceWhile
-} from 'rescape-ramda';
+} from '@rescapes/ramda';
 
 import {
   googleLocationToLocation,
@@ -32,7 +32,7 @@ import {
   locationToTurfPoint,
   originDestinationToLatLngString,
   turfPointToLocation
-} from 'rescape-helpers';
+} from '@rescapes/helpers';
 import {
   addressString,
   addressStrings,
@@ -41,8 +41,8 @@ import {
   locationWithLocationPoints,
   oneLocationIntersectionsFromLocation,
   removeStateFromSomeCountriesForSearch
-} from './locationHelpers';
-import {loggers} from 'rescape-log';
+} from './locationHelpers.js';
+import {loggers} from '@rescapes/log';
 
 const {Client} = googleMapsServices;
 

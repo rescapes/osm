@@ -11,7 +11,7 @@
 
 
 import 'regenerator-runtime';
-import {featuresOfOsmType, isLatLng, wayFeatureNameOrDefault} from './locationHelpers';
+import {featuresOfOsmType, isLatLng, wayFeatureNameOrDefault} from './locationHelpers.js';
 import {
   _calculateNodeAndWayRelationships,
   configuredHighwayWayFilters,
@@ -20,7 +20,7 @@ import {
   highwayWayFiltersNoAreas,
   highwayWayFiltersOnlyAreas,
   osmResultTask
-} from './overpassHelpers';
+} from './overpassHelpers.js';
 import {
   chainObjToValues,
   compactEmpty,
@@ -41,8 +41,8 @@ import {
   traverseReduceResultError,
   traverseReduceWhile,
   waitAllBucketed
-} from 'rescape-ramda';
-import {loggers} from 'rescape-log';
+} from '@rescapes/ramda';
+import {loggers} from '@rescapes/log';
 import {
   _intersectionStreetNamesFromWaysAndNodesResult,
   _linkedFeatures,
@@ -53,7 +53,7 @@ import {
   hashPointsToWayCoordinates,
   hashWayFeature,
   nodeMatchesWayEnd
-} from './overpassFeatureHelpers';
+} from './overpassFeatureHelpers.js';
 import R from 'ramda';
 import T from 'folktale/concurrency/task';
 const {of, waitAll, task, rejected} = T;
@@ -62,9 +62,9 @@ import fs from 'fs';
 import {scaleOrdinal} from 'd3-scale';
 import {schemeCategory10} from 'd3-scale-chromatic';
 import {length} from '@turf/turf';
-import {v} from 'rescape-validate';
+import {v} from '@rescapes/validate';
 import PropTypes from 'prop-types';
-import {composeWithMap} from 'rescape-ramda';
+import {composeWithMap} from '@rescapes/ramda';
 
 const log = loggers.get('rescapeDefault');
 

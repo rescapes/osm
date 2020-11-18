@@ -27,16 +27,16 @@ import {
   transformKeys,
   filterWithKeys,
   composeWithChainMDeep, toNamedResponseAndInputs, strPathOr, compact
-} from 'rescape-ramda';
-import {locationToTurfPoint} from 'rescape-helpers';
+} from '@rescapes/ramda';
+import {locationToTurfPoint} from '@rescapes/helpers';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
 import Result from 'folktale/result';
-import {addressString, featuresByOsmType, featuresOfOsmType, stateCodeLookup} from './locationHelpers';
+import {addressString, featuresByOsmType, featuresOfOsmType, stateCodeLookup} from './locationHelpers.js';
 import area from '@turf/area';
 import bboxPolygon from '@turf/bbox-polygon';
-import {loggers} from 'rescape-log';
-import {fetchOsmRawTask, nominatimServers, osmResultTask, roundRobinNoimnatimServers} from './overpassHelpers';
+import {loggers} from '@rescapes/log';
+import {fetchOsmRawTask, nominatimServers, osmResultTask, roundRobinNoimnatimServers} from './overpassHelpers.js';
 
 const log = loggers.get('rescapeDefault');
 
@@ -328,7 +328,7 @@ export const nominatimResultTask = location => {
             R.descend(match => R.propOr(0, R.prop('osm_type', match), typeRating)),
             // Prefer small areas
             R.ascend(match => R.compose(
-              area,
+              area.default,
               nominatimBbox => bboxPolygon.default(
                 R.map(
                   i => parseFloat(nominatimBbox[i]), [2, 0, 3, 1]

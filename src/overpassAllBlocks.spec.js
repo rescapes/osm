@@ -1,18 +1,18 @@
 import R from 'ramda';
-import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from 'rescape-ramda';
+import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from '@rescapes/ramda';
 import {
   locationToOsmAllBlocksQueryResultsTask,
   locationToOsmAllBlocksThenBufferedMoreBlocksResultsTask
-} from './overpassAllBlocks';
+} from './overpassAllBlocks.js';
 import {
   blocksToGeojson,
   blocksWithLengths,
   blockToGeojson,
   locationsToGeojson,
   locationsToGeojsonFileResultTask
-} from './overpassBlockHelpers';
-import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks';
-import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
+} from './overpassBlockHelpers.js';
+import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks.js';
+import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks.js';
 
 /**
  * Created by Andy Likuski on 2019.06.14

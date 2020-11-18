@@ -16,10 +16,10 @@ import {
   mapGeojsonFeaturesHaveRadiiToPolygon,
   normalizedIntersectionNames,
   osmFeaturesOfLocationForType
-} from './locationHelpers';
-import {defaultRunConfig, mergeDeepWithConcatArrays, reqStrPathThrowing} from 'rescape-ramda';
-import {blocksToGeojson, locationsToGeojson} from './overpassBlockHelpers';
-import {bufferedFeaturesToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
+} from './locationHelpers.js';
+import {defaultRunConfig, mergeDeepWithConcatArrays, reqStrPathThrowing} from '@rescapes/ramda';
+import {blocksToGeojson, locationsToGeojson} from './overpassBlockHelpers.js';
+import {bufferedFeaturesToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks.js';
 import sampleStreetLocationsAndBlocks from './samples/hongKongStreetLocationsAndBlocks.json';
 
 const sampleCityLocations = [

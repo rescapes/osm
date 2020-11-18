@@ -11,7 +11,7 @@
 
 import {
   cleanGeojson, _intersectionStreetNamesFromWaysAndNodesResult, _linkedFeatures
-} from './overpassFeatureHelpers';
+} from './overpassFeatureHelpers.js';
 import R from 'ramda';
 
 describe('overpassFeatureHelpers', () => {

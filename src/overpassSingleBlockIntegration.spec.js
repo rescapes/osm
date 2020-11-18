@@ -12,10 +12,10 @@
 import {
   queryLocationForOsmSingleBlockResultTask,
   queryLocationForOsmSingleBlocksResultsTask
-} from './overpassSingleBlock';
-import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from 'rescape-ramda';
+} from './overpassSingleBlock.js';
+import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from '@rescapes/ramda';
 import R from 'ramda';
-import {loggers} from 'rescape-log';
+import {loggers} from '@rescapes/log';
 
 const log = loggers.get('rescapeDefault');
 

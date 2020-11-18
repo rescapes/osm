@@ -9,16 +9,16 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {configuredHighwayWayFilters, osmEquals, osmIdToAreaId, osmLike} from './overpassHelpers';
+import {configuredHighwayWayFilters, osmEquals, osmIdToAreaId, osmLike} from './overpassHelpers.js';
 import R from 'ramda';
-import {composeWithChainMDeep, mapToNamedResponseAndInputs, mapToNamedResponseAndInputsMDeep} from 'rescape-ramda';
+import {composeWithChainMDeep, mapToNamedResponseAndInputs, mapToNamedResponseAndInputsMDeep} from '@rescapes/ramda';
 import T from 'folktale/concurrency/task';
 const {of} = T;
 import Result from 'folktale/result';
-import {loggers} from 'rescape-log';
-import {commonStreetOfLocation, locationAndOsmBlocksToLocationWithGeojson} from './locationHelpers';
-import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers';
-import {nominatimLocationResultTask} from './nominatimLocationSearch';
+import {loggers} from '@rescapes/log';
+import {commonStreetOfLocation, locationAndOsmBlocksToLocationWithGeojson} from './locationHelpers.js';
+import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers.js';
+import {nominatimLocationResultTask} from './nominatimLocationSearch.js';
 
 const log = loggers.get('rescapeDefault');
 

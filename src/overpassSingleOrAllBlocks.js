@@ -14,16 +14,16 @@ import {
   isResolvableAllBlocksLocation,
   isResolvableSingleBlockLocation,
   locationAndOsmBlocksToLocationWithGeojson, locationHasGeojsonFeatures
-} from './locationHelpers';
-import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock';
-import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
+} from './locationHelpers.js';
+import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock.js';
+import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks.js';
 import 'regenerator-runtime';
-import {loggers} from 'rescape-log';
+import {loggers} from '@rescapes/log';
 import R from 'ramda';
 import Result from 'folktale/result';
 
 const log = loggers.get('rescapeDefault');
-import {toArrayIfNot, strPathOr} from 'rescape-ramda';
+import {toArrayIfNot, strPathOr} from '@rescapes/ramda';
 
 
 /**

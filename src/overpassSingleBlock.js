@@ -25,7 +25,7 @@ import {
   resultToTaskWithResult,
   strPathOr,
   traverseReduceDeepResults
-} from 'rescape-ramda';
+} from '@rescapes/ramda';
 import T from 'folktale/concurrency/task';
 const {of} = T;
 import Result from 'folktale/result';
@@ -38,16 +38,16 @@ import {
   osmEquals,
   osmIdEquals,
   osmIdToAreaId
-} from './overpassHelpers';
-import {nominatimLocationResultTask} from './nominatimLocationSearch';
+} from './overpassHelpers.js';
+import {nominatimLocationResultTask} from './nominatimLocationSearch.js';
 import {
   featuresOfOsmType,
   locationHasGeojsonFeatures,
   locationHasLocationPoints,
   locationWithLocationPoints
-} from './locationHelpers';
-import {_googleResolveJurisdictionResultTask} from './googleLocation';
-import {loggers} from 'rescape-log';
+} from './locationHelpers.js';
+import {_googleResolveJurisdictionResultTask} from './googleLocation.js';
+import {loggers} from '@rescapes/log';
 import {
   _queryLocationVariationsUntilFoundResultTask,
   blocksToGeojson,
@@ -56,9 +56,9 @@ import {
   mapWaysByNodeIdToCleanedFeatures,
   parallelWayNodeQueriesResultTask,
   waysByNodeIdResultsTask
-} from './overpassBlockHelpers';
-import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks';
-import {extents} from './overpassFeatureHelpers';
+} from './overpassBlockHelpers.js';
+import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks.js';
+import {extents} from './overpassFeatureHelpers.js';
 
 const log = loggers.get('rescapeDefault');
 

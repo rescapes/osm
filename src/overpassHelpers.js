@@ -9,16 +9,16 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import 'regenerator-runtime';
-import {featuresByOsmType, isLatLng} from './locationHelpers';
+import {featuresByOsmType, isLatLng} from './locationHelpers.js';
 import {
   reqStrPathThrowing,
   taskToResultTask,
   toNamedResponseAndInputs,
   traverseReduceWhile,
   toMergedResponseAndInputs, strPathOr
-} from 'rescape-ramda';
-import {loggers} from 'rescape-log';
-import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers';
+} from '@rescapes/ramda';
+import {loggers} from '@rescapes/log';
+import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers.js';
 import R from 'ramda';
 import T from 'folktale/concurrency/task';
 const {of, task} = T;

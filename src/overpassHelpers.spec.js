@@ -12,8 +12,8 @@
 
 import T from 'folktale/concurrency/task';
 const {of, rejected} = T;
-import {osmResultTask} from './overpassHelpers';
-import {defaultRunToResultConfig} from 'rescape-ramda';
+import {osmResultTask} from './overpassHelpers.js';
+import {defaultRunToResultConfig} from '@rescapes/ramda';
 
 describe('overpass', () => {
 

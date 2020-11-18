@@ -13,14 +13,14 @@
 import moment from 'moment';
 import "regenerator-runtime/runtime";
 import R from 'ramda';
-import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from 'rescape-ramda';
+import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from '@rescapes/ramda';
 import meow from 'meow';
-import {loggers, rescapeDefaultTransports} from 'rescape-log';
-import {locationsToGeojsonFileResultTask} from '../overpassBlockHelpers';
-import {locationToOsmAllBlocksQueryResultsTask} from '../overpassAllBlocks';
+import {loggers, rescapeDefaultTransports} from '@rescapes/log';
+import {locationsToGeojsonFileResultTask} from '../overpassBlockHelpers.js';
+import {locationToOsmAllBlocksQueryResultsTask} from '../overpassAllBlocks.js';
 import T from 'folktale/concurrency/task';
 const {of} = T;
-import {processParamsFromJsonOrJsToList} from './scriptHelpers';
+import {processParamsFromJsonOrJsToList} from './scriptHelpers.js';
 
 Error.stackTraceLimit = Infinity;
 const log = loggers.get('rescapeDefault');

@@ -11,9 +11,9 @@ import {
   trimWayToNode,
   trimWayToNodeObj,
   waysOfNodeQuery
-} from './overpassBlockHelpers';
-import {_calculateNodeAndWayRelationships, fetchOsmRawTask, osmResultTask} from './overpassHelpers';
-import {hashNodeFeature, hashPoint, hashWayFeature, wayFeatureToCoordinates} from './overpassFeatureHelpers';
+} from './overpassBlockHelpers.js';
+import {_calculateNodeAndWayRelationships, fetchOsmRawTask, osmResultTask} from './overpassHelpers.js';
+import {hashNodeFeature, hashPoint, hashWayFeature, wayFeatureToCoordinates} from './overpassFeatureHelpers.js';
 import {
   compact, composeWithChain,
   composeWithChainMDeep, mapToMergedResponseAndInputs, mapToNamedResponseAndInputs,
@@ -22,16 +22,16 @@ import {
   resultToTaskNeedingResult,
   resultToTaskWithResult,
   strPathOr
-} from 'rescape-ramda';
+} from '@rescapes/ramda';
 
 import R from 'ramda';
 import T from 'folktale/concurrency/task';
 const {of} = T;
 import Result from 'folktale/result';
-import {loggers} from 'rescape-log';
-import {v} from 'rescape-validate';
+import {loggers} from '@rescapes/log';
+import {v} from '@rescapes/validate';
 import PropTypes from 'prop-types';
-import {nodeFromCoordinate} from './locationHelpers';
+import {nodeFromCoordinate} from './locationHelpers.js';
 
 const log = loggers.get('rescapeDefault');
 

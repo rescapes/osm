@@ -1,5 +1,5 @@
-import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
-import {defaultRunToResultConfig} from 'rescape-ramda';
+import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks.js';
+import {defaultRunToResultConfig} from '@rescapes/ramda';
 import {partialBlocks} from 'samplePartialBlocks.sample';
 import R from 'ramda';
 

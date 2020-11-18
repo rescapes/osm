@@ -20,7 +20,7 @@ import {
   strPathOr,
   toNamedResponseAndInputs,
   traverseReduceWhileBucketedTasks
-} from 'rescape-ramda';
+} from '@rescapes/ramda';
 import R from 'ramda';
 import T from 'folktale/concurrency/task';
 const {of} = T;
@@ -31,17 +31,17 @@ import {
   _sortOppositeBlocksByNodeOrdering, blocksToGeojson, blockToGeojson, isRealIntersectionTask,
   parallelWayNodeQueriesResultTask,
   waysByNodeIdResultsTask
-} from './overpassBlockHelpers';
-import {_calculateNodeAndWayRelationships} from './overpassHelpers';
+} from './overpassBlockHelpers.js';
+import {_calculateNodeAndWayRelationships} from './overpassHelpers.js';
 import {
   _intersectionStreetNamesFromWaysAndNodesResult,
   hashNodeFeature,
   hashWayFeature
-} from './overpassFeatureHelpers';
+} from './overpassFeatureHelpers.js';
 import {length} from '@turf/turf';
-import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks';
-import {loggers} from 'rescape-log';
-import {commonStreetOfLocation, wayFeatureNameOrDefault} from './locationHelpers';
+import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks.js';
+import {loggers} from '@rescapes/log';
+import {commonStreetOfLocation, wayFeatureNameOrDefault} from './locationHelpers.js';
 
 const log = loggers.get('rescapeDefault');
 

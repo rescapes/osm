@@ -1,9 +1,9 @@
 import R from 'ramda';
-import {defaultRunConfig, moveToKeys} from 'rescape-ramda';
-import {locationsToGeojson} from './overpassBlockHelpers';
+import {defaultRunConfig, moveToKeys} from '@rescapes/ramda';
+import {locationsToGeojson} from './overpassBlockHelpers.js';
 import philly from './samples/philly.json';
 import california from './samples/californiaBlocks.json';
-import {nonOsmGeojsonLinesToLocationBlocksResultsTask} from './overpassExternalSourceBlocks';
+import {nonOsmGeojsonLinesToLocationBlocksResultsTask} from './overpassExternalSourceBlocks.js';
 /**
  * Created by Andy Likuski on 2019.06.14
  * Copyright (c) 2019 Andy Likuski

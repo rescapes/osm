@@ -13,8 +13,8 @@ import {
   nominatimResultTask,
   nominatimReverseGeocodeResultTask,
   nominatimReverseGeocodeToLocationResultTask
-} from './nominatimLocationSearch';
-import {defaultRunConfig, defaultRunToResultConfig} from 'rescape-ramda';
+} from './nominatimLocationSearch.js';
+import {defaultRunConfig, defaultRunToResultConfig} from '@rescapes/ramda';
 import R from 'ramda';
 import T from 'folktale/concurrency/task';
 const {rejected} = T;

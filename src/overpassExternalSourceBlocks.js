@@ -1,14 +1,14 @@
-import {hashPoint, wayFeatureToCoordinates} from './overpassFeatureHelpers';
+import {hashPoint, wayFeatureToCoordinates} from './overpassFeatureHelpers.js';
 import R from 'ramda';
-import {composeWithChainMDeep, composeWithMapMDeep, traverseReduce} from 'rescape-ramda';
-import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers';
+import {composeWithChainMDeep, composeWithMapMDeep, traverseReduce} from '@rescapes/ramda';
+import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers.js';
 import {
   featureWithReversedCoordinates,
   locationAndOsmBlocksToLocationWithGeojson,
   nodeFromCoordinate
-} from './locationHelpers';
-import {loggers} from 'rescape-log';
-import {extractSquareGridFeatureCollectionFromGeojson} from 'rescape-helpers';
+} from './locationHelpers.js';
+import {loggers} from '@rescapes/log';
+import {extractSquareGridFeatureCollectionFromGeojson} from '@rescapes/helpers';
 import booleanDisjoint from '@turf/boolean-disjoint';
 import T from 'folktale/concurrency/task';
 const {of} = T;

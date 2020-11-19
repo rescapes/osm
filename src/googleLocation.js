@@ -10,10 +10,10 @@
  */
 import googleMapsServices from "@googlemaps/google-maps-services-js";
 import R from 'ramda';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 import rhumbDistance from '@turf/rhumb-distance';
 import {featureCollection, lineString} from '@turf/helpers';
-import Result from 'folktale/result';
+import Result from 'folktale/result/index.js';
 import center from '@turf/center';
 import {compareTwoStrings} from 'string-similarity';
 import {

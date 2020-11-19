@@ -26,9 +26,9 @@ import {
   strPathOr,
   traverseReduceDeepResults
 } from '@rescapes/ramda';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 const {of} = T;
-import Result from 'folktale/result';
+import Result from 'folktale/result/index.js';
 import {
   _filterForIntersectionNodesAroundPoint,
   AROUND_LAT_LON_TOLERANCE,

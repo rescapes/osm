@@ -10,7 +10,7 @@ import {
 import {loggers} from '@rescapes/log';
 import {extractSquareGridFeatureCollectionFromGeojson} from '@rescapes/helpers';
 import booleanDisjoint from '@turf/boolean-disjoint';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 const {of} = T;
 
 const log = loggers.get('rescapeDefault');

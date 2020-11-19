@@ -23,7 +23,7 @@ import {
 import R from 'ramda';
 import {defaultRunConfig, defaultRunToResultConfig, reqStrPathThrowing} from '@rescapes/ramda';
 import {turfPointToLocation} from '@rescapes/helpers';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 const {rejected} = T;
 
 const austinIntersections = [{data: {streets: ['Salina St', 'E 21st St']}}, {data: {streets: ['Leona St and E 21st St']}}];

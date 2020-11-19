@@ -25,9 +25,9 @@ import {
 } from '@rescapes/ramda';
 
 import R from 'ramda';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 const {of} = T;
-import Result from 'folktale/result';
+import Result from 'folktale/result/index.js';
 import {loggers} from '@rescapes/log';
 import {v} from '@rescapes/validate';
 import PropTypes from 'prop-types';

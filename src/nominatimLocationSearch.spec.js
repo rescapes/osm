@@ -16,7 +16,7 @@ import {
 } from './nominatimLocationSearch.js';
 import {defaultRunConfig, defaultRunToResultConfig} from '@rescapes/ramda';
 import R from 'ramda';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 const {rejected} = T;
 
 describe('nominatimLocationSearch', () => {

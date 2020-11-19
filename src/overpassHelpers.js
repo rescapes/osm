@@ -20,9 +20,9 @@ import {
 import {loggers} from '@rescapes/log';
 import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers.js';
 import R from 'ramda';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 const {of, task} = T;
-import Result from 'folktale/result';
+import Result from 'folktale/result/index.js';
 
 import queryOverpass from 'query-overpass';
 import os from 'os';

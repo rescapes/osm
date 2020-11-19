@@ -10,7 +10,7 @@
  */
 
 
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 const {of, rejected} = T;
 import {osmResultTask} from './overpassHelpers.js';
 import {defaultRunToResultConfig} from '@rescapes/ramda';

@@ -55,9 +55,9 @@ import {
   nodeMatchesWayEnd
 } from './overpassFeatureHelpers.js';
 import R from 'ramda';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 const {of, waitAll, task, rejected} = T;
-import Result from 'folktale/result';
+import Result from 'folktale/result/index.js';
 import fs from 'fs';
 import {scaleOrdinal} from 'd3-scale';
 import {schemeCategory10} from 'd3-scale-chromatic';

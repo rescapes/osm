@@ -18,7 +18,7 @@ import meow from 'meow';
 import {loggers, rescapeDefaultTransports} from '@rescapes/log';
 import {locationsToGeojsonFileResultTask} from '../overpassBlockHelpers.js';
 import {locationToOsmAllBlocksQueryResultsTask} from '../overpassAllBlocks.js';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 const {of} = T;
 import {processParamsFromJsonOrJsToList} from './scriptHelpers.js';
 

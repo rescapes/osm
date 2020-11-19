@@ -25,7 +25,7 @@ const config = {
   plugins: []
 };
 
-const externals = ['@turf', 'symbol-observable', 'folktale/concurrency/task', 'folktale/result'];
+const externals = ['@turf', 'symbol-observable', 'folktale/concurrency/task', 'folktale/result/index.js'];
 
 const configs = R.map(c => {
   const x = R.merge(config, c);

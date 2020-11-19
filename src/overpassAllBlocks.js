@@ -23,14 +23,14 @@ import along from '@turf/along';
 import center from '@turf/center';
 import bbox from '@turf/bbox';
 import R from 'ramda';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 import {
   aroundPointDeclaration,
   configuredHighwayWayFilters,
   highwayNodeFilters,
   osmIdToAreaId
 } from './overpassHelpers.js';
-import Result from 'folktale/result';
+import Result from 'folktale/result/index.js';
 import {_queryLocationVariationsUntilFoundResultTask, locationsToGeojson} from './overpassBlockHelpers.js';
 import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch.js';
 import {

@@ -23,7 +23,7 @@ import {
   reqStrPathThrowing, strPathOr,
   traverseReduce
 } from '@rescapes/ramda';
-import Result from 'folktale/result';
+import Result from 'folktale/result/index.js';
 import 'regenerator-runtime';
 import {wayFeatureNameOrDefault} from './locationHelpers.js';
 import {loggers} from '@rescapes/log';

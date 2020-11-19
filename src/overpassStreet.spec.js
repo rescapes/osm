@@ -9,7 +9,7 @@ import {osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResult
 import R from 'ramda';
 import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet.js';
 import {nominatimLocationResultTask} from './nominatimLocationSearch.js';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 const {of} = T;
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks.js';
 import {point} from '@turf/helpers';

@@ -29,9 +29,9 @@ import {
 } from '@rescapes/ramda';
 import {loggers} from '@rescapes/log';
 import R from 'ramda';
-import T from 'folktale/concurrency/task';
+import T from 'folktale/concurrency/task/index.js';
 const {of} = T;
-import Result from 'folktale/result';
+import Result from 'folktale/result/index.js';
 
 const log = loggers.get('rescapeDefault');
 

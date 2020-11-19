@@ -20,7 +20,7 @@ import {
   toNamedResponseAndInputs
 } from '@rescapes/ramda';
 import {locationToTurfPoint} from '@rescapes/helpers';
-import R from 'ramda';
+import * as R from 'ramda';
 import PropTypes from 'prop-types';
 import {v} from '@rescapes/validate';
 import {point} from '@turf/helpers';

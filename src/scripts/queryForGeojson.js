@@ -12,7 +12,7 @@
  */
 import moment from 'moment';
 import "regenerator-runtime/runtime";
-import R from 'ramda';
+import * as R from 'ramda';
 import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from '@rescapes/ramda';
 import meow from 'meow';
 import {loggers, rescapeDefaultTransports} from '@rescapes/log';

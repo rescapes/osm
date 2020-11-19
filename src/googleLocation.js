@@ -9,11 +9,11 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import googleMapsServices from "@googlemaps/google-maps-services-js";
-import R from 'ramda';
+import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
 import rhumbDistance from '@turf/rhumb-distance';
 import {featureCollection, lineString} from '@turf/helpers';
-import Result from 'folktale/result/index.js';
+import * as Result from 'folktale/result/index.js';
 import center from '@turf/center';
 import {compareTwoStrings} from 'string-similarity';
 import {

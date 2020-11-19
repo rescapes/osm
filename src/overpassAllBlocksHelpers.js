@@ -21,10 +21,10 @@ import {
   toNamedResponseAndInputs,
   traverseReduceWhileBucketedTasks
 } from '@rescapes/ramda';
-import R from 'ramda';
+import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
 const {of} = T;
-import Result from 'folktale/result/index.js';
+import * as Result from 'folktale/result/index.js';
 import {
   _buildPartialBlocks,
   _hashBlock,

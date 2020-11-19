@@ -1,5 +1,5 @@
 import {defaultRunConfig} from '@rescapes/ramda';
-import R from 'ramda';
+import * as R from 'ramda';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks.js';
 import {blocksToGeojson, blockToGeojson, locationsToGeojson} from './overpassBlockHelpers.js';
 

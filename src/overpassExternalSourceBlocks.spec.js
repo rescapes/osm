@@ -1,4 +1,4 @@
-import R from 'ramda';
+import * as R from 'ramda';
 import {defaultRunConfig, moveToKeys} from '@rescapes/ramda';
 import {locationsToGeojson} from './overpassBlockHelpers.js';
 import philly from './samples/philly.json';

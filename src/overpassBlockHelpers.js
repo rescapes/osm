@@ -54,11 +54,11 @@ import {
   hashWayFeature,
   nodeMatchesWayEnd
 } from './overpassFeatureHelpers.js';
-import R from 'ramda';
+import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
 const {of, waitAll, task, rejected} = T;
-import Result from 'folktale/result/index.js';
-import fs from 'fs';
+import * as Result from 'folktale/result/index.js';
+import fs from 'fs-extra';
 import {scaleOrdinal} from 'd3-scale';
 import {schemeCategory10} from 'd3-scale-chromatic';
 import {length} from '@turf/turf';

@@ -1,7 +1,7 @@
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks.js';
 import {defaultRunToResultConfig} from '@rescapes/ramda';
 import {partialBlocks} from 'samplePartialBlocks.sample';
-import R from 'ramda';
+import * as R from 'ramda';
 
 describe('overpassBuildBlocks', () => {
 

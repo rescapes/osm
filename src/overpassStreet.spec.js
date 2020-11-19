@@ -6,7 +6,7 @@ import {
   mapResultTaskWithOtherInputs, defaultRunConfig
 } from '@rescapes/ramda';
 import {osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks.js';
-import R from 'ramda';
+import * as R from 'ramda';
 import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet.js';
 import {nominatimLocationResultTask} from './nominatimLocationSearch.js';
 import T from 'folktale/concurrency/task/index.js';

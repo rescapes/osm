@@ -1,6 +1,6 @@
 import {defaultRunToResultConfig, reqStrPathThrowing} from '@rescapes/ramda';
 import {osmLocationToLocationWithGeojsonResultTask, osmRelationshipGeojsonResultTask} from './overpassBlocks.js';
-import R from 'ramda';
+import * as R from 'ramda';
 
 /**
  * Created by Andy Likuski on 2019.09.23

@@ -1,5 +1,5 @@
 import {hashPoint, wayFeatureToCoordinates} from './overpassFeatureHelpers.js';
-import R from 'ramda';
+import * as R from 'ramda';
 import {composeWithChainMDeep, composeWithMapMDeep, traverseReduce} from '@rescapes/ramda';
 import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers.js';
 import {

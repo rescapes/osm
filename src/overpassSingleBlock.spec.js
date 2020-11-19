@@ -3,7 +3,7 @@ import {
   queryLocationForOsmSingleBlockResultTask
 } from './overpassSingleBlock.js';
 import {defaultRunToResultConfig, defaultRunConfig, reqStrPathThrowing, pickDeepPaths} from '@rescapes/ramda';
-import R from 'ramda';
+import * as R from 'ramda';
 import {queryLocationForOsmBlockOrAllResultsTask} from './overpassSingleOrAllBlocks.js';
 import {blocksToGeojson, blockToGeojson} from './overpassBlockHelpers.js';
 import {locationWithLocationPoints} from './locationHelpers.js';

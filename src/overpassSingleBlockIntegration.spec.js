@@ -14,7 +14,7 @@ import {
   queryLocationForOsmSingleBlocksResultsTask
 } from './overpassSingleBlock.js';
 import {defaultRunConfig, reqStrPathThrowing, defaultRunToResultConfig} from '@rescapes/ramda';
-import R from 'ramda';
+import * as R from 'ramda';
 import {loggers} from '@rescapes/log';
 
 const log = loggers.get('rescapeDefault');

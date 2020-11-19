@@ -20,7 +20,7 @@ import {
   resolveGeojsonTask,
   resolveGeoLocationTask
 } from './googleLocation.js';
-import R from 'ramda';
+import * as R from 'ramda';
 import {defaultRunConfig, defaultRunToResultConfig, reqStrPathThrowing} from '@rescapes/ramda';
 import {turfPointToLocation} from '@rescapes/helpers';
 import T from 'folktale/concurrency/task/index.js';

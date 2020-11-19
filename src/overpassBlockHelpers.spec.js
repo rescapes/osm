@@ -11,7 +11,7 @@
 
 import moment from 'moment';
 import {reqStrPathThrowing, defaultRunToResultConfig, omitDeep, chainObjToValues} from '@rescapes/ramda';
-import R from 'ramda';
+import * as R from 'ramda';
 import {
   blocksToGeojson,
   getFeaturesOfBlock,

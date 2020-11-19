@@ -12,7 +12,7 @@
 import {
   cleanGeojson, _intersectionStreetNamesFromWaysAndNodesResult, _linkedFeatures
 } from './overpassFeatureHelpers.js';
-import R from 'ramda';
+import * as R from 'ramda';
 
 describe('overpassFeatureHelpers', () => {
 

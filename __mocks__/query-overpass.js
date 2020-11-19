@@ -11,7 +11,7 @@
 
 import _unmocked from '../node_modules/query-overpass.js';
 import {loggers} from '@rescapes/log';
-import R from 'ramda';
+import * as R from 'ramda';
 import {
   FERNIE_NODES,
   FERNIE_WAYS,

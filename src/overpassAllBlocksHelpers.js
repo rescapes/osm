@@ -24,7 +24,7 @@ import {
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
 const {of} = T;
-import * as Result from 'folktale/result/index.js';
+import Result from 'folktale/result/index.js';
 import {
   _buildPartialBlocks,
   _hashBlock,

@@ -56,15 +56,25 @@ import {
 } from './overpassFeatureHelpers.js';
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
+
 const {of, waitAll, task, rejected} = T;
-import * as Result from 'folktale/result/index.js';
-import fs from 'fs-extra';
+import Result from 'folktale/result/index.js';
+
 import {scaleOrdinal} from 'd3-scale';
 import {schemeCategory10} from 'd3-scale-chromatic';
 import {length} from '@turf/turf';
 import {v} from '@rescapes/validate';
 import PropTypes from 'prop-types';
 import {composeWithMap} from '@rescapes/ramda';
+import {isNode} from 'browser-or-node';
+
+let fs;
+if (isNode) {
+  import('fs-extra')
+    .then((_fs) => {
+      fs = _fs;
+    });
+}
 
 const log = loggers.get('rescapeDefault');
 
@@ -652,7 +662,7 @@ export const createSingleBlockFeatures = (osmConfig, location, {wayFeatures, nod
   // If one or both streets change names or for a >4-wayFeatures intersection, there can be more.
   // If we handle roundabouts correctly in the future these could also account for more
   // TODO we should handle Result.Error here
-  const nodesToIntersections =  _intersectionStreetNamesFromWaysAndNodesResult(
+  const nodesToIntersections = _intersectionStreetNamesFromWaysAndNodesResult(
     osmConfig,
     wayFeatures,
     nodeFeatures,
@@ -1399,7 +1409,7 @@ export const isRealIntersectionTask = (osmConfig, wayFeatures, nodeFeature) => {
       isRealIntersection(wayFeatures, nodeFeature)
     )
   ) {
-      return of({isRealIntersection: true, newNodeIdToWays: {}});
+    return of({isRealIntersection: true, newNodeIdToWays: {}});
   }
   return composeWithMap([
     toNamedResponseAndInputs('isRealIntersection',

@@ -31,7 +31,7 @@ import {
 import {locationToTurfPoint} from '@rescapes/helpers';
 import Nominatim from 'nominatim-geocoder';
 import mapbox from 'mapbox-geocoding';
-import * as Result from 'folktale/result/index.js';
+import Result from 'folktale/result/index.js';
 import {addressString, featuresByOsmType, featuresOfOsmType, stateCodeLookup} from './locationHelpers.js';
 import area from '@turf/area';
 import bboxPolygon from '@turf/bbox-polygon';

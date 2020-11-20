@@ -22,7 +22,7 @@ import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeat
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
 const {of, task} = T;
-import * as Result from 'folktale/result/index.js';
+import Result from 'folktale/result/index.js';
 
 import queryOverpass from 'query-overpass';
 import os from 'os';

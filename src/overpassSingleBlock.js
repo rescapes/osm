@@ -28,7 +28,7 @@ import {
 } from '@rescapes/ramda';
 import T from 'folktale/concurrency/task/index.js';
 const {of} = T;
-import * as Result from 'folktale/result/index.js';
+import Result from 'folktale/result/index.js';
 import {
   _filterForIntersectionNodesAroundPoint,
   AROUND_LAT_LON_TOLERANCE,

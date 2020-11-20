@@ -13,7 +13,7 @@ import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
 import rhumbDistance from '@turf/rhumb-distance';
 import {featureCollection, lineString} from '@turf/helpers';
-import * as Result from 'folktale/result/index.js';
+import Result from 'folktale/result/index.js';
 import center from '@turf/center';
 import {compareTwoStrings} from 'string-similarity';
 import {

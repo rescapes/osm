@@ -27,7 +27,7 @@ import {
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
 const {of} = T;
-import * as Result from 'folktale/result/index.js';
+import Result from 'folktale/result/index.js';
 import {loggers} from '@rescapes/log';
 import {v} from '@rescapes/validate';
 import PropTypes from 'prop-types';

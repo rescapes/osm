@@ -14,7 +14,7 @@ import * as R from 'ramda';
 import {composeWithChainMDeep, mapToNamedResponseAndInputs, mapToNamedResponseAndInputsMDeep} from '@rescapes/ramda';
 import T from 'folktale/concurrency/task/index.js';
 const {of} = T;
-import * as Result from 'folktale/result/index.js';
+import Result from 'folktale/result/index.js';
 import {loggers} from '@rescapes/log';
 import {commonStreetOfLocation, locationAndOsmBlocksToLocationWithGeojson} from './locationHelpers.js';
 import {_queryOverpassForAllBlocksResultsTask} from './overpassAllBlocksHelpers.js';

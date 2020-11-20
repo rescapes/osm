@@ -20,7 +20,7 @@ import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks.js';
 import 'regenerator-runtime';
 import {loggers} from '@rescapes/log';
 import * as R from 'ramda';
-import * as Result from 'folktale/result/index.js';
+import Result from 'folktale/result/index.js';
 
 const log = loggers.get('rescapeDefault');
 import {toArrayIfNot, strPathOr} from '@rescapes/ramda';

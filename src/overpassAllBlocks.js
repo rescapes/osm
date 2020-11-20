@@ -30,7 +30,7 @@ import {
   highwayNodeFilters,
   osmIdToAreaId
 } from './overpassHelpers.js';
-import * as Result from 'folktale/result/index.js';
+import Result from 'folktale/result/index.js';
 import {_queryLocationVariationsUntilFoundResultTask, locationsToGeojson} from './overpassBlockHelpers.js';
 import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch.js';
 import {

@@ -71,8 +71,8 @@ import {isNode} from 'browser-or-node';
 let fs;
 if (isNode) {
   import('fs-extra')
-    .then((_fs) => {
-      fs = _fs;
+    .then(fs => {
+      fs = fs.default
     });
 }
 

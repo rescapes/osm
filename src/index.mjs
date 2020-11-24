@@ -92,7 +92,8 @@ export {
   hashPoint,
   findMatchingNodes,
   hashPointsToWayCoordinates,
-  nodeMatchesWayEnd
+  nodeMatchesWayEnd,
+  chainWayCoordinates
 } from './overpassFeatureHelpers.js';
 export {
   blockToGeojson,

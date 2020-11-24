@@ -15,7 +15,7 @@ import "regenerator-runtime/runtime";
 import * as R from 'ramda';
 import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from '@rescapes/ramda';
 import meow from 'meow';
-import {loggers, rescapeDefaultTransports} from '@rescapes/log';
+import {loggers} from '@rescapes/log';
 import {locationsToGeojsonFileResultTask} from '../overpassBlockHelpers.js';
 import {locationToOsmAllBlocksQueryResultsTask} from '../overpassAllBlocks.js';
 import T from 'folktale/concurrency/task/index.js';
@@ -59,13 +59,7 @@ const flags = cli.flags;
 const input = cli.input;
 
 // Set the logger's transports to debug
-if (flags.logDebug) {
-  rescapeDefaultTransports.fileCombined.level = 'debug';
-  rescapeDefaultTransports.console.level = 'debug';
-} else {
-  rescapeDefaultTransports.fileCombined.level = 'info';
-  rescapeDefaultTransports.console.level = 'info';
-}
+const log = flags.logDebug ? loggers.get('rescapeForceDebug') : loggers.get('rescapeForceInfo');
 
 log.debug(`Flags: ${JSON.stringify(flags, null, '\t')}`);
 log.debug(`Input: ${JSON.stringify(input, null, '\t')}`);

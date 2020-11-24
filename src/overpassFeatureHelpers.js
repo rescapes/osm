@@ -588,6 +588,35 @@ export const cleanGeojson = feature => {
   );
 };
 
+const _getLimitedNodeIdToNodeWithWayFeatures = (wayFeatures, nodeFeatures, nodeIdToWayFeatures) => {
+  return R.fromPairs(
+    R.map(
+      nodeFeature => {
+        const nodeId = R.prop('id', nodeFeature);
+        return [
+          // Key by node id
+          nodeId,
+          {
+            // Value by node feature
+            nodeFeature,
+            // and way features
+            wayFeatures: R.when(
+              R.isNil,
+              () => {
+                // If we can't find the wayFeatures it's because we have a non-intersection dead-end node
+                // That means the only way of the node is the last of wayFeatures, because our ways always flow from
+                // an intersection the dead end can only be at the end of an intersection (unless we have have an
+                // isolated way, which isn't handled anywhere in the code yet)
+                // We put the nodeFeature as the second feature to represent the cross-street, since there is no cross street
+                // This can be removed in the future when we don't need a cross street
+                return [R.last(wayFeatures), nodeFeature];
+              }
+            )(R.propOr(null, nodeId, nodeIdToWayFeatures))
+          }
+        ];
+      }, nodeFeatures)
+  );
+};
 /**
  * Given the way features of a single block and a lookup that maps intersection node ids to the way features
  * that intersect the node (including but not limited to the wayFeatures ways), resolves the names of the
@@ -621,33 +650,7 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
   nodeIdToWayFeatures
 ) => {
   // Get the node id to way features matching our node features
-  const limitedNodeIdToNodeWithWayFeatures = R.fromPairs(
-    R.map(
-      nodeFeature => {
-        const nodeId = R.prop('id', nodeFeature);
-        return [
-          // Key by node id
-          nodeId,
-          {
-            // Value by node feature
-            nodeFeature,
-            // and way features
-            wayFeatures: R.when(
-              R.isNil,
-              () => {
-                // If we can't find the wayFeatures it's because we have a non-intersection dead-end node
-                // That means the only way of the node is the last of wayFeatures, because our ways always flow from
-                // an intersection the dead end can only be at the end of an intersection (unless we have have an
-                // isolated way, which isn't handled anywhere in the code yet)
-                // We put the nodeFeature as the second feature to represent the cross-street, since there is no cross street
-                // This can be removed in the future when we don't need a cross street
-                return [R.last(wayFeatures), nodeFeature];
-              }
-            )(R.propOr(null, nodeId, nodeIdToWayFeatures))
-          }
-        ];
-      }, nodeFeatures)
-  );
+  const limitedNodeIdToNodeWithWayFeatures = _getLimitedNodeIdToNodeWithWayFeatures(wayFeatures, nodeFeatures, nodeIdToWayFeatures);
   const nameOrIdOfFeature = feature => wayFeatureNameOrDefault(reqStrPathThrowing('id', feature), feature);
   const wayNames = R.map(nameOrIdOfFeature, wayFeatures);
   const wayIds = R.map(R.prop('id'), wayFeatures);
@@ -794,13 +797,22 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
     nodeIdToResult => {
       return composeWithMap([
         // Map the values to the final format {geojson: nodeFeature, data: {streets: streets}}
-        R.map(({nodeFeature, streets}) => ({geojson: nodeFeature, data: {streets}})),
+        R.map(({nodeFeature, streets}) => {
+          // Make the single node point into a FeatureCollection.
+          // The API expects this and someday we'll have intersection shapes
+          const geojson = {
+            type: 'FeatureCollection',
+            features: [nodeFeature]
+          };
+          return {geojson, data: {streets}};
+        }),
         pairs => R.fromPairs(pairs),
         nodeIdToResult => traverseReduce(
           (accum, pair) => {
             return R.concat(accum, [pair]);
           },
           Result.Ok([]),
+          // Convert the Result object to pairs so we can use traverseReduce
           objOfMLevelDeepMonadsToListWithPairs(1, Result.Ok, nodeIdToResult)
         )
       ])(nodeIdToResult);

@@ -1,6 +1,6 @@
 {
   "name": "@rescapes/osm",
-  "version": "0.3.108",
+  "version": "0.3.109",
   "description": "OpenStreetMap Helpers for Rescape projects",
   "repository": {
     "type": "git",

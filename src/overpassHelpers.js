@@ -14,7 +14,7 @@ import {
   taskToResultTask,
   toNamedResponseAndInputs,
   traverseReduceWhile,
-  toMergedResponseAndInputs, strPathOr
+  toMergedResponseAndInputs, strPathOr, reqPathThrowing
 } from '@rescapes/ramda';
 import {loggers} from '@rescapes/log';
 import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers.js';
@@ -584,7 +584,7 @@ export const _wayEndPointToDirectionalWays = ({ways, wayIdToWayPoints, nodePoint
     ),
     R.chain(
       wayFeature => {
-        const wayCoordinates = reqStrPathThrowing(R.prop('id', wayFeature), wayIdToWayPoints);
+        const wayCoordinates = reqPathThrowing([R.prop('id', wayFeature)], wayIdToWayPoints);
         return R.compose(
           endPointObjs => R.map(({endPoint, way}) => [endPoint, way], endPointObjs),
           // Filter out points that are already nodes

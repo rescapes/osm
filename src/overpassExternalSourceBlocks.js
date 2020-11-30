@@ -1,4 +1,4 @@
-import {hashPoint, wayFeatureToCoordinates} from './overpassFeatureHelpers.js';
+import {hashPoint, hashWayFeatureExtents, wayFeatureToCoordinates} from './overpassFeatureHelpers.js';
 import * as R from 'ramda';
 import {composeWithChainMDeep, composeWithMapMDeep, strPathOr, traverseReduce} from '@rescapes/ramda';
 import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers.js';
@@ -11,6 +11,7 @@ import {loggers} from '@rescapes/log';
 import {extractSquareGridFeatureCollectionFromGeojson} from '@rescapes/helpers';
 import booleanDisjoint from '@turf/boolean-disjoint';
 import T from 'folktale/concurrency/task/index.js';
+import {hashWayFeatureExtentsLimitedDecimals} from './overpassFeatureHelpers';
 
 const {of} = T;
 
@@ -45,8 +46,10 @@ export const osmCompatibleWayFeaturesFromGeojson = ({nameProp, jurisdictionFunc}
   return R.addIndex(R.map)(
     (feature, index) => R.compose(
       feature => {
-        // Create a fake id that matches the OSM way/ id syntax.
-        return R.set(R.lensProp('id'), `way/fake${index}`, feature);
+        // Create a fake id that matches the OSM way/ id syntax, use the extents plus the index to pretty much
+        // guarantee a unique id that tells us where the way is
+        const id = R.join('#', R.concat([index], hashWayFeatureExtentsLimitedDecimals(6, feature)))
+        return R.set(R.lensProp('id'), `way/${id}`, feature);
       },
       feature => {
         return R.over(

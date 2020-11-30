@@ -26,6 +26,7 @@ import {
 import Result from 'folktale/result/index.js';
 import {wayFeatureNameOrDefault} from './locationHelpers.js';
 import {loggers} from '@rescapes/log';
+import {dec} from 'ramda';
 
 const log = loggers.get('rescapeDefault');
 
@@ -35,6 +36,27 @@ const log = loggers.get('rescapeDefault');
  */
 export const hashPoint = point => {
   return R.join(':', point);
+};
+
+/**
+ * Liked hashPoint but limits the decimal places
+ * @param {Number} decimalPlaces Number to limit the decimal places
+ * @param {Object} point
+ * @returns {*}
+ */
+export const hashPointLimitedDecimals = (decimalPlaces, point) => {
+  return R.compose(
+    R.join(':'),
+    point => R.map(
+      coord => {
+        return R.compose(
+          f => f.toFixed(decimalPlaces),
+          coord => parseFloat(coord)
+        )(coord);
+      },
+      point
+    )
+  )(point);
 };
 /**
  * Hash the given ndoeFeature point
@@ -119,9 +141,20 @@ export const chainWayCoordinates = (func, wayFeature) => {
  */
 export const hashWayFeatureExtents = wayFeature => {
   return R.compose(
-    pointPair => R.map(hashPoint, pointPair),
     points => extents(points),
-    wayFeature => reqStrPathThrowing('geometry.coordinates', wayFeature)
+    wayFeature => chainWayCoordinates(hashPoint, wayFeature)
+  )(wayFeature);
+};
+/**
+ * Like hashWayFeatureExtents but limits the decimals of the coordiantes
+ * @param limitedDecimals
+ * @param wayFeature
+ * @returns {*}
+ */
+export const hashWayFeatureExtentsLimitedDecimals = (limitedDecimals,  wayFeature) => {
+  return R.compose(
+    points => extents(points),
+    wayFeature => chainWayCoordinates(point => hashPointLimitedDecimals(limitedDecimals, point), wayFeature)
   )(wayFeature);
 };
 

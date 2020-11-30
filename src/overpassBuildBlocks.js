@@ -17,7 +17,7 @@ import {hashNodeFeature, hashPoint, hashWayFeature, wayFeatureToCoordinates} fro
 import {
   compact, composeWithChain,
   composeWithChainMDeep, mapToMergedResponseAndInputs, mapToNamedResponseAndInputs,
-  mapToNamedResponseAndInputsMDeep,
+  mapToNamedResponseAndInputsMDeep, reqPathThrowing,
   reqStrPathThrowing,
   resultToTaskNeedingResult,
   resultToTaskWithResult,
@@ -231,8 +231,8 @@ const _findFirstNodeOfWayAndTrimWay = ({wayIdToNodes, nodeIdToNodePoint}, way, t
     nodes
   ),
   // Get the nodes of the way
-  wayId => reqStrPathThrowing(
-    wayId,
+  wayId => reqPathThrowing(
+    [wayId],
     wayIdToNodes
   ),
   way => R.prop('id', way)

@@ -185,7 +185,7 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
         location => {
           const locationWayHash = hashWayFeaturesOfLocation(location);
           return R.ifElse(
-            locationWayHash => strPathOr(false, locationWayHash, wayHashes),
+            locationWayHash => strPathOr(false, locationWayHash, acc['locationsWithWayHashes']),
             () => null,
             locationWayHash => ({location, locationWayHash})
           )(locationWayHash);

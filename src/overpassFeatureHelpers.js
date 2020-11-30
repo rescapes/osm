@@ -24,7 +24,7 @@ import {
   traverseReduce
 } from '@rescapes/ramda';
 import Result from 'folktale/result/index.js';
-import {featuresByOsmType, wayFeatureNameOrDefault} from './locationHelpers.js';
+import {featuresByOsmType, featuresOfOsmType, wayFeatureNameOrDefault} from './locationHelpers.js';
 import {loggers} from '@rescapes/log';
 import {dec} from 'ramda';
 
@@ -151,7 +151,7 @@ export const hashWayFeatureExtents = wayFeature => {
  * @param wayFeature
  * @returns {*}
  */
-export const hashWayFeatureExtentsLimitedDecimals = (limitedDecimals,  wayFeature) => {
+export const hashWayFeatureExtentsLimitedDecimals = (limitedDecimals, wayFeature) => {
   return R.compose(
     points => extents(points),
     wayFeature => chainWayCoordinates(point => hashPointLimitedDecimals(limitedDecimals, point), wayFeature)
@@ -876,6 +876,10 @@ export const findMatchingNodes = R.curry((nodePointHash, wayFeature) => {
  * @returns {any}
  */
 export const hashWayFeaturesOfLocation = location => {
-  const wayFeatures = featuresByOsmType('way', reqStrPathThrowing('geojson.features',  location))
-  return R.join('#', R.sort(R.map(wayFeature => hashWayFeature(wayFeature), wayFeatures)))
-}
+  const wayFeatures = featuresOfOsmType('way', reqStrPathThrowing('geojson.features', location));
+  return R.compose(
+    R.join('#'),
+    R.sortBy(R.identity),
+    R.map(wayFeature => R.join(',', hashWayFeature(wayFeature)))
+  )(wayFeatures);
+};

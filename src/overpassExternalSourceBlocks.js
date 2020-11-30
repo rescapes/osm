@@ -181,11 +181,12 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
     (acc, value) => {
       log.debug(`Accumulated ${R.length(acc.Ok)} blocks thus far, and ${R.length(acc.Error)} blocks`);
       // Hash each ok location's way points to  prevent duplicates
+      const locationWayHashes = acc['locationWayHashes'];
       const newLocationsWithWayHashes = compact(R.map(
         location => {
           const locationWayHash = hashWayFeaturesOfLocation(location);
           return R.ifElse(
-            locationWayHash => strPathOr(false, locationWayHash, acc['locationsWithWayHashes']),
+            locationWayHash =>R.propOr(false, locationWayHash, locationWayHashes),
             () => null,
             locationWayHash => ({location, locationWayHash})
           )(locationWayHash);
@@ -193,13 +194,21 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
         R.propOr([], 'Ok', value)
       ));
       return {
-        Ok: R.concat(acc.Ok, R.propOr([], 'Ok', R.map(R.prop('location'), newLocationsWithWayHashes))),
+        Ok: R.concat(acc.Ok, R.map(R.prop('location'), newLocationsWithWayHashes)),
         Error: R.concat(acc.Error, R.propOr([], 'Error', value)),
         // Accumulated location way hashes to prevent duplicates
-        locationWayHashes: R.merge(acc['locationsWithWayHashes'], newLocationsWithWayHashes)
+        locationWayHashes: R.merge(
+          locationWayHashes,
+          R.fromPairs(
+            R.map(
+              l => [R.prop('locationWayHash', l), true],
+              newLocationsWithWayHashes
+            )
+          )
+        )
       };
     },
-    of({Ok: [], Error: [], locationWayHashes: []}),
+    of({Ok: [], Error: [], locationWayHashes: {}}),
     R.map(
       _lineGeojson => {
         return _nonOsmGeojsonLinesToLocationBlocksResultsTask({osmConfig}, {

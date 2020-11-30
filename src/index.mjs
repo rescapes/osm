@@ -88,6 +88,7 @@ export {
   cleanGeojson,
   hashWayFeatureExtents,
   hashWayFeature,
+  hashWayFeaturesOfLocation,
   hashNodeFeature,
   hashPoint,
   findMatchingNodes,

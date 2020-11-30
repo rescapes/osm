@@ -44,12 +44,10 @@ describe('overpassAllBlocksCalifornia', () => {
     };
     const location = {country: 'USA', state: 'CA'};
     const geojsonLines = california;
-    const osmConfig = {};
+    const osmConfig = {nameProp, jurisdictionFunc};
     const errors = [];
     nonOsmGeojsonLinesToLocationBlocksResultsTask({osmConfig}, {
       location,
-      nameProp,
-      jurisdictionFunc
     }, geojsonLines).run().listen(
       defaultRunConfig({
         onResolved: ({Ok: locationBlocks, Error: errorBlocks}) => {

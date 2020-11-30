@@ -1,6 +1,6 @@
-import {hashPoint, hashWayFeatureExtents, wayFeatureToCoordinates} from './overpassFeatureHelpers.js';
+import {hashPoint, hashWayFeature, hashWayFeatureExtents, wayFeatureToCoordinates} from './overpassFeatureHelpers.js';
 import * as R from 'ramda';
-import {composeWithChainMDeep, composeWithMapMDeep, strPathOr, traverseReduce} from '@rescapes/ramda';
+import {compact, composeWithChainMDeep, composeWithMapMDeep, strPathOr, traverseReduce} from '@rescapes/ramda';
 import {organizeResponseFeaturesResultsTask} from './overpassAllBlocksHelpers.js';
 import {
   featureWithReversedCoordinates,
@@ -11,7 +11,7 @@ import {loggers} from '@rescapes/log';
 import {extractSquareGridFeatureCollectionFromGeojson} from '@rescapes/helpers';
 import booleanDisjoint from '@turf/boolean-disjoint';
 import T from 'folktale/concurrency/task/index.js';
-import {hashWayFeatureExtentsLimitedDecimals} from './overpassFeatureHelpers';
+import {hashWayFeatureExtentsLimitedDecimals, hashWayFeaturesOfLocation} from './overpassFeatureHelpers';
 
 const {of} = T;
 
@@ -48,7 +48,7 @@ export const osmCompatibleWayFeaturesFromGeojson = ({nameProp, jurisdictionFunc}
       feature => {
         // Create a fake id that matches the OSM way/ id syntax, use the extents plus the index to pretty much
         // guarantee a unique id that tells us where the way is
-        const id = R.join('#', R.concat([index], hashWayFeatureExtentsLimitedDecimals(6, feature)))
+        const id = R.join('#', R.concat([index], hashWayFeatureExtentsLimitedDecimals(6, feature)));
         return R.set(R.lensProp('id'), `way/${id}`, feature);
       },
       feature => {
@@ -180,12 +180,26 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
   return traverseReduce(
     (acc, value) => {
       log.debug(`Accumulated ${R.length(acc.Ok)} blocks thus far, and ${R.length(acc.Error)} blocks`);
+      // Hash each ok location's way points to  prevent duplicates
+      const newLocationsWithWayHashes = compact(R.map(
+        location => {
+          const locationWayHash = hashWayFeaturesOfLocation(location);
+          return R.ifElse(
+            locationWayHash => strPathOr(false, locationWayHash, wayHashes),
+            () => null,
+            locationWayHash => ({location, locationWayHash})
+          )(locationWayHash);
+        },
+        R.propOr([], 'Ok', value)
+      ));
       return {
-        Ok: R.concat(acc.Ok, R.propOr([], 'Ok', value)),
-        Error: R.concat(acc.Error, R.propOr([], 'Error', value))
+        Ok: R.concat(acc.Ok, R.propOr([], 'Ok', R.map(R.prop('location'), newLocationsWithWayHashes))),
+        Error: R.concat(acc.Error, R.propOr([], 'Error', value)),
+        // Accumulated location way hashes to prevent duplicates
+        locationWayHashes: R.merge(acc['locationsWithWayHashes'], newLocationsWithWayHashes)
       };
     },
-    of({Ok: [], Error: []}),
+    of({Ok: [], Error: [], locationWayHashes: []}),
     R.map(
       _lineGeojson => {
         return _nonOsmGeojsonLinesToLocationBlocksResultsTask({osmConfig}, {

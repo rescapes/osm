@@ -24,7 +24,7 @@ import {
   traverseReduce
 } from '@rescapes/ramda';
 import Result from 'folktale/result/index.js';
-import {wayFeatureNameOrDefault} from './locationHelpers.js';
+import {featuresByOsmType, wayFeatureNameOrDefault} from './locationHelpers.js';
 import {loggers} from '@rescapes/log';
 import {dec} from 'ramda';
 
@@ -869,3 +869,13 @@ export const findMatchingNodes = R.curry((nodePointHash, wayFeature) => {
     )
   )(wayFeature);
 });
+
+/**
+ * Hashes location wayFeatures, independent of order, so duplicate locations can be found
+ * @param location
+ * @returns {any}
+ */
+export const hashWayFeaturesOfLocation = location => {
+  const wayFeatures = featuresByOsmType('way', reqStrPathThrowing('geojson.features',  location))
+  return R.join('#', R.sort(R.map(wayFeature => hashWayFeature(wayFeature), wayFeatures)))
+}

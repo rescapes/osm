@@ -10,7 +10,6 @@
  */
 
 
-import 'regenerator-runtime';
 import {featuresOfOsmType, isLatLng, wayFeatureNameOrDefault} from './locationHelpers.js';
 import {
   _calculateNodeAndWayRelationships,

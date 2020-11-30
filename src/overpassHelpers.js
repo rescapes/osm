@@ -8,7 +8,6 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import 'regenerator-runtime';
 import {featuresByOsmType, isLatLng} from './locationHelpers.js';
 import {
   reqStrPathThrowing,
@@ -42,26 +41,14 @@ export const osmIdToAreaId = osmId => (parseInt(osmId) + AREA_MAGIC_NUMBER).toSt
 // TODO make these accessible for external configuration
 const overpassServers = R.split(/\s*[,;\s]\s*/, process.env.OSM_SERVERS || '');
 
-function* gen(servers) {
-  if (!R.length(servers)) {
-    throw new Error("No servers configured. Define environmental variable OSM_SERVERS with comma-separated server urls with their api path. E.g. https://lz4.overpass-api.de/api/interpreter");
-  }
-  let serverIndex = -1;
-  while (true) {
-    serverIndex = R.modulo(serverIndex + 1, R.length(servers));
-    yield servers[serverIndex];
-  }
-}
-
-const genOverpassServer = gen(overpassServers);
+let i = 0;
 const roundRobinOsmServers = () => {
-  return genOverpassServer.next().value;
+  return overpassServers[i++ % R.length(overpassServers)]
 };
-
 export const nominatimServers = ['nominatim.openstreetmap.org'];
-const genNominatimServer = gen(nominatimServers);
+let j = 0
 export const roundRobinNoimnatimServers = () => {
-  return genNominatimServer.next().value;
+  return overpassServers[j++ % R.length(nominatimServers)]
 };
 
 

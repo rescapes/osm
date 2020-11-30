@@ -17,7 +17,6 @@ import {
 } from './locationHelpers.js';
 import {queryLocationForOsmSingleBlockResultTask} from './overpassSingleBlock.js';
 import {locationToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks.js';
-import 'regenerator-runtime';
 import {loggers} from '@rescapes/log';
 import * as R from 'ramda';
 import Result from 'folktale/result/index.js';

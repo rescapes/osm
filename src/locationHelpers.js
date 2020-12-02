@@ -15,7 +15,7 @@ import {
   mapKeys,
   reqStrPathThrowing,
   strPath,
-  strPathOr,
+  strPathOr, strPathTruthyOr,
   toArrayIfNot,
   toNamedResponseAndInputs
 } from '@rescapes/ramda';
@@ -131,7 +131,7 @@ export const normalizedIntersectionNames = intersection => {
 export const locationWithIntersectionInBothOrders = location => {
   if (!strPathOr(false, 'intersections.0.data.streets', location)) {
     // If no streets
-    return [location]
+    return [location];
   }
 
   return [
@@ -372,7 +372,13 @@ export const wayFeatureName = wayFeature => {
  * @param {String} The name or the default
  */
 export const wayFeatureNameOrDefault = (defaultTo, wayFeature) => {
-  return strPathOr(defaultTo, 'properties.tags.name', wayFeature);
+  return R.compose(
+    // Default if trim leaves us with an empty string
+    str => str || defaultTo,
+    // Catch any extra space
+    str => str.trim(),
+    wayFeature => strPathTruthyOr(defaultTo, 'properties.tags.name', wayFeature)
+  )(wayFeature);
 };
 
 /**
@@ -450,7 +456,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
 
   // Sort the intersections and their streets
   return sortIntersectionsAndStreets(street, intersections);
-}
+};
 
 /**
  * Sorts intersections and streets of all the given intersections (normally 2 representing both ends of a street block)
@@ -824,7 +830,7 @@ export const locationWithLocationPoints = blockLocation => {
               intersections => compact(R.map(strPathOr(null, 'geojson.features.0'), intersections)),
               blockLocation => {
                 // Get the nodes
-                return strPathOr([], 'intersections', blockLocation)
+                return strPathOr([], 'intersections', blockLocation);
               }
             )(blockLocation)
           )(locationPoints)
@@ -1133,15 +1139,55 @@ export const isWithinPolygon = R.curry((polygon, features) => {
  * @return {{blockname: *, intersections: [{streets: [*, *]}, {streets: [*, *]}]}}
  */
 export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersection1Location, intersection2Location}) => {
+  if (!intersection1Location || !intersection2Location) {
+    log.warning('Intersections must have geojson. This location will not be savable via the API unless the intersections get geojson')
+  }
+
   return R.merge(
     {
       blockname,
       intersections: [
         {
-          data: {streets: compact([blockname, intersc1])}
+          data: {streets: compact([blockname, intersc1])},
+          geojson: intersection1Location && {
+            "type": "FeatureCollection",
+            "features": [{
+              "id": "node/192907675",
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": R.reverse(R.map(s => parseFloat(s), R.split(',', intersection1Location)))
+              },
+              "properties": {
+                "id": 192907675,
+                "meta": {},
+                "tags": {"highway": "crossing", "crossing": "traffic_signals"},
+                "type": "node",
+                "relations": []
+              }
+            }]
+          }
         },
         {
-          data: {streets: compact([blockname, intersc2])}
+          data: {streets: compact([blockname, intersc2])},
+          geojson: intersection2Location && {
+            "type": "FeatureCollection",
+            "features": [{
+              "id": "node/192907675",
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": R.reverse(R.map(s => parseFloat(s), R.split(',', intersection2Location)))
+              },
+              "properties": {
+                "id": 192907675,
+                "meta": {},
+                "tags": {"highway": "crossing", "crossing": "traffic_signals"},
+                "type": "node",
+                "relations": []
+              }
+            }]
+          }
         }
       ]
     },

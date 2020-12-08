@@ -11,24 +11,22 @@
 import {
   composeWithChain,
   composeWithMap,
-  composeWithMapMDeep,
   mapMDeep,
   mapToMergedResponseAndInputs,
   mapToNamedResponseAndInputs,
   reqStrPathThrowing,
   resultsToResultObj,
   strPathOr,
-  toNamedResponseAndInputs,
   traverseReduceWhileBucketedTasks
 } from '@rescapes/ramda';
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
-const {of} = T;
 import Result from 'folktale/result/index.js';
 import {
   _buildPartialBlocks,
   _hashBlock,
-  _sortOppositeBlocksByNodeOrdering, blocksToGeojson, blockToGeojson, isRealIntersectionTask,
+  _sortOppositeBlocksByNodeOrdering,
+  isRealIntersectionTask,
   parallelWayNodeQueriesResultTask,
   waysByNodeIdResultsTask
 } from './overpassBlockHelpers.js';
@@ -41,7 +39,9 @@ import {
 import {length} from '@turf/turf';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks.js';
 import {loggers} from '@rescapes/log';
-import {commonStreetOfLocation, wayFeatureNameOrDefault} from './locationHelpers.js';
+import {commonStreetOfLocation} from './locationHelpers.js';
+
+const {of} = T;
 
 const log = loggers.get('rescapeDefault');
 

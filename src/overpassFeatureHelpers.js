@@ -13,20 +13,20 @@ import {
   chainExceptMapDeepestMDeep,
   chainObjToValues,
   compact,
-  composeWithChainMDeep, composeWithMap,
-  composeWithMapMDeep,
+  composeWithChainMDeep,
+  composeWithMap,
   filterWithKeys,
   findOneThrowing,
   mapKeys,
   mapMDeep,
   objOfMLevelDeepMonadsToListWithPairs,
-  reqStrPathThrowing, strPathOr,
+  reqStrPathThrowing,
+  strPathOr,
   traverseReduce
 } from '@rescapes/ramda';
 import Result from 'folktale/result/index.js';
-import {featuresByOsmType, featuresOfOsmType, wayFeatureNameOrDefault} from './locationHelpers.js';
+import {featuresOfOsmType, wayFeatureNameOrDefault} from './locationHelpers.js';
 import {loggers} from '@rescapes/log';
-import {dec} from 'ramda';
 
 const log = loggers.get('rescapeDefault');
 

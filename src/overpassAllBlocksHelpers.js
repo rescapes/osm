@@ -232,7 +232,9 @@ export const _partialBlocksToFeaturesResultsTask = (
               // This jurisdiction data was stored earlier in wayFeatures` properties.tags
               strPathOr({}, 'ways.0.properties.tags.jurisdiction', block),
               {
-                street: commonStreetOfLocation(location, intersections),
+                // If we set a name explicitly from external data, use it
+                street: strPathOr(null, 'ways.0.properties.tags.name', block) ||
+                  commonStreetOfLocation(location, intersections),
                 intersections
               }
             ])

@@ -53,8 +53,8 @@ export const osmCompatibleWayFeaturesFromGeojson = ({nameProp, jurisdictionFunc}
       },
       feature => {
         // Get the street name from the feature to use as the location blockname. This is based on the
-        // nameProp, which is either prop or a function. The nameProp operates on the properties.tags of the
-        // feature. TODO this should probably be able to work on properties instead
+        // nameProp, which is either prop or a function. The nameProp operates on the properties of the
+        // feature.
         // Optionally also resolve jurisdication properties that are stored in properties.tags.jurisdiction.
         // Thsee are used to resolve the jurisdiction of the location, such as the city, from  the tags
         return R.over(

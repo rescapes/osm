@@ -521,7 +521,8 @@ export const sortIntersectionsAndStreets = (street, intersections) => {
  * @returns {Boolean} True if resolvable, else false
  */
 export const isResolvableSingleBlockLocation = location => R.either(
-  location => R.compose(R.equals(2), R.length, R.propOr([], 'intersections'))(location),
+      // If there is at least 1 intersection we know it's a block location
+  location => R.compose(R.lte(1), R.length, R.propOr([], 'intersections'))(location),
   location => R.compose(R.equals(2), R.length, strPathOr([], 'osmOverrides.nodes'))(location)
 )(location);
 

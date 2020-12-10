@@ -233,27 +233,19 @@ describe('LocationHeleprs', () => {
               "Earle Road"
             ]
           ]
+        },
+        geojson: {
+          "type": "Feature",
+          "id": "node/1859551276",
+          "properties": {
+            "type": "node",
+            "id": 1859551276
+          }
         }
       }],
       "geojson": {
         "type": "FeatureCollection",
         "features": [
-          {
-            "type": "Feature",
-            "id": "node/1859551276",
-            "properties": {
-              "type": "node",
-              "id": 1859551276
-            }
-          },
-          {
-            "type": "Feature",
-            "id": "node/4505199830",
-            "properties": {
-              "type": "node",
-              "id": 4505199830
-            }
-          },
           {
             "type": "Feature",
             "id": "way/486651906",
@@ -263,6 +255,14 @@ describe('LocationHeleprs', () => {
               "tags": {
                 "name": "Cokato Road"
               }
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "node/1859551276",
+            "properties": {
+              "type": "node",
+              "id": 1859551276
             }
           }
         ]
@@ -275,12 +275,130 @@ describe('LocationHeleprs', () => {
             "Cokato Road",
             "Earle Road"
           ]
+        },
+        geojson: {
+          "type": "Feature",
+          "id": "node/1859551276",
+          "properties": {
+            "type": "node",
+            "id": 1859551276
+          }
         }
       }
     };
     expect(intersectionsByNodeIdToSortedIntersections(location, nodesToIntersections)).toEqual([
-      {data: {streets: ["Cokato Road", "Earle Road"]}},
-      {data: {streets: ["Cokato Road", "node/4505199830"]}}
+      {
+        data: {streets: ["Cokato Road", "Earle Road"]}, geojson: {
+          "type": "Feature",
+          "id": "node/1859551276",
+          "properties": {
+            "type": "node",
+            "id": 1859551276
+          }
+        }
+      },
+      {
+        data: {streets: ["Cokato Road", "Earle Road"]}, geojson: {
+          "type": "Feature",
+          "id": "node/1859551276",
+          "properties": {
+            "type": "node",
+            "id": 1859551276
+          }
+        }
+      }
+    ]);
+  });
+
+
+  test('intersectionsByNodeForWayWithLoop', () => {
+    const location = {
+      "country": "Canada",
+      "state": "BC",
+      "city": "Fernie",
+      "street": "Cokato Road",
+      "intersections": [{
+        data: {
+          streets: [
+            [
+              "Cokato Road",
+              "Earle Road"
+            ]
+          ]
+        },
+        geojson: {
+          "type": "Feature",
+          "id": "node/1859551276",
+          "properties": {
+            "type": "node",
+            "id": 1859551276
+          }
+        }
+      }],
+      "geojson": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "way/486651906",
+            "properties": {
+              "type": "way",
+              "id": 486651906,
+              "tags": {
+                "name": "Cokato Road"
+              }
+            }
+          },
+          {
+            "type": "Feature",
+            "id": "node/1859551276",
+            "properties": {
+              "type": "node",
+              "id": 1859551276
+            }
+          }
+        ]
+      }
+    };
+    const nodesToIntersections = {
+      "node/1859551276": {
+        data: {
+          streets: [
+            "Cokato Road",
+            "Earle Road"
+          ]
+        },
+        geojson: {
+          "type": "Feature",
+          "id": "node/1859551276",
+          "properties": {
+            "type": "node",
+            "id": 1859551276
+          }
+        }
+      }
+    };
+    expect(intersectionsByNodeIdToSortedIntersections(location, nodesToIntersections)).toEqual([
+      {
+        data: {streets: ["Cokato Road", "Earle Road"]}, geojson: {
+          "type": "Feature",
+          "id": "node/1859551276",
+          "properties": {
+            "type": "node",
+            "id": 1859551276
+          }
+        }
+      },
+      {
+        data: {streets: ["Cokato Road", "Earle Road"]}, geojson: {
+          "type": "Feature",
+          "id": "node/1859551276",
+          "properties": {
+            "type": "node",
+            "id": 1859551276
+          }
+        }
+      }
     ]);
   });
 

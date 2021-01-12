@@ -11,18 +11,18 @@
 import {
   composeWithChain,
   composeWithMap,
-  composeWithMapMDeep,
   mapMDeep,
   mapToMergedResponseAndInputs,
   mapToNamedResponseAndInputs,
   reqStrPathThrowing,
   resultsToResultObj,
   strPathOr,
-  toNamedResponseAndInputs,
-  traverseReduceWhileBucketedTasks
+  traverseReduceWhileBucketedTasks,
+  traverseReduce
 } from '@rescapes/ramda';
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
+
 const {of} = T;
 import Result from 'folktale/result/index.js';
 import {
@@ -359,17 +359,27 @@ const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
         // If we didn't get the intersecting ways for the first node of the way, do so now. This
         // can happen since we look for intersection ways as we add new nodes to to the way, so
         // we might never have stored the ways of the first node of the way if it wasn't the end of
-        // another way that we found
-        j => mapToMergedResponseAndInputs(
+        // another way that we found.
+        // TODO it seems like we also need the other side of the block's intersection, so query for both nodes
+        // of the block
+        mapToMergedResponseAndInputs(
           ({osmConfig, nodeIdToWays, block}) => {
-            const nodeId = reqStrPathThrowing('nodes.0', block);
-            return isRealIntersectionTask(
-              osmConfig,
-              R.prop(R.prop('id', nodeId), nodeIdToWays),
-              nodeId
-            );
+            return traverseReduce(
+              (acc, {newNodeIdToWays}) => {
+                return {newNodeIdToWays: R.merge(acc.newNodeIdToWays, newNodeIdToWays)};
+              },
+              of({newNodeIdToWays: {}}),
+              R.map(
+                nodeId => isRealIntersectionTask(
+                  osmConfig,
+                  R.prop(R.prop('id', nodeId), nodeIdToWays),
+                  nodeId
+                ),
+                R.prop('nodes', block)
+              )
+            )
           }
-        )(j)
+        )
       ])({osmConfig, nodeIdToWays, block});
     },
     blocks

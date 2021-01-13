@@ -88,11 +88,13 @@ export {
   cleanGeojson,
   hashWayFeatureExtents,
   hashWayFeature,
+  hashWayFeaturesOfLocation,
   hashNodeFeature,
   hashPoint,
   findMatchingNodes,
   hashPointsToWayCoordinates,
-  nodeMatchesWayEnd
+  nodeMatchesWayEnd,
+  chainWayCoordinates
 } from './overpassFeatureHelpers.js';
 export {
   blockToGeojson,

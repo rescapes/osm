@@ -162,11 +162,11 @@ describe('overpassFeatureHelpers', () => {
       ).toEqual(
         {
           "node/42875319": {
-            geojson: nodeFeatures[0],
+            geojson: {type: 'FeatureCollection',  features: [nodeFeatures[0]]},
             data: {streets: ["134th Street", "South Conduit Avenue"]}
           },
           "node/42901997": {
-            geojson: nodeFeatures[1],
+            geojson: {type: 'FeatureCollection',  features: [nodeFeatures[1]]},
             data: {streets: ["134th Street", "149th Avenue"]}
           }
         }

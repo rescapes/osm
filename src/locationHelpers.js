@@ -15,7 +15,7 @@ import {
   mapKeys,
   reqStrPathThrowing,
   strPath,
-  strPathOr,
+  strPathOr, strPathTruthyOr,
   toArrayIfNot,
   toNamedResponseAndInputs
 } from '@rescapes/ramda';
@@ -27,6 +27,9 @@ import {point} from '@turf/helpers';
 import circle from '@turf/circle';
 import buffer from '@turf/buffer';
 import union from '@turf/union';
+import {inspect} from "util";
+import {loggers} from '@rescapes/log';
+const log = loggers.get('rescapeDefault');
 
 // The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
 // Switzerland for example doesn't resolve correctly if the canton abbreviation is included
@@ -131,7 +134,7 @@ export const normalizedIntersectionNames = intersection => {
 export const locationWithIntersectionInBothOrders = location => {
   if (!strPathOr(false, 'intersections.0.data.streets', location)) {
     // If no streets
-    return [location]
+    return [location];
   }
 
   return [
@@ -372,7 +375,13 @@ export const wayFeatureName = wayFeature => {
  * @param {String} The name or the default
  */
 export const wayFeatureNameOrDefault = (defaultTo, wayFeature) => {
-  return strPathOr(defaultTo, 'properties.tags.name', wayFeature);
+  return R.compose(
+    // Default if trim leaves us with an empty string
+    str => str || defaultTo,
+    // Catch any extra space
+    str => str.trim(),
+    wayFeature => strPathTruthyOr(defaultTo, 'properties.tags.name', wayFeature)
+  )(wayFeature);
 };
 
 /**
@@ -414,35 +423,51 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
   const intersections = R.when(
     R.compose(R.equals(1), R.length),
     intersections => R.ifElse(
-      // If it's a block location, use the dead end as the other itersectdion
+      // If it's a block location, use the dead end as the other itersection
       location => isBlockLocation(location),
-      location => R.append(
-        // Find the location geojson feature node that doesn't occur in nodesToIntersections.
-        // This must be our dead-end node. Grab it's id and use that as it's street name
-        {
-          data: {
-            streets: [
-              street,
-              // dead-end node id
-              R.compose(
-                featureIds => R.find(
-                  featureId => R.both(
-                    R.includes('node'),
-                    // node id doesn't equal the real intersection's node
-                    R.complement(R.equals)(
-                      R.compose(R.head, R.keys)(nodesToIntersections)
-                    )
-                  )(featureId),
-                  featureIds
-                ),
-                features => R.map(R.prop('id'), features),
-                location => reqStrPathThrowing('geojson.features', location)
-              )(location)
-            ]
+      location => {
+        const deadEndOrCircularIntersection = R.compose(
+          // If we found a dead end node, create a fake intersection from in.
+          // If we didn't we have a looping block, and the same node can be used for both intersections
+          deadEndNodeFeature => {
+            return R.ifElse(
+              R.isNil,
+              () => {
+                log.warn(`Assuming circular block and assigning the same intersection twice for location with geojson ${
+                  inspect(location.geojson, {depth: 10})
+                }`)
+                return R.head(intersections)
+              },
+              deadEndNodeFeature => {
+                return {
+                  data: {
+                    // Use the dead end node id as the second street name
+                    streets: [street, reqStrPathThrowing('id', deadEndNodeFeature)]
+                  },
+                  geojson: deadEndNodeFeature
+                }
+              }
+            )(deadEndNodeFeature);
+          },
+          // Find the dead end node, which is the node that does not equal the real intersection's node
+          features => R.find(
+            feature => {
+              return R.complement(R.equals)(
+                reqStrPathThrowing('id', feature),
+                // Compare to he single real intersection node
+                R.compose(R.head, R.keys)(nodesToIntersections)
+              )
+            }
+          )(features),
+          location => {
+            return osmFeaturesOfLocationForType('node', location);
           }
-        },
-        intersections
-      ),
+        )(location);
+        return R.append(
+          deadEndOrCircularIntersection,
+          intersections
+        );
+      },
       // Else duplicate the intersection, hoping it's a loop
       () => R.times(() => R.head(originalIntersections), 2)
     )(location)
@@ -450,7 +475,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
 
   // Sort the intersections and their streets
   return sortIntersectionsAndStreets(street, intersections);
-}
+};
 
 /**
  * Sorts intersections and streets of all the given intersections (normally 2 representing both ends of a street block)
@@ -515,7 +540,8 @@ export const sortIntersectionsAndStreets = (street, intersections) => {
  * @returns {Boolean} True if resolvable, else false
  */
 export const isResolvableSingleBlockLocation = location => R.either(
-  location => R.compose(R.equals(2), R.length, R.propOr([], 'intersections'))(location),
+  // If there is at least 1 intersection we know it's a block location
+  location => R.compose(R.lte(1), R.length, R.propOr([], 'intersections'))(location),
   location => R.compose(R.equals(2), R.length, strPathOr([], 'osmOverrides.nodes'))(location)
 )(location);
 
@@ -824,7 +850,7 @@ export const locationWithLocationPoints = blockLocation => {
               intersections => compact(R.map(strPathOr(null, 'geojson.features.0'), intersections)),
               blockLocation => {
                 // Get the nodes
-                return strPathOr([], 'intersections', blockLocation)
+                return strPathOr([], 'intersections', blockLocation);
               }
             )(blockLocation)
           )(locationPoints)
@@ -1077,7 +1103,7 @@ export const bufferAndUnionGeojson = ({radius, units}, geojson) => {
   const features = R.compose(toArrayIfNot, R.when(R.propEq('type', 'FeatureCollection'), R.prop('features')))(buffered);
   const feature = R.reduce(
     (acc, feature) => {
-      return !acc ? feature : union(acc, feature);
+      return !acc ? feature : union.default(acc, feature);
     },
     null,
     features
@@ -1133,15 +1159,55 @@ export const isWithinPolygon = R.curry((polygon, features) => {
  * @return {{blockname: *, intersections: [{streets: [*, *]}, {streets: [*, *]}]}}
  */
 export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersection1Location, intersection2Location}) => {
+  if (!intersection1Location || !intersection2Location) {
+    log.warn('Intersections must have geojson. This location will not be savable via the API unless the intersections get geojson');
+  }
+
   return R.merge(
     {
       blockname,
       intersections: [
         {
-          data: {streets: compact([blockname, intersc1])}
+          data: {streets: compact([blockname, intersc1])},
+          geojson: intersection1Location && {
+            "type": "FeatureCollection",
+            "features": [{
+              "id": "node/192907675",
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": R.reverse(R.map(s => parseFloat(s), R.split(',', intersection1Location)))
+              },
+              "properties": {
+                "id": 192907675,
+                "meta": {},
+                "tags": {"highway": "crossing", "crossing": "traffic_signals"},
+                "type": "node",
+                "relations": []
+              }
+            }]
+          }
         },
         {
-          data: {streets: compact([blockname, intersc2])}
+          data: {streets: compact([blockname, intersc2])},
+          geojson: intersection2Location && {
+            "type": "FeatureCollection",
+            "features": [{
+              "id": "node/192907675",
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": R.reverse(R.map(s => parseFloat(s), R.split(',', intersection2Location)))
+              },
+              "properties": {
+                "id": 192907675,
+                "meta": {},
+                "tags": {"highway": "crossing", "crossing": "traffic_signals"},
+                "type": "node",
+                "relations": []
+              }
+            }]
+          }
         }
       ]
     },

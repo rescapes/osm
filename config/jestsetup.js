@@ -9,12 +9,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-import {rescapeDefaultTransports} from '@rescapes/log';
 import {jest} from '@jest/globals';
-
-// Set the loggers to debug level
-rescapeDefaultTransports.fileCombined.level = 'debug';
-rescapeDefaultTransports.console.level = 'debug';
 
 // Enzyme setup
 // Set this to false to skip integration tests
@@ -22,9 +17,5 @@ process.env.ENABLE_INTEGRATION_TESTS = process.env.ENABLE_INTEGRATION_TESTS || '
 if (process.env.ENABLE_INTEGRATION_TESTS !== 'false') {
   jest.unmock('query-overpass');
 }
-
-global.navigator = {
-  userAgent: 'node.js'
-};
 
 Error.stackTraceLimit = Infinity;

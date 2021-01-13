@@ -23,12 +23,12 @@ import {
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
 
-const {of} = T;
 import Result from 'folktale/result/index.js';
 import {
   _buildPartialBlocks,
   _hashBlock,
-  _sortOppositeBlocksByNodeOrdering, blocksToGeojson, blockToGeojson, isRealIntersectionTask,
+  _sortOppositeBlocksByNodeOrdering,
+  isRealIntersectionTask,
   parallelWayNodeQueriesResultTask,
   waysByNodeIdResultsTask
 } from './overpassBlockHelpers.js';
@@ -41,7 +41,9 @@ import {
 import {length} from '@turf/turf';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks.js';
 import {loggers} from '@rescapes/log';
-import {commonStreetOfLocation, wayFeatureNameOrDefault} from './locationHelpers.js';
+import {commonStreetOfLocation} from './locationHelpers.js';
+
+const {of} = T;
 
 const log = loggers.get('rescapeDefault');
 
@@ -232,7 +234,9 @@ export const _partialBlocksToFeaturesResultsTask = (
               // This jurisdiction data was stored earlier in wayFeatures` properties.tags
               strPathOr({}, 'ways.0.properties.tags.jurisdiction', block),
               {
-                street: commonStreetOfLocation(location, intersections),
+                // If we set a name explicitly from external data, use it
+                street: strPathOr(null, 'ways.0.properties.tags.name', block) ||
+                  commonStreetOfLocation(location, intersections),
                 intersections
               }
             ])
@@ -359,27 +363,17 @@ const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
         // If we didn't get the intersecting ways for the first node of the way, do so now. This
         // can happen since we look for intersection ways as we add new nodes to to the way, so
         // we might never have stored the ways of the first node of the way if it wasn't the end of
-        // another way that we found.
-        // TODO it seems like we also need the other side of the block's intersection, so query for both nodes
-        // of the block
-        mapToMergedResponseAndInputs(
+        // another way that we found
+        j => mapToMergedResponseAndInputs(
           ({osmConfig, nodeIdToWays, block}) => {
-            return traverseReduce(
-              (acc, {newNodeIdToWays}) => {
-                return {newNodeIdToWays: R.merge(acc.newNodeIdToWays, newNodeIdToWays)};
-              },
-              of({newNodeIdToWays: {}}),
-              R.map(
-                nodeId => isRealIntersectionTask(
-                  osmConfig,
-                  R.prop(R.prop('id', nodeId), nodeIdToWays),
-                  nodeId
-                ),
-                R.prop('nodes', block)
-              )
-            )
+            const nodeId = reqStrPathThrowing('nodes.0', block);
+            return isRealIntersectionTask(
+              osmConfig,
+              R.prop(R.prop('id', nodeId), nodeIdToWays),
+              nodeId
+            );
           }
-        )
+        )(j)
       ])({osmConfig, nodeIdToWays, block});
     },
     blocks

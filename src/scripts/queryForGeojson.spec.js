@@ -14,7 +14,6 @@ import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseRe
 import {locationsToGeojsonFileResultTask} from '../overpassBlockHelpers.js';
 import {locationToOsmAllBlocksQueryResultsTask} from '../overpassAllBlocks.js';
 import moment from 'moment';
-import "regenerator-runtime/runtime";
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
 const {of} = T;

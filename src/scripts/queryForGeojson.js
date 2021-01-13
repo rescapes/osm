@@ -11,11 +11,10 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 import moment from 'moment';
-import "regenerator-runtime/runtime";
 import * as R from 'ramda';
 import {composeWithChain, defaultRunConfig, defaultRunToResultConfig, traverseReduce} from '@rescapes/ramda';
 import meow from 'meow';
-import {loggers, rescapeDefaultTransports} from '@rescapes/log';
+import {loggers} from '@rescapes/log';
 import {locationsToGeojsonFileResultTask} from '../overpassBlockHelpers.js';
 import {locationToOsmAllBlocksQueryResultsTask} from '../overpassAllBlocks.js';
 import T from 'folktale/concurrency/task/index.js';
@@ -59,13 +58,7 @@ const flags = cli.flags;
 const input = cli.input;
 
 // Set the logger's transports to debug
-if (flags.logDebug) {
-  rescapeDefaultTransports.fileCombined.level = 'debug';
-  rescapeDefaultTransports.console.level = 'debug';
-} else {
-  rescapeDefaultTransports.fileCombined.level = 'info';
-  rescapeDefaultTransports.console.level = 'info';
-}
+const log = flags.logDebug ? loggers.get('rescapeForceDebug') : loggers.get('rescapeForceInfo');
 
 log.debug(`Flags: ${JSON.stringify(flags, null, '\t')}`);
 log.debug(`Input: ${JSON.stringify(input, null, '\t')}`);

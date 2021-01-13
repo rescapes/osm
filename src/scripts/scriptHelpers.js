@@ -10,7 +10,6 @@
  */
 import * as R from 'ramda';
 import {toArrayIfNot} from '@rescapes/ramda';
-import "regenerator-runtime/runtime";
 
 /**
  * Process an imported json params or js file's default import

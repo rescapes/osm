@@ -10,8 +10,7 @@
  */
 
 
-import 'regenerator-runtime';
-import {featuresOfOsmType, isLatLng, wayFeatureNameOrDefault} from './locationHelpers.js';
+import {featuresOfOsmType, wayFeatureNameOrDefault} from './locationHelpers.js';
 import {
   _calculateNodeAndWayRelationships,
   configuredHighwayWayFilters,
@@ -25,17 +24,20 @@ import {
   chainObjToValues,
   compactEmpty,
   composeWithChainMDeep,
+  composeWithMap,
   composeWithMapMDeep,
   mapMDeep,
   mapObjToValues,
   mapToNamedResponseAndInputs,
   mapToNamedResponseAndInputsMDeep,
-  mergeAllWithKey, omitDeep,
+  mergeAllWithKey,
+  omitDeep,
   reqStrPathThrowing,
   resultsToResultObj,
   splitAtInclusive,
   strPathOr,
-  taskToResultTask, toMergedResponseAndInputs,
+  taskToResultTask,
+  toMergedResponseAndInputs,
   toNamedResponseAndInputs,
   traverseReduce,
   traverseReduceResultError,
@@ -56,8 +58,6 @@ import {
 } from './overpassFeatureHelpers.js';
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
-
-const {of, waitAll, task, rejected} = T;
 import Result from 'folktale/result/index.js';
 
 import {scaleOrdinal} from 'd3-scale';
@@ -65,14 +65,15 @@ import {schemeCategory10} from 'd3-scale-chromatic';
 import {length} from '@turf/turf';
 import {v} from '@rescapes/validate';
 import PropTypes from 'prop-types';
-import {composeWithMap} from '@rescapes/ramda';
 import {isNode} from 'browser-or-node';
+
+const {of, waitAll, task, rejected} = T;
 
 let fs;
 if (isNode) {
   import('fs-extra')
-    .then((_fs) => {
-      fs = _fs;
+    .then(_fs => {
+      fs = _fs.default
     });
 }
 
@@ -158,7 +159,7 @@ const intersectionNodesOfWayQuery = (osmConfig, {wayFeature}, wayId) => {
     R.last,
     R.split('/')
   )(wayId);
-  const wayFeatureName = wayFeatureNameOrDefault(null, wayFeature);
+  const wayFeatureName = wayFeatureNameOrDefault('UNNAMED STREET', wayFeature);
   return `
   // Query for intersectionNodesOfWay of street: ${wayFeatureName} with id ${wayId}
   ${
@@ -750,7 +751,7 @@ export const getFeaturesOfBlock = v((location, wayFeatures, nodeFeatures) => {
         // I believe they're always the same value, but maybe there's a case where the name changes mid-block
         R.uniq(R.map(reqStrPathThrowing('data.streets.0'), location.intersections))
       )
-    ])(wayFeatureNameOrDefault(null, wayFeature)),
+    ])(wayFeatureNameOrDefault('UNNAMED STREET', wayFeature)),
     wayFeatures
   );
 

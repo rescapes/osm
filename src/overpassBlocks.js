@@ -10,7 +10,6 @@
  */
 
 
-import 'regenerator-runtime';
 import {nominatimLocationResultTask} from './nominatimLocationSearch.js';
 import {queryOverpassWithLocationForStreetResultTask} from './overpassStreet.js';
 import {

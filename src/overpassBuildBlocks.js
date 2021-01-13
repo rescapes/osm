@@ -505,7 +505,6 @@ export function _choicePointProcessPartialBlockResultTask(
     // that by querying OSM for the ways
     mapToMergedResponseAndInputs(
       ({block, osmConfig, nodeIdToWays, firstFoundNodeOfFinalWay}) => {
-        blockToGeojson(block);
         return isRealIntersectionTask(
           osmConfig,
           R.prop(R.prop('id', firstFoundNodeOfFinalWay), nodeIdToWays),

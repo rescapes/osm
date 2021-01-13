@@ -751,7 +751,7 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
               },
               features => {
                 const error = `Feature ${JSON.stringify(features)} generated fewer than 2 intersection names. This should never happen`;
-                log.warn(error);
+                log.error(error);
                 return Result.Error({error});
               }
             ],

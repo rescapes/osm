@@ -736,23 +736,27 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
             return Result.Ok({nodeFeature, streets: streetNames});
           }
         },
-        // Error terminally if we didn't generate two features (i.e. an intersection).
-        // This should never happen when we can query OSM
-        // If we disabled OSM querying because we are processing non OSM data
-        features => {
+        // If we didn't generate two way features (i.e. an intersection), it's because we didn't allow OSM
+        // to query the node for all the ways (osmConfig.disableNodesOfWayQueries == false) or this is a dead-
+        // end or a node that intersections with ways that we don't want from OSM (e.g. driveways)
+        uniqueWayFeatures => {
           return R.cond([
             [
               // If we got 1 feature and disableNodesOfWayQueries is false, error
-              features => {
+              uniqueWayFeatures => {
                 return R.both(
                   () => R.propEq('disableNodesOfWayQueries', false, osmConfig),
                   R.compose(R.gt(2), R.length)
-                )(features);
+                )(uniqueWayFeatures);
               },
-              features => {
-                const error = `Feature ${JSON.stringify(features)} generated fewer than 2 intersection names. This should never happen`;
-                log.error(error);
-                return Result.Error({error});
+              uniqueWayFeatures => {
+                // TODO we currently must have an intersecting street, so if there isn't use DEAD_END-${nodeId}
+                // In the future we can remove these fake streets
+                const warning = `Node with ${JSON.stringify(nodeFeature)} only one way feature ${JSON.stringify(uniqueWayFeatures)} 
+                This only happens for dead-ends that we identified as intersections. We'll use the node id as the second street name 
+                since we currently require an intersection to consist of the main street and one other street`;
+                log.warn(warning);
+                return Result.Ok(R.concat(uniqueWayFeatures, [{name: `DEAD_END-${nodeId}`}]));
               }
             ],
             [
@@ -764,36 +768,38 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
                 return R.both(
                   () => R.propEq('disableNodesOfWayQueries', true, osmConfig),
                   R.compose(R.gt(2), R.length)
-                )(features);
+                )(uniqueWayFeatures);
               },
-              features => {
-                return Result.Ok(R.concat(features, [{name: `TEMPORARILY_UNKNOWN_STREET-${nodeId}`}]));
+              uniqueWayFeatures => {
+                return Result.Ok(R.concat(uniqueWayFeatures, [{name: `TEMPORARILY_UNKNOWN_STREET-${nodeId}`}]));
               }
             ],
             [
               // Otherwise returns the >1 features successfully
               R.T,
-              features => {
-                return Result.Ok(features);
+              uniqueWayFeatures => {
+                return Result.Ok(uniqueWayFeatures);
               }
             ]
-          ])(features);
+          ])(uniqueWayFeatures);
         },
         // Sort by first matching a way and second alphabetically
-        uniqueFeatures => Result.Ok(R.sortWith(
-          [
-            // Most points for matching the way
-            R.descend(wayMatchWeight),
-            // Small points for alphabetical name
-            R.ascend(R.prop('name'))
-          ],
-          uniqueFeatures
-        )),
+        uniqueWayFeatures => {
+          return Result.Ok(R.sortWith(
+            [
+              // Most points for matching the way
+              R.descend(wayMatchWeight),
+              // Small points for alphabetical name
+              R.ascend(R.prop('name'))
+            ],
+            uniqueWayFeatures
+          ));
+        },
         // If we have more than 2 features, get uniquely named features. If we have at least two unique street names
         // where the 2 have the same name, we only need to store the name once.
         // If we only have 2 features with the same name, keep both. This is for cases where two intersecting
         // streets have the same name.
-        featuresWithNames => {
+        wayFeaturesWithNames => {
           return Result.Ok(R.when(
             featuresWithNames => R.compose(
               R.lte(2),
@@ -805,13 +811,17 @@ export const _intersectionStreetNamesFromWaysAndNodesResult = (
               R.prop('name'),
               featuresWithNames
             )
-          )(featuresWithNames));
+          )(wayFeaturesWithNames));
         },
         // Name features by the name tag or failing that the way id
-        features => Result.Ok(R.map(
-          feature => ({feature, name: nameOrIdOfFeature(feature)}),
-          features
-        ))
+        waysOfNodeFeatures => {
+          return Result.Ok(
+            R.map(
+              feature => ({feature, name: nameOrIdOfFeature(feature)}),
+              waysOfNodeFeatures
+            )
+          );
+        }
       ])(waysOfNodeFeatures);
     },
     limitedNodeIdToNodeWithWayFeatures

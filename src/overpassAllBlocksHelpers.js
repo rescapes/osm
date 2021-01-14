@@ -42,6 +42,7 @@ import {length} from '@turf/turf';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks.js';
 import {loggers} from '@rescapes/log';
 import {commonStreetOfLocation} from './locationHelpers.js';
+import {blockToGeojson} from './overpassBlockHelpers';
 
 const {of} = T;
 
@@ -356,7 +357,7 @@ const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
           );
           if (process.env.NODE_ENV !== 'production') {
             // Debugging help will eventually be used for visual feedback of the processing on a website
-            //blockToGeojson(updatedBlock);
+            blockToGeojson(updatedBlock);
           }
           return updatedBlock;
         },
@@ -364,13 +365,24 @@ const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
         // can happen since we look for intersection ways as we add new nodes to to the way, so
         // we might never have stored the ways of the first node of the way if it wasn't the end of
         // another way that we found
+        // TODO it seems there are cases where we need to process the last node as well, so do both here
         j => mapToMergedResponseAndInputs(
           ({osmConfig, nodeIdToWays, block}) => {
-            const nodeId = reqStrPathThrowing('nodes.0', block);
-            return isRealIntersectionTask(
-              osmConfig,
-              R.prop(R.prop('id', nodeId), nodeIdToWays),
-              nodeId
+            return traverseReduce(
+              ({newNodeIdToWays}, {newNodeIdToWays: newNewNodeIdToWays}) => {
+                return {newNodeIdToWays: R.merge(newNodeIdToWays, newNewNodeIdToWays)};
+              },
+              of({newNodeIdToWays: {}}),
+              R.map(
+                nodeFeature => {
+                  return isRealIntersectionTask(
+                    osmConfig,
+                    R.prop(R.prop('id', nodeFeature), nodeIdToWays),
+                    nodeFeature
+                  );
+                },
+                reqStrPathThrowing('nodes', block)
+              )
             );
           }
         )(j)

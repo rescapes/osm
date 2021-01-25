@@ -29,6 +29,7 @@ import buffer from '@turf/buffer';
 import union from '@turf/union';
 import {inspect} from "util";
 import {loggers} from '@rescapes/log';
+
 const log = loggers.get('rescapeDefault');
 
 // The following countries should have their states, provinces, cantons, etc left out of Google geolocation searches
@@ -307,7 +308,16 @@ export const addressPair = location => {
     // Just skip address creation and use the lat,lng.
     R.unless(
       R.is(String),
-      intersectionPair => addressString(removeStateFromSomeCountriesForSearch(R.merge(locationProps, {intersections: [intersectionPair]})))
+      intersection => {
+        return R.compose(
+          location => {
+            return addressString(location);
+          },
+          intersection => {
+            return removeStateFromSomeCountriesForSearch(R.merge(locationProps, {intersections: [intersection]}));
+          }
+        )(intersection);
+      }
     ),
     location.intersections
   );
@@ -435,8 +445,8 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
               () => {
                 log.warn(`Assuming circular block and assigning the same intersection twice for location with geojson ${
                   inspect(location.geojson, {depth: 10})
-                }`)
-                return R.head(intersections)
+                }`);
+                return R.head(intersections);
               },
               deadEndNodeFeature => {
                 return {
@@ -445,7 +455,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
                     streets: [street, reqStrPathThrowing('id', deadEndNodeFeature)]
                   },
                   geojson: deadEndNodeFeature
-                }
+                };
               }
             )(deadEndNodeFeature);
           },
@@ -456,7 +466,7 @@ export const intersectionsByNodeIdToSortedIntersections = (location, nodesToInte
                 reqStrPathThrowing('id', feature),
                 // Compare to he single real intersection node
                 R.compose(R.head, R.keys)(nodesToIntersections)
-              )
+              );
             }
           )(features),
           location => {
@@ -1158,7 +1168,13 @@ export const isWithinPolygon = R.curry((polygon, features) => {
  * @param intersection2Location
  * @return {{blockname: *, intersections: [{streets: [*, *]}, {streets: [*, *]}]}}
  */
-export const oldIntersectionUpgrade = ({blockname, intersc1, intersc2, intersection1Location, intersection2Location}) => {
+export const oldIntersectionUpgrade = ({
+                                         blockname,
+                                         intersc1,
+                                         intersc2,
+                                         intersection1Location,
+                                         intersection2Location
+                                       }) => {
   if (!intersection1Location || !intersection2Location) {
     log.warn('Intersections must have geojson. This location will not be savable via the API unless the intersections get geojson');
   }

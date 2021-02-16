@@ -1179,6 +1179,13 @@ export const oldIntersectionUpgrade = ({
     log.warn('Intersections must have geojson. This location will not be savable via the API unless the intersections get geojson');
   }
 
+  // Convert 'lat, lon' to [lon, lat]
+  const coordSets = R.map(
+    intersectionLocation => R.reverse(R.map(s => parseFloat(s), R.split(',', intersectionLocation))),
+    [intersection1Location, intersection2Location]
+  );
+  const coordStrings = R.map(R.join(','), coordSets);
+
   return R.merge(
     {
       blockname,
@@ -1188,14 +1195,14 @@ export const oldIntersectionUpgrade = ({
           geojson: intersection1Location && {
             "type": "FeatureCollection",
             "features": [{
-              "id": "node/192907675",
+              "id": `node/fake${coordStrings[0]}`,
               "type": "Feature",
               "geometry": {
                 "type": "Point",
-                "coordinates": R.reverse(R.map(s => parseFloat(s), R.split(',', intersection1Location)))
+                "coordinates": coordSets[0]
               },
               "properties": {
-                "id": 192907675,
+                "id": `node/fake${coordStrings[0]}`,
                 "meta": {},
                 "tags": {"highway": "crossing", "crossing": "traffic_signals"},
                 "type": "node",
@@ -1209,14 +1216,14 @@ export const oldIntersectionUpgrade = ({
           geojson: intersection2Location && {
             "type": "FeatureCollection",
             "features": [{
-              "id": "node/192907675",
+              "id": `node/fake${coordStrings[1]}`,
               "type": "Feature",
               "geometry": {
                 "type": "Point",
-                "coordinates": R.reverse(R.map(s => parseFloat(s), R.split(',', intersection2Location)))
+                "coordinates": coordSets[1]
               },
               "properties": {
-                "id": 192907675,
+                "id": `node/fake${coordStrings[1]}`,
                 "meta": {},
                 "tags": {"highway": "crossing", "crossing": "traffic_signals"},
                 "type": "node",

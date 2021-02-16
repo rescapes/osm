@@ -14,7 +14,7 @@ import {
   locationWithIntersectionInBothOrders,
   locationWithLocationPoints,
   mapGeojsonFeaturesHaveRadiiToPolygon,
-  normalizedIntersectionNames,
+  normalizedIntersectionNames, oldIntersectionUpgrade,
   osmFeaturesOfLocationForType
 } from './locationHelpers.js';
 import {defaultRunConfig, mergeDeepWithConcatArrays, reqStrPathThrowing} from '@rescapes/ramda';
@@ -3127,4 +3127,120 @@ describe('LocationHeleprs', () => {
     ];
     expect(R.map(f => bufferAndUnionGeojson({radius: 50, units: 'meters'}, f), featuresAndCollections)).toBeTruthy();
   });
+
+  test('oldIntersectionUpgrade', () => {
+    const osloLocation = {
+      country: 'Norway',
+      city: 'Oslo',
+      ...oldIntersectionUpgrade({
+        blockname: 'Thorvald Meyers gate',
+        intersc1: 'Korsgata',
+        intersc2: 'Grüners gate',
+        intersection1Location: '59.920102940929, 10.759324799918932',
+        intersection2Location: '59.92339707200017, 10.759251080434533'
+      })
+    };
+    expect(osloLocation).toEqual({
+      "country": "Norway",
+      "city": "Oslo",
+      "blockname": "Thorvald Meyers gate",
+      "intersections": [
+        {
+          "data": {
+            "streets": [
+              "Thorvald Meyers gate",
+              "Korsgata"
+            ]
+          },
+          "geojson": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "id": "node/fake10.759324799918932,59.920102940929",
+                "type": "Feature",
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    10.759324799918932,
+                    59.920102940929
+                  ]
+                },
+                "properties": {
+                  "id": "node/fake10.759324799918932,59.920102940929",
+                  "meta": {},
+                  "tags": {
+                    "highway": "crossing",
+                    "crossing": "traffic_signals"
+                  },
+                  "type": "node",
+                  "relations": []
+                }
+              }
+            ]
+          }
+        },
+        {
+          "data": {
+            "streets": [
+              "Thorvald Meyers gate",
+              "Grüners gate"
+            ]
+          },
+          "geojson": {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "id": "node/fake10.759251080434533,59.92339707200017",
+                "type": "Feature",
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    10.759251080434533,
+                    59.92339707200017
+                  ]
+                },
+                "properties": {
+                  "id": "node/fake10.759251080434533,59.92339707200017",
+                  "meta": {},
+                  "tags": {
+                    "highway": "crossing",
+                    "crossing": "traffic_signals"
+                  },
+                  "type": "node",
+                  "relations": []
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "geojson": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {},
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                10.759324799918932,
+                59.920102940929
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {},
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                10.759251080434533,
+                59.92339707200017
+              ]
+            }
+          }
+        ]
+      }
+    })
+  })
 });

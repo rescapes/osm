@@ -15,7 +15,7 @@ import {
   mapKeys,
   reqStrPathThrowing,
   strPath,
-  strPathOr, strPathTruthyOr,
+  strPathOr,
   toArrayIfNot,
   toNamedResponseAndInputs
 } from '@rescapes/ramda';
@@ -390,7 +390,7 @@ export const wayFeatureNameOrDefault = (defaultTo, wayFeature) => {
     str => str || defaultTo,
     // Catch any extra space
     str => str.trim(),
-    wayFeature => strPathTruthyOr(defaultTo, 'properties.tags.name', wayFeature)
+    wayFeature => strPathOr(defaultTo, 'properties.tags.name', wayFeature)
   )(wayFeature);
 };
 

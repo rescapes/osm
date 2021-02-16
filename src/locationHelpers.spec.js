@@ -3219,6 +3219,7 @@ describe('LocationHeleprs', () => {
         "features": [
           {
             "type": "Feature",
+            "id": "node/fake10.759324799918932,59.920102940929",
             "properties": {},
             "geometry": {
               "type": "Point",
@@ -3230,6 +3231,7 @@ describe('LocationHeleprs', () => {
           },
           {
             "type": "Feature",
+            "id": "node/fake10.759251080434533,59.92339707200017",
             "properties": {},
             "geometry": {
               "type": "Point",

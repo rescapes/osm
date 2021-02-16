@@ -1240,8 +1240,16 @@ export const oldIntersectionUpgrade = ({
         features: [
           // We don't put in a fake way here. We assume the single block resolution code will find the way from OSM
           // based on these 2 points
-          locationToTurfPoint(R.map(s => parseFloat(s), R.split(',', intersection1Location))),
-          locationToTurfPoint(R.map(s => parseFloat(s), R.split(',', intersection2Location)))
+          R.set(
+            R.lensProp('id'),
+            `node/fake${coordStrings[0]}`,
+            locationToTurfPoint(R.map(s => parseFloat(s), R.split(',', intersection1Location)))
+          ),
+          R.set(
+            R.lensProp('id'),
+            `node/fake${coordStrings[1]}`,
+            locationToTurfPoint(R.map(s => parseFloat(s), R.split(',', intersection2Location)))
+          )
         ]
       }
     } : {}

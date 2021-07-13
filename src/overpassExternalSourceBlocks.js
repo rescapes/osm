@@ -11,7 +11,7 @@ import {loggers} from '@rescapes/log';
 import {extractSquareGridFeatureCollectionFromGeojson} from '@rescapes/helpers';
 import booleanDisjoint from '@turf/boolean-disjoint';
 import T from 'folktale/concurrency/task/index.js';
-import {hashWayFeatureExtentsLimitedDecimals, hashWayFeaturesOfLocation} from './overpassFeatureHelpers';
+import {hashWayFeatureExtentsLimitedDecimals, hashWayFeaturesOfLocation} from './overpassFeatureHelpers.js';
 
 const {of} = T;
 

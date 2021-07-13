@@ -42,7 +42,7 @@ import {length} from '@turf/turf';
 import {_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask} from './overpassBuildBlocks.js';
 import {loggers} from '@rescapes/log';
 import {commonStreetOfLocation} from './locationHelpers.js';
-import {blockToGeojson} from './overpassBlockHelpers';
+import {blockToGeojson} from './overpassBlockHelpers.js';
 
 const {of} = T;
 

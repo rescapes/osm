@@ -390,6 +390,8 @@ export const wayFeatureNameOrDefault = (defaultTo, wayFeature) => {
     str => str || defaultTo,
     // Catch any extra space
     str => str.trim(),
+    // In case null or returns a number or something, convert
+    str => (str || '').toString(),
     wayFeature => strPathOr(defaultTo, 'properties.tags.name', wayFeature)
   )(wayFeature);
 };

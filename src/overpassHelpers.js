@@ -20,6 +20,7 @@ import {loggers} from '@rescapes/log';
 import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers.js';
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
+
 const {of, task} = T;
 import Result from 'folktale/result/index.js';
 
@@ -28,11 +29,16 @@ import os from 'os';
 
 const log = loggers.get('rescapeDefault');
 
+import Memcached from 'memcached'
+
+const memcached = new Memcached('localhost:11211');
+
 // When doing OSM queries with lat/lon points search for nodes withing this many meters of them
 // The idea is that differences between Google, OSM, and manually marking of intersections should
 // be within 15 meters. But this might have to be greater.
 export const AROUND_LAT_LON_TOLERANCE = 15;
 export const AREA_MAGIC_NUMBER = 3600000000;
+export const CACHE_LIFETIME = 2592000 // max
 /**
  * Converts the osm id string to an area id string
  */
@@ -364,17 +370,31 @@ export const queryTask = (options, query) => {
     // Since we are executing calls sequentially, this will pause sleepBetweenCalls before each call
     setTimeout(() => {
         log.debug(`\n\nRequesting OSM query:\n${query}\n\n`);
-        queryOverpass(query, (error, data) => {
-          if (!error) {
-            log.debug(`\n\nSuccessful Response from OSM query:\n${query}\nGot the following feature counts: ${
-              JSON.stringify(R.map(R.length, featuresByOsmType(strPathOr([], 'features', data))))
-            } features`);
-            resolver.resolve(data);
-          } else {
-            log.warn(`\n\nFailure Response from OSM query:\n${query}\n\n`);
-            resolver.reject({error, query});
+        memcached.get(query, function (err, data) {
+          if (err) {
+            console.error(`Error trying to fetch from memcached ${JSON.stringify(err)}`)
           }
-        }, options);
+          if (data) {
+            console.log(`Found cached query data in memcached for query ${query}`);
+            resolver.resolve(data)
+          } else {
+            queryOverpass(query, (error, data) => {
+              if (!error) {
+                log.debug(`\n\nSuccessful Response from OSM query:\n${query}\nGot the following feature counts: ${
+                  JSON.stringify(R.map(R.length, featuresByOsmType(strPathOr([], 'features', data))))
+                } features`);
+                memcached.set(query, data, CACHE_LIFETIME, function (err) {
+                  log.error(`Error: ${JSON.stringify(err)} caching to memcached query ${query}`);
+                });
+                resolver.resolve(data);
+              } else {
+                log.warn(`\n\nFailure Response from OSM query:\n${query}\n\n`);
+                resolver.reject({error, query});
+              }
+            }, options);
+          }
+        });
+
       },
       options.sleepBetweenCalls || 0);
   });

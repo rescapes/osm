@@ -60,6 +60,7 @@
     "fs": "^0.0.1-security",
     "http-https": "^1.0.0",
     "mapbox-geocoding": "^0.1.5",
+    "memcached": "^2.2.2",
     "nominatim-geocoder": "^0.1.4",
     "path": "^0.12.7",
     "prop-types": "^15.7.2",

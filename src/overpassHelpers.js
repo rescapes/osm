@@ -356,13 +356,19 @@ export const osmResultTask = ({tries, name, context}, taskFunc) => {
   );
 };
 
+/**
+ * memcached needs a string without whitespace up to 250 chars
+ * @param key
+ * @returns {*}
+ */
 const createWellFormedKey = key => {
   // Get rid of all spaces, control characters, etc using base64
-  const encoded =  Buffer.from("key").toString('base64')
+  const encoded = global.Buffer.from(key).toString('base64')
   if (R.lt(250, R.length(encoded))) {
     // Assume this is still unique!
     return R.slice(0, 250, encoded)
   }
+  return encoded
 }
 
 /**

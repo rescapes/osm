@@ -14,7 +14,7 @@ import {
   taskToResultTask,
   toNamedResponseAndInputs,
   traverseReduceWhile,
-  toMergedResponseAndInputs, strPathOr, reqPathThrowing
+  toMergedResponseAndInputs, strPathOr, reqPathThrowing, compact
 } from '@rescapes/ramda';
 import {loggers} from '@rescapes/log';
 import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers.js';
@@ -39,7 +39,7 @@ export const AREA_MAGIC_NUMBER = 3600000000;
 export const osmIdToAreaId = osmId => (parseInt(osmId) + AREA_MAGIC_NUMBER).toString();
 
 // TODO make these accessible for external configuration
-const overpassServers = R.split(/\s*[,;\s]\s*/, process.env.OSM_SERVERS || '');
+const overpassServers = compact(R.split(/\s*[,;\s]\s*/, process.env.OSM_SERVERS || ''));
 
 let i = 0;
 const roundRobinOsmServers = () => {
@@ -295,7 +295,7 @@ export const buildFilterQuery = R.curry((settings, conditions, types) => {
  * Runs an OpenStreetMap task. Because OSM servers are picky about throttling,
  * this allows us to try all servers sequentially until one gives a result
  * @param {Object} config
- * @param {Number} [config.tries] Number of tries to make. Defaults to the number of server
+ * @param {Number} [config.tries] Number of tries to make. Defaults to the number of servers, but minimum 3 tries
  * @param {String} config.name The name taskFunc for logging purposes
  * @param {Object} config.context For errors and mock testing only. Context to identify information about the request
  * and to mock the desired results in __mocks__/query-overpass.js
@@ -303,7 +303,7 @@ export const buildFilterQuery = R.curry((settings, conditions, types) => {
  * @returns {Task<Result<Object>>} The response in a Result.Ok or errors in Result.Error
  */
 export const osmResultTask = ({tries, name, context}, taskFunc) => {
-  const attempts = tries || R.length(overpassServers);
+  const attempts = R.min(3, tries || R.length(overpassServers));
   return traverseReduceWhile(
     {
       // Fail the _predicate to stop searching when we have a Result.Ok

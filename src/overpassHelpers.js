@@ -200,6 +200,9 @@ const highwayWayFilters = [
   osmNotEqual('highway', 'service'),
   osmNotEqual('building', 'yes'),
   osmNotEqual('highway', 'elevator'),
+  // For some uses we need motorways, but it's off by default
+  osmNotEqual('highway', 'motorway'),
+  osmNotEqual('highway', 'motorway_link'),
   // We're not currently interested in driveways, but might be in the future
   osmNotEqual('highway', 'driveway'),
   // We don't want to treat cycleways separate from the roads they are on

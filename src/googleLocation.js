@@ -18,6 +18,7 @@ import Result from 'folktale/result/index.js';
 import center from '@turf/center';
 import {compareTwoStrings} from 'string-similarity';
 import {
+  composeWithChain,
   mapMDeep,
   reqPathThrowing,
   reqStrPath,
@@ -292,7 +293,7 @@ export const geocodeBlockAddressesResultTask = location => {
  * @return {Task<Result>} Result.Ok if one ordering succeeds. Result.Error if neither succeeds
  */
 export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneIntersectionPair => {
-  return R.composeK(
+  return composeWithChain([
     result => of(result.mapError(errorObj => {
       // Augment the error from the geocoding, which only accounts for the failure of the second ordering
       const modifiedErrorObj = R.over(
@@ -327,7 +328,7 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
     },
     // Produce the two intersection name orderings if the intersections are named and we don't have lat/lons
     locationWithOneIntersectionPair => of(locationWithIntersectionInBothOrders(locationWithOneIntersectionPair))
-  )(locationWithOneIntersectionPair);
+  ])(locationWithOneIntersectionPair);
 };
 
 
@@ -339,26 +340,28 @@ export const geocodeAddressWithBothIntersectionOrdersTask = locationWithOneInter
  * the future we might just pass the locationWithNominatimData and derive the locationPair from it
  * @returns {Task<Result>} Task to return the center points
  */
-export const geojsonCenterOfBlockAddress = location => R.composeK(
-  // Find the center of the two points
-  featureCollectionResult => of(featureCollectionResult.map(featureCollection => {
-    return center.default(featureCollection);
-  })),
-  // Create a FeatureCollection from the two Turf Points
-  featuresResult => of(featuresResult.map(features => {
-    return featureCollection(features);
-  })),
-  // If Result continue by taking the geojson of each
-  resultsResult => of(resultsResult.map(
-    results => R.map(
-      result => result.geojson,
-      results
-    )
-  )),
-  // First resolve the geocode for the two ends fo the block.
-  // This returns and a Result for success, Error for failure
-  location => geocodeBlockAddressesResultTask(location)
-)(location);
+export const geojsonCenterOfBlockAddress = location => {
+  return composeWithChain([
+    // Find the center of the two points
+    featureCollectionResult => of(featureCollectionResult.map(featureCollection => {
+      return center.default(featureCollection);
+    })),
+    // Create a FeatureCollection from the two Turf Points
+    featuresResult => of(featuresResult.map(features => {
+      return featureCollection(features);
+    })),
+    // If Result continue by taking the geojson of each
+    resultsResult => of(resultsResult.map(
+      results => R.map(
+        result => result.geojson,
+        results
+      )
+    )),
+    // First resolve the geocode for the two ends fo the block.
+    // This returns and a Result for success, Error for failure
+    location => geocodeBlockAddressesResultTask(location)
+  ])(location)
+};
 
 
 /**
@@ -541,7 +544,7 @@ export const routeFromOriginAndDestination = createOpposingRoutesFromOriginAndDe
  * If either intersection can't be resolved a Result.Error is returned
  */
 export const googleIntersectionTask = location => {
-  return R.composeK(
+  return composeWithChain([
     // results is a Result.Ok/Error. Result.Ok contains two address objects
     responsesResult => of(
       responsesResult.map(
@@ -568,7 +571,7 @@ export const googleIntersectionTask = location => {
     ),
     // Geocode the locationWithNominatimData
     location => geocodeBlockAddressesResultTask(location)
-  )(location);
+  ])(location);
 };
 
 
@@ -599,7 +602,7 @@ export const resolveGeoLocationTask = location => {
       geojsonCenterOfBlockAddress(location)
     );
   } else {
-    return R.composeK(
+    return composeWithChain([
       // Map the Result value
       // Task Result Object -> Task Result Object
       locationResult => of(R.map(
@@ -633,7 +636,7 @@ export const resolveGeoLocationTask = location => {
       // Remove states from some countries like Switzerland that mess up the search
       // Object -> Task Object
       location => of({location: removeStateFromSomeCountriesForSearch(location)})
-    )(location);
+    ])(location);
   }
 };
 

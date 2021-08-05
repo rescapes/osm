@@ -854,7 +854,7 @@ export function _completeDeadEndNodeOrQueryForFakeIntersectionNodeResultTask(osm
     // Diagram +------ - ----- where + is one end of the way and - is what we thought was an intersection,
     // but is actually just a continuation of the street with another way
     ({ways, nodes, node}) => {
-      return R.composeK(
+      return composeWithChain([
         isRealIntersectionResult => resultToTaskWithResult(
           ({realIntersection, waysOfIntersection}) => {
             // Return this for use in naming streets
@@ -923,7 +923,7 @@ export function _completeDeadEndNodeOrQueryForFakeIntersectionNodeResultTask(osm
           },
           options => fetchOsmRawTask(options, waysOfNodeQuery(osmConfig, reqStrPathThrowing('id', node)))
         )
-      )({ways, nodes, node});
+      ])({ways, nodes, node});
     },
 
     // Otherwise we used a non intersection node for a dead-end way and we're done

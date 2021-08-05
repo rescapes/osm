@@ -22,7 +22,7 @@ import {
 } from './overpassHelpers.js';
 import {
   chainObjToValues,
-  compactEmpty,
+  compactEmpty, composeWithChain,
   composeWithChainMDeep,
   composeWithMap,
   composeWithMapMDeep,
@@ -226,7 +226,7 @@ const intersectionNodesOfWayQuery = (osmConfig, {wayFeature}, wayId) => {
  * in alphabetical order
  */
 export const _queryLocationVariationsUntilFoundResultTask = R.curry((osmConfig, queryLocationResultTasks, locationVariationsOfOsm) => {
-  return R.composeK(
+  return composeWithChain([
     result => of(
       // If we had no results report the errors of each query
       // We create this somewhat strange format so that we know what variation of the locationWithNominatimData was used for each
@@ -276,7 +276,7 @@ export const _queryLocationVariationsUntilFoundResultTask = R.curry((osmConfig, 
         locationVariationsOfOsm
       )
     )
-  )(locationVariationsOfOsm);
+  ])(locationVariationsOfOsm);
 });
 
 /**
@@ -327,7 +327,7 @@ export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) =
           // mapObjToValues removes the way and node keys from query
           mapObjToValues(
             (queries, type) => {
-              return R.composeK(
+              return composeWithChain([
                 // Then map the task response to include the queries for debugging/error resolution
                 // if the OSM can't be resolved
                 // Maps Result.Ok to a {
@@ -379,7 +379,7 @@ export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) =
                     )
                   );
                 }
-              )({queries, type});
+              ])({queries, type});
             },
             queries
           )
@@ -484,7 +484,7 @@ export const nodesAndIntersectionNodesForIncompleteWayResultTask = (osmConfig, {
       R.map(
         wayFeature => {
           const wayId = reqStrPathThrowing('id', wayFeature);
-          return R.composeK(
+          return composeWithChain([
             // Now we have the intersection nodes of the way and all the nodes of the way.
             // If anything went wrong we have a Result.Error to report.
             // If all goes well we combine the two Result.Oks into one Result.Ok
@@ -530,7 +530,7 @@ export const nodesAndIntersectionNodesForIncompleteWayResultTask = (osmConfig, {
                 wayId
               )
             )
-          )({
+          ])({
             osmConfig,
             wayFeature,
             wayId

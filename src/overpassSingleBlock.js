@@ -191,7 +191,7 @@ export const queryLocationForOsmSingleBlockResultTask = (osmConfig, location) =>
  * in alphabetical order
  */
 const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationWithOsm, geojsonPoints = null, intersections = null) => {
-  return R.composeK(
+  return composeWithChain([
     ({locationWithOsm, queries: {way: wayQuery, node: nodeQuery}}) => _queryOverpassForSingleBlockResultTask(
       osmConfig,
       // Pass intersections if available to help resolve the right ways
@@ -220,7 +220,7 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationW
         ))
       )
     )
-  )({locationWithOsm});
+  ])({locationWithOsm});
 };
 
 /**
@@ -310,7 +310,7 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
   );
 
   // Sort LineStrings (ways) so we know how they are connected
-  return R.composeK(
+  return composeWithChain([
     // If we get a Result.Error, it means our query failed. Try next with a bounding box query using the two location
     // points
     result => result.matchWith({
@@ -362,7 +362,7 @@ const _locationToOsmSingleBlockQueryResultTask = (osmConfig, location) => {
     // Use OSM Nominatim to get relation of the neighborhood (if it exists) or failig that the city
     // Only neeeded if location.locationPoints is empty, meaning we don't know where the block is geospatially
     location => locationBlocksLatLonsOrNominatimLocationResultTask(location)
-  )(location);
+  ])(location);
 };
 
 /**
@@ -389,12 +389,12 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
   const locationWithGeojsonBounds = R.merge(location, {geojson});
   // Try to query by bounds, if we fail accumulate errors
 
-  return R.composeK(
+  return composeWithChain([
     matchingLocationsWithBlocks => of(_locationToOsmSingleBlockBoundsResolve(location, matchingLocationsWithBlocks)),
     location => {
       return locationToOsmAllBlocksQueryResultsTask(osmConfig, location);
     }
-  )(locationWithGeojsonBounds);
+  ])(locationWithGeojsonBounds);
 };
 
 const _locationToOsmSingleBlockBoundsResolve = (location, {Ok: locationsWithBlocks, Errors: errors}) => {
@@ -475,7 +475,7 @@ const locationBlocksLatLonsOrNominatimLocationResultTask = location => R.ifElse(
  */
 const _queryOverpassForSingleBlockResultTask = (osmConfig, location, {way: wayQuery, node: nodeQuery}) => {
 
-  return R.composeK(
+  return composeWithChain([
     // Finally get the features from the response
     resultToTaskNeedingResult(
       ({wayFeatures, nodeFeatures, wayFeaturesByNodeId}) => of(createSingleBlockFeatures(
@@ -531,7 +531,7 @@ const _queryOverpassForSingleBlockResultTask = (osmConfig, location, {way: wayQu
     // parallelWayNodeQueriesResultTask Expects an array of way and node queries because larger queries need to
     // be broken up into smaller tasks. We don't need to break up single block queries. It combines the results
     // so we get a single FeatureCollection response for each of way and node
-  )({location, way: [wayQuery], node: [nodeQuery]});
+  ])({location, way: [wayQuery], node: [nodeQuery]});
 };
 
 /**

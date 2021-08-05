@@ -74,13 +74,13 @@ export const _queryOverpassForAllBlocksResultsTask = (
   osmConfig,
   {location, way: wayQueries, node: nodeQueries}
 ) => {
-  return R.composeK(
+  return composeWithChain([
     // Take the Result.Ok with responses and organize the features into blocks
     // Or put them in an Error array
     // Task Result [<way, node>] -> Task <Ok: [Location], Error: [<way, node>]>
     result => {
       return result.matchWith({
-        Ok: ({value: {way, node}}) => R.composeK(
+        Ok: ({value: {way, node}}) => composeWithChain([
           ({Ok: {way, node, waysByNodeId}, Error: errors}) => {
             if (R.length(errors)) {
               log.warn(`Some waysByNodeId could not be queried ${JSON.stringify(errors)}`);
@@ -107,7 +107,7 @@ export const _queryOverpassForAllBlocksResultsTask = (
             // Otherwise we don't need waysByNode because our query was comprehensive
             ({way, node}) => of({Ok: {way, node, waysByNodeId: {}}, Error: []})
           )({osmConfig, way, node})
-        )({way, node}),
+        ])({way, node}),
         // Create a Results object with the one error
         Error: ({value}) => of({Ok: [], Error: [value]})
       });
@@ -116,7 +116,7 @@ export const _queryOverpassForAllBlocksResultsTask = (
     queries => {
       return parallelWayNodeQueriesResultTask(osmConfig, location, queries);
     }
-  )({way: wayQueries, node: nodeQueries});
+  ])({way: wayQueries, node: nodeQueries});
 };
 
 /**
@@ -141,7 +141,7 @@ export const organizeResponseFeaturesResultsTask = (
   {ways, nodes, partialBlocks}
 ) => {
 
-  return R.composeK(
+  return composeWithChain([
     ({nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint, partialBlocks}) => {
       return _partialBlocksToFeaturesResultsTask(
         osmConfig,
@@ -189,7 +189,7 @@ export const organizeResponseFeaturesResultsTask = (
         );
       }
     )
-  )({ways, nodes, location});
+  ])({ways, nodes, location});
 };
 
 /**

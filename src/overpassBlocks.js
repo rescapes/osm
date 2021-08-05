@@ -20,7 +20,7 @@ import {
 } from './locationHelpers.js';
 import {fetchOsmRawTask, osmResultTask} from './overpassHelpers.js';
 import {
-  chainObjToValues,
+  chainObjToValues, composeWithChain,
   eqStrPathsAllCustomizable,
   mapToNamedResponseAndInputs,
   resultToTaskNeedingResult,
@@ -29,6 +29,7 @@ import {
 import {loggers} from '@rescapes/log';
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
+
 const {of} = T;
 import Result from 'folktale/result/index.js';
 
@@ -126,7 +127,7 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
     rel: ['relations']
   }[locationType];
 
-  return R.composeK(
+  return composeWithChain([
     // Filters out any geojson that isn't a way or relation depending on what we're looking for.
     // Sometimes overpass returns center point nodes for relations that we don't want
     resultToTaskNeedingResult(
@@ -157,18 +158,20 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
           [
             // Just get the relation for neighborhoods and above
             () => R.equals('rel', locationType),
-            osmId => R.composeK(
-              resultToTaskNeedingResult(
-                // Here we always discard locationWithNominatimData's geojson, since the geojson result represents the entire
-                // locationWithNominatimData, not components of it
-                geojson => of(R.merge(filterLocation, {geojson}))
-              ),
-              osmId => osmResultTask(
-                {name: 'fetchOsmRawTask', context: {osmId}},
-                options => fetchOsmRawTask(options, `${locationType}(id:${osmId}) -> .${locationType};
+            osmId => {
+              return composeWithChain([
+                resultToTaskNeedingResult(
+                  // Here we always discard locationWithNominatimData's geojson, since the geojson result represents the entire
+                  // locationWithNominatimData, not components of it
+                  geojson => of(R.merge(filterLocation, {geojson}))
+                ),
+                osmId => osmResultTask(
+                  {name: 'fetchOsmRawTask', context: {osmId}},
+                  options => fetchOsmRawTask(options, `${locationType}(id:${osmId}) -> .${locationType};
 .${locationType} out geom;`)
-              )
-            )(osmId)
+                )
+              ])(osmId)
+            }
           ],
           // Single Block
           [
@@ -195,35 +198,37 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
           [
             // Query for all blocks of the street.
             R.T,
-            osmId => R.composeK(
-              // Aggregate the geojson of all block features into a street-scope locationWithNominatimData
-              ({locationWithOsm, blockLocationsResult}) => {
-                return resultToTaskNeedingResult(
-                  blockLocations => of(aggregateLocation(osmConfig, locationWithOsm, blockLocations))
-                )(blockLocationsResult);
-              },
+            osmId => {
+              return composeWithChain([
+                // Aggregate the geojson of all block features into a street-scope locationWithNominatimData
+                ({locationWithOsm, blockLocationsResult}) => {
+                  return resultToTaskNeedingResult(
+                    blockLocations => of(aggregateLocation(osmConfig, locationWithOsm, blockLocations))
+                  )(blockLocationsResult);
+                },
 
-              // Collect blocks from the matching componentLocations or by querying OSM
-              mapToNamedResponseAndInputs('blockLocationsResult',
-                ({locationWithOsm, blockLocations}) => {
-                  return R.ifElse(
-                    // Do we have component locations that match the street?
-                    R.length,
-                    // If so just use those locations geojson, hoping we have all we need
-                    matchingComponentLocations => of(Result.Ok(
-                      matchingComponentLocations
-                    )),
-                    // Otherwise query OSM and create the blockLocations
-                    () => {
-                      return queryOverpassWithLocationForStreetResultTask(osmConfig, locationWithOsm);
-                    }
-                  )(blockLocations);
-                }
-              )
-            )({
-              locationWithOsm: R.merge(filterLocation, {osmId}),
-              blockLocations: _matchingComponentLocations(componentLocations, filterLocation)
-            })
+                // Collect blocks from the matching componentLocations or by querying OSM
+                mapToNamedResponseAndInputs('blockLocationsResult',
+                  ({locationWithOsm, blockLocations}) => {
+                    return R.ifElse(
+                      // Do we have component locations that match the street?
+                      R.length,
+                      // If so just use those locations geojson, hoping we have all we need
+                      matchingComponentLocations => of(Result.Ok(
+                        matchingComponentLocations
+                      )),
+                      // Otherwise query OSM and create the blockLocations
+                      () => {
+                        return queryOverpassWithLocationForStreetResultTask(osmConfig, locationWithOsm);
+                      }
+                    )(blockLocations);
+                  }
+                )
+              ])({
+                locationWithOsm: R.merge(filterLocation, {osmId}),
+                blockLocations: _matchingComponentLocations(componentLocations, filterLocation)
+              })
+            }
           ]
         ])(osmId);
       }
@@ -242,6 +247,6 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
         location
       )
     )
-  )(filterLocation);
+  ])(filterLocation);
 };
 

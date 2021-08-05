@@ -89,7 +89,7 @@ const log = loggers.get('rescapeDefault');
  * if no variation of the location succeeds in returning a result
  */
 export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) => {
-  return R.composeK(
+  return composeWithChain([
     // Unwrap the result we created for _queryLocationVariationsUntilFoundResultTask
     // Put it in the {Ok: [], Error: []} structure
     result => {
@@ -240,7 +240,7 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
         }))]
       ])(location);
     }
-  )(location);
+  ])(location);
 }, [
   ['osmConfig', PropTypes.shape().isRequired],
   ['location', PropTypes.shape().isRequired]
@@ -415,7 +415,7 @@ export const nominatimOrGoogleJurisdictionGeojsonResultTask = (osmConfig, locati
  * Result.Error is returned. Object has a ways, nodes
  */
 const _queryOverpassWithLocationForAllBlocksResultsTask = (osmConfig, locationWithOsm) => {
-  return R.composeK(
+  return composeWithChain([
     ({way: wayQueries, node: nodeQueries}) => _queryOverpassForAllBlocksResultsTask(
       osmConfig,
       {location: locationWithOsm, way: wayQueries, node: nodeQueries}
@@ -465,7 +465,7 @@ const _queryOverpassWithLocationForAllBlocksResultsTask = (osmConfig, locationWi
         )
       );
     }
-  )(locationWithOsm);
+  ])(locationWithOsm);
 };
 
 

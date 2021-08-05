@@ -181,29 +181,12 @@ ionice -c 2 -n 7 -p $(pgrep -f rules_loop.sh)
 #### Setup a certificate
 
 # Certbot ssl certificate
-sudo apt-get update
-sudo apt-get install software-properties-common
-sudo add-apt-repository universe
-sudo add-apt-repository ppa:certbot/certbot
-sudo apt-get update
-sudo apt install certbot
-sudo apt-get install certbot python-certbot-nginx
-
-# Note that a crontab job is automatically created to renew twice daily:
-# /etc/cron.d/certbot
-# To add subdomains to the certificate, do this:
-cd ~
-wget https://dl.eff.org/certbot-auto
-
-sudo chown root:root ./certbot-auto
-sudo chmod a+x ./certbot-auto
-sudo mv ./certbot-auto /usr/local/bin
-
-
-# Set it up with the domain you want to use. You must have the IP address of the server registered
-# as an A record in this domain's DNS registry
-sudo /usr/local/bin/certbot-auto --cert-name osm.rescapes.net
+sudo snap install core
+sudo snap refresh core
+sudo snap remove certbot
+sudo snap install --classic certbot
 # This asks which subdomain to use and updates /etc/nginx/sites-enabled/sop to point to the security certificate
+sudo certbot --nginx
 
 # Reboot script. Copy from rescape-osm
 ~local: scp server/sop_reboot.sh ubuntu@SERVER_NAME:~/src/osm-3s_v0.7.55/bin
@@ -234,11 +217,11 @@ $EXEC_DIR/dispatcher --areas --terminate
 rm -f $DB_DIR/osm3s_v0.7.55_areas
 # To start all the scripts at once
 # The dispatcher has been successfully started if you find a line "Dispatcher just started." in the file transactions.log in the database directory with correct date (in UTC).
-pkill -f fetch_osc
-pkill -f rules_loop
-pkill -f apply_osc_to_db
-pkill -f update_from_dir
-pkill -f './osm3s_query --progress --rules'
+sudo pkill -f fetch_osc
+sudo pkill -f rules_loop
+sudo pkill -f apply_osc_to_db
+sudo pkill -f update_from_dir
+sudo pkill -f './osm3s_query --progress --rules'
 # Manual commands (same as $EXEC_DIR/sop_reboot.sh commands)
 nohup $EXEC_DIR/dispatcher --osm-base --meta --db-dir=$DB_DIR >>/var/log/overpass/dispatcher-base.out &
 nohup $EXEC_DIR/dispatcher --areas --db-dir=$DB_DIR >>/var/log/overpass/dispatcher-areas.out &
@@ -249,11 +232,11 @@ nohup $EXEC_DIR/rules_loop.sh $DB_DIR >>/var/log/overpass/rules_loop.out&
 
 # To test the server quickly
 # official server
-wget -q -O - "$@" "https://overpass-api.de/api/interpreter?data=%3Cprint%20mode=%22body%22/%3E"
-# your server
-wget -q -O - "$@" "https://$OSM_SERVER/api/interpreter?data=%3Cprint%20mode=%22body%22/%3E"
+curl "https://overpass-api.de/api/interpreter?data=%3Cprint%20mode=%22body%22/%3E"
+# your server (limit $OSM_SERVERS to 1 server comma-separated)
+curl "$OSM_SERVERS/api/interpreter?data=%3Cprint%20mode=%22body%22/%3E"
 # or to see results
-wget -q -O - "%@" "https://$OSM_SERVER/cgi-bin/interpreter?data=%3Cosm-script%20output%3D%22json%22%20output-config%3D%22%22%3E%0A%20%20%3Cid-query%20type%3D%22node%22%20ref%3D%2253049873%22%20into%3D%22matchingNode%22%2F%3E%0A%20%20%3Cquery%20into%3D%22matchingWays%22%20type%3D%22way%22%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22highway%22%20modv%3D%22%22%20v%3D%22%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22highway%22%20modv%3D%22not%22%20v%3D%22driveway%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22footway%22%20modv%3D%22not%22%20v%3D%22crossing%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22footway%22%20modv%3D%22not%22%20v%3D%22sidewalk%22%2F%3E%0A%20%20%20%20%3Crecurse%20from%3D%22matchingNode%22%20type%3D%22node-way%22%2F%3E%0A%20%20%3C%2Fquery%3E%0A%20%20%3Cprint%20e%3D%22%22%20from%3D%22matchingWays%22%20geometry%3D%22full%22%20ids%3D%22yes%22%20limit%3D%22%22%20mode%3D%22body%22%20n%3D%22%22%20order%3D%22id%22%20s%3D%22%22%20w%3D%22%22%2F%3E%0A%3C%2Fosm-script%3E"
+curl "$OSM_SERVERS/cgi-bin/interpreter?data=%3Cosm-script%20output%3D%22json%22%20output-config%3D%22%22%3E%0A%20%20%3Cid-query%20type%3D%22node%22%20ref%3D%2253049873%22%20into%3D%22matchingNode%22%2F%3E%0A%20%20%3Cquery%20into%3D%22matchingWays%22%20type%3D%22way%22%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22highway%22%20modv%3D%22%22%20v%3D%22%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22highway%22%20modv%3D%22not%22%20v%3D%22driveway%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22footway%22%20modv%3D%22not%22%20v%3D%22crossing%22%2F%3E%0A%20%20%20%20%3Chas-kv%20k%3D%22footway%22%20modv%3D%22not%22%20v%3D%22sidewalk%22%2F%3E%0A%20%20%20%20%3Crecurse%20from%3D%22matchingNode%22%20type%3D%22node-way%22%2F%3E%0A%20%20%3C%2Fquery%3E%0A%20%20%3Cprint%20e%3D%22%22%20from%3D%22matchingWays%22%20geometry%3D%22full%22%20ids%3D%22yes%22%20limit%3D%22%22%20mode%3D%22body%22%20n%3D%22%22%20order%3D%22id%22%20s%3D%22%22%20w%3D%22%22%2F%3E%0A%3C%2Fosm-script%3E"
 # If the dispatcher isn't working, terminate it and test the installation vi the bin command:
 $EXEC_DIR/osm3s_query --db-dir=$DB_DIR
 [timeout:900][maxsize:1073741824][out:json];way(area:3608398123)["area" != "yes"][highway]["building" != "yes"]["highway" != "elevator"]["highway" != "driveway"]["highway" != "cycleway"]["highway" != "steps"]["highway" != "proposed"]["footway" != "crossing"]["footway" != "sidewalk"]["service" != "parking_aisle"]["service" != "driveway"]["service" != "drive-through"](if: t["highway"] != "service" || t["access"] != "private")(if: t["highway"] != "footway" || t["indoor"] != "yes") -> .allWays;

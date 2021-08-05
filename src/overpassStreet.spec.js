@@ -71,7 +71,7 @@ describe('overpassStreet', () => {
     expect.assertions(1);
     const errors = [];
 
-    R.composeK(
+    composeWithChain([
       ({locationWithGeojsonResult}) => of(locationWithGeojsonResult),
       // Call with blocks.
       mapResultTaskWithOtherInputs(
@@ -94,7 +94,7 @@ describe('overpassStreet', () => {
           filterLocation
         )
       )
-    )({
+    ])({
       filterLocation: {
         country: 'USA',
         state: 'NY',

@@ -26,7 +26,7 @@ import {
   duplicateKey,
   transformKeys,
   filterWithKeys,
-  composeWithChainMDeep, toNamedResponseAndInputs, strPathOr, compact
+  composeWithChainMDeep, toNamedResponseAndInputs, strPathOr, compact, composeWithChain
 } from '@rescapes/ramda';
 import {locationToTurfPoint} from '@rescapes/helpers';
 import Nominatim from 'nominatim-geocoder';
@@ -129,7 +129,7 @@ const nominatimResultTaskTries = ({tries, name}, taskFunc) => {
  * connecting to the server a Result.Error returns
  */
 export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallbackToCity}, location) => {
-  return R.composeK(
+  return composeWithChain([
     // Convert the list of good results to a Result.Ok and discard the Errors
     results => of(R.ifElse(
       () => listSuccessfulResult,
@@ -262,7 +262,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
         keySets
       ));
     }
-  )(location);
+  ])(location);
 };
 
 /***

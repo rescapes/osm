@@ -89,7 +89,8 @@ export const _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = v
     )
   );
   const matchingPartialBlocks = _matchingPartialBlocks(hashToPartialBlocks, partialBlock);
-  let remainingPartialBlocks = R.without(matchingPartialBlocks, partialBlocks);
+  const matchingSet = new Set(matchingPartialBlocks)
+  let remainingPartialBlocks = R.filter(x => !matchingSet.has(x), partialBlocks)
 
   const {nodes, ways} = partialBlock;
   log.debug(`_recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask: Processing partial block way ids ${

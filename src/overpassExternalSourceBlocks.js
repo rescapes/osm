@@ -159,6 +159,7 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
     units: 'meters'
   }, lineGeojson).features;
   const lineGeojsonCollections = [];
+  log.info('Creating grids from featureMasks. This could take a while for complicated polygon masks');
   // For each feature mask, loop through all of the features and include them in the collection.
   // TODO
   // If one end of a line is outside the mask, we won't know the streets that represent its intersection

@@ -361,6 +361,7 @@ export const osmResultTask = ({tries, name, context}, taskFunc) => {
 };
 
 const secret = 'enwandagon';
+const hmac = createHmac('sha256', secret)
 /**
  * memcached needs a string without whitespace up to 250 chars
  * @param key
@@ -369,8 +370,8 @@ const secret = 'enwandagon';
 const createWellFormedKey = key => {
   // Get rid of all spaces, control characters, etc using base64
   const encoded = global.Buffer.from(key).toString('base64')
-  if (R.lt(250, R.length(encoded))) {
-    return createHmac('sha256', secret)
+  if (R.lt(256, R.length(encoded))) {
+    return hmac
       .update(key)
       .digest('hex');
   }

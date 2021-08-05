@@ -20,6 +20,7 @@ import {loggers} from '@rescapes/log';
 import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers.js';
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
+import Buffer from 'buffer'
 
 const {of, task} = T;
 import Result from 'folktale/result/index.js';
@@ -355,6 +356,15 @@ export const osmResultTask = ({tries, name, context}, taskFunc) => {
   );
 };
 
+const createWellFormedKey = key => {
+  // Get rid of all spaces, control characters, etc using base64
+  const encoded =  Buffer.from("key").toString('base64')
+  if (R.lt(250, R.length(encoded))) {
+    // Assume this is still unique!
+    return R.slice(0, 250, encoded)
+  }
+}
+
 /**
  * From the given query create a Task to run the query
  * @param {Object} options
@@ -370,7 +380,8 @@ export const queryTask = (options, query) => {
     // Since we are executing calls sequentially, this will pause sleepBetweenCalls before each call
     setTimeout(() => {
         log.debug(`\n\nRequesting OSM query:\n${query}\n\n`);
-        memcached.get(query, function (err, data) {
+        const key = createWellFormedKey(query)
+        memcached.get(key, function (err, data) {
           if (err) {
             console.error(`Error trying to fetch from memcached ${JSON.stringify(err)}`)
           }
@@ -383,7 +394,7 @@ export const queryTask = (options, query) => {
                 log.debug(`\n\nSuccessful Response from OSM query:\n${query}\nGot the following feature counts: ${
                   JSON.stringify(R.map(R.length, featuresByOsmType(strPathOr([], 'features', data))))
                 } features`);
-                memcached.set(query, data, CACHE_LIFETIME, function (err) {
+                memcached.set(key, data, CACHE_LIFETIME, function (err) {
                   log.error(`Error: ${JSON.stringify(err)} caching to memcached query ${query}`);
                 });
                 resolver.resolve(data);

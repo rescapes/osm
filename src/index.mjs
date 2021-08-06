@@ -115,7 +115,6 @@ export {
 } from './overpassBlockHelpers.js';
 
 export {
-  bufferAndUnionGeojson,
   oldIntersectionUpgrade,
   isBlockLocation
 } from './locationHelpers.js'

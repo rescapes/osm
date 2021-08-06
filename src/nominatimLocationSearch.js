@@ -65,8 +65,15 @@ export const searchLocation = (endpoint, source, accessToken, proximity, query) 
   });
 };
 
+/**
+ * Query Nominatim, trying at least 3 times before giving up
+ * @param tries
+ * @param name
+ * @param taskFunc
+ * @returns {*}
+ */
 const nominatimResultTaskTries = ({tries, name}, taskFunc) => {
-  const attempts = tries || R.length(nominatimServers);
+  const attempts = R.max(3, tries || R.length(nominatimServers));
   return traverseReduceWhile(
     {
       // Fail the _predicate to stop searching when we have a Result.Ok

@@ -10,6 +10,8 @@ mkdir -p /usr/local/var/db/redis
 To have launchd start redis now and restart/stop
 brew services start redis
 brew services stop redis
+Launch Redis on computer starts.
+ln -sfv /usr/local/opt/redis/*.plist ~/Library/LaunchAgents
 Test:
 redis-cli ping
 

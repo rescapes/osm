@@ -316,7 +316,7 @@ export const buildFilterQuery = R.curry((settings, conditions, types) => {
  * @returns {Task<Result<Object>>} The response in a Result.Ok or errors in Result.Error
  */
 export const osmResultTask = ({tries, name, context}, taskFunc) => {
-  const attempts = R.min(3, tries || R.length(overpassServers));
+  const attempts = R.max(3, tries || R.length(overpassServers));
   return traverseReduceWhile(
     {
       // Fail the _predicate to stop searching when we have a Result.Ok

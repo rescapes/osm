@@ -8,14 +8,23 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-import {defaultRunToResultConfig, defaultRunConfig} from '@rescapes/ramda';
+import {defaultRunToResultConfig, defaultRunConfig, composeWithChain} from '@rescapes/ramda';
 import * as R from 'ramda';
 import {
+  _addIntersectionsToBlocksTask,
   _partialBlocksToFeaturesResultsTask, _queryOverpassForAllBlocksResultsTask,
   _traversePartialBlocksToBuildBlocksResultTask
 } from './overpassAllBlocksHelpers.js';
 import {blockData, partialBlocks, location, locationWithNominatimData} from './samplePartialBlocks.sample.js';
 import {processJurisdictionOrGeojsonResponsesResultTask} from './overpassAllBlocks.js';
+import {
+  _addIntersectionsToBlocksTaskOsmConfig,
+  _addIntersectionsToBlocksTaskNodeIdsToWays,
+  _addIntersectionsToBlocksTaskBlocks
+} from "./overpassAllBlocksHelpers.sample.js";
+import T from 'folktale/concurrency/task';
+
+const {of, task, promised} = T
 
 describe("overpassAllBlockHelpers", () => {
 
@@ -74,4 +83,13 @@ describe("overpassAllBlockHelpers", () => {
       }, errors, done)
     );
   }, 200000);
+
+  test('_addIntersectionsToBlocksTask', async () => {
+    const errors = []
+    await expect(_addIntersectionsToBlocksTask({
+        osmConfig: _addIntersectionsToBlocksTaskOsmConfig,
+        nodeIdToWays: _addIntersectionsToBlocksTaskNodeIdsToWays
+      },
+      _addIntersectionsToBlocksTaskBlocks).run().promise()).resolves.toBeTruthy()
+  })
 });

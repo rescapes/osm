@@ -390,8 +390,6 @@ const createWellFormedKey = key => {
 export const queryTask = (options, query) => {
   // Wrap overpass helper's execution and callback in a Task
   return task(resolver => {
-    // Possibly delay each call to query_overpass to avoid request rate threshold
-    // Since we are executing calls sequentially, this will pause sleepBetweenCalls before each call
     setTimeout(() => {
         log.debug(`\n\nRequesting OSM query:\n${query}\n\n`);
         const key = createWellFormedKey(query)
@@ -401,14 +399,15 @@ export const queryTask = (options, query) => {
           }
           if (data) {
             console.log(`Found cached query data in redis for query ${query}`);
-            resolver.resolve(data)
+            resolver.resolve(JSON.parse(data))
           } else {
+            console.log(`No cached data in redis for query ${query}`);
             queryOverpass(query, (error, data) => {
               if (!error) {
                 log.debug(`\n\nSuccessful Response from OSM query:\n${query}\nGot the following feature counts: ${
                   JSON.stringify(R.map(R.length, featuresByOsmType(strPathOr([], 'features', data))))
                 } features`);
-                redisClient.set(key, data, CACHE_LIFETIME, err => {
+                redisClient.set(key, JSON.stringify(data), err => {
                   if (err) {
                     log.error(`Error: caching to redis query ${query}`, err);
                   }
@@ -421,7 +420,6 @@ export const queryTask = (options, query) => {
             }, options);
           }
         });
-
       },
       options.sleepBetweenCalls || 0);
   });

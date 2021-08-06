@@ -323,7 +323,7 @@ export const _partialBlocksToFeaturesResultsTask = (
  * block node and valued by two or more street names
  * @private
  */
-const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
+export const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks) => {
   return R.traverse(
     of,
     // Add intersections to the blocks based on the ways and nodes' properties

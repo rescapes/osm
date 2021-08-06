@@ -17,5 +17,13 @@ process.env.ENABLE_INTEGRATION_TESTS = process.env.ENABLE_INTEGRATION_TESTS || '
 if (process.env.ENABLE_INTEGRATION_TESTS !== 'false') {
   jest.unmock('query-overpass');
 }
+process.on('unhandledRejection', reason => {
+  log.error('Unhandled Promise', reason);
+  jest.fail(reason);
+});
+process.on('uncaughtException', reason => {
+  log.error('uncaughtException', reason);
+  jest.fail(reason);
+});
 
 Error.stackTraceLimit = Infinity;

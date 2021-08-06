@@ -26,6 +26,7 @@ import {
 
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
+
 const {of} = T;
 import Result from 'folktale/result/index.js';
 import {loggers} from '@rescapes/log';
@@ -154,7 +155,9 @@ export const _recursivelyBuildBlockAndReturnRemainingPartialBlocksResultTask = v
     } being processed from remainingPartialBlocks. This should never happen. Will remove "manually"`);
     remainingPartialBlocks = R.filter(
       remainingBlock => R.compose(
-        ids => R.none(id => R.includes(id, wayIds), ids),
+        ids => {
+          return R.none(id => R.includes(id, wayIds), ids)
+        },
         R.map(R.prop('id'), R.map(R.prop('ways')))
       )(remainingBlock),
       remainingPartialBlocks
@@ -526,7 +529,11 @@ export function _choicePointProcessPartialBlockResultTask(
  * @return {*}
  * @private
  */
-const _choicePointProcessPartialBlockCompleteBlock = ({partialBlocks, ways, nodes}, block, firstFoundNodeOfFinalWay) => {
+const _choicePointProcessPartialBlockCompleteBlock = ({
+                                                        partialBlocks,
+                                                        ways,
+                                                        nodes
+                                                      }, block, firstFoundNodeOfFinalWay) => {
   log.debug(`_choicePointProcessPartialBlockResultTask: completed block for ${
     JSON.stringify(R.map(R.prop('id'), strPathOr([], 'ways', block)))
   }`);
@@ -831,7 +838,11 @@ const _resolveEndBlockNodeOfIncompleteWayResultTask = (osmConfig, {nodes, previo
  * a way sticking off the end if the intersection turned out to be fake and we need to keep processing
  * @private
  */
-export function _completeDeadEndNodeOrQueryForFakeIntersectionNodeResultTask(osmConfig, {ways, nodes, intersectionNodesByWayId}) {
+export function _completeDeadEndNodeOrQueryForFakeIntersectionNodeResultTask(osmConfig, {
+  ways,
+  nodes,
+  intersectionNodesByWayId
+}) {
   const way = R.last(ways);
   const node = R.last(nodes);
   return R.ifElse(
@@ -1014,7 +1025,12 @@ export function _resolveEndBlockNode(way, {intersectionNodesByWayId, nodesByWayI
  * @returns {Object} Merged {nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint}
  * @private
  */
-export const _mergeInNewNodeAndWayRelationships = ({nodeIdToWays, wayIdToNodes, wayEndPointToDirectionalWays, nodeIdToNodePoint}, block) => {
+export const _mergeInNewNodeAndWayRelationships = ({
+                                                     nodeIdToWays,
+                                                     wayIdToNodes,
+                                                     wayEndPointToDirectionalWays,
+                                                     nodeIdToNodePoint
+                                                   }, block) => {
   return R.mergeWith(
     // For each matching top level key, merge and concat+unique arrays or take first for nodeIdToNodePoint
     R.mergeWith(

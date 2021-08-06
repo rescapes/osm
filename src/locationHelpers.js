@@ -16,7 +16,6 @@ import {
   reqStrPathThrowing,
   strPath,
   strPathOr,
-  toArrayIfNot,
   toNamedResponseAndInputs
 } from '@rescapes/ramda';
 import {locationToTurfPoint} from '@rescapes/helpers';
@@ -25,8 +24,6 @@ import PropTypes from 'prop-types';
 import {v} from '@rescapes/validate';
 import {point} from '@turf/helpers';
 import circle from '@turf/circle';
-import buffer from '@turf/buffer';
-import union from '@turf/union';
 import {inspect} from "util";
 import {loggers} from '@rescapes/log';
 
@@ -1102,26 +1099,7 @@ export const nodeFromCoordinate = ({id}, coordinate) => {
   };
 };
 
-/**
- * Given a geojson feature collection, buffer it union each feature from the buffer
- * @param {Object} config
- * @param {Number} config.radius
- * @param {String} config.units
- * @param {Object} geojson Feature Collection to buffer
- * @return {Object} A feature collection  containing one or more features
- */
-export const bufferAndUnionGeojson = ({radius, units}, geojson) => {
-  const buffered = buffer(geojson, radius, {units});
-  const features = R.compose(toArrayIfNot, R.when(R.propEq('type', 'FeatureCollection'), R.prop('features')))(buffered);
-  const feature = R.reduce(
-    (acc, feature) => {
-      return !acc ? feature : union.default(acc, feature);
-    },
-    null,
-    features
-  );
-  return {type: 'FeatureCollection', features: [feature]};
-};
+
 
 /**
  * Returns true if the given features are within the given polygon feature

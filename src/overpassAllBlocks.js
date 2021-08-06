@@ -34,7 +34,6 @@ import Result from 'folktale/result/index.js';
 import {_queryLocationVariationsUntilFoundResultTask, locationsToGeojson} from './overpassBlockHelpers.js';
 import {nominatimLocationResultTask, nominatimReverseGeocodeToLocationResultTask} from './nominatimLocationSearch.js';
 import {
-  bufferAndUnionGeojson,
   commonStreetOfLocation,
   geojsonFeaturesHaveRadii,
   geojsonFeaturesHaveShape,

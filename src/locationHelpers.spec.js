@@ -5,7 +5,7 @@ import {
   addressPair,
   addressStringForBlock,
   addressStrings,
-  aggregateLocation, bufferAndUnionGeojson,
+  aggregateLocation,
   featuresOfOsmType,
   fixWordsThatTripUpGoogle,
   geojsonFeaturesHaveRadii,
@@ -17,6 +17,7 @@ import {
   normalizedIntersectionNames, oldIntersectionUpgrade,
   osmFeaturesOfLocationForType
 } from './locationHelpers.js';
+import {bufferAndUnionGeojson} from '@rescapes/helpers'
 import {defaultRunConfig, mergeDeepWithConcatArrays, reqStrPathThrowing} from '@rescapes/ramda';
 import {blocksToGeojson, locationsToGeojson} from './overpassBlockHelpers.js';
 import {bufferedFeaturesToOsmAllBlocksQueryResultsTask} from './overpassAllBlocks.js';

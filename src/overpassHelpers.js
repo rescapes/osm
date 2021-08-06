@@ -28,12 +28,14 @@ import Result from 'folktale/result/index.js';
 
 import queryOverpass from 'query-overpass';
 import os from 'os';
+import redis from 'redis'
 
 const log = loggers.get('rescapeDefault');
 
-import Memcached from 'memcached'
 
-const memcached = new Memcached('localhost:11211');
+const redisClient = redis.createClient({
+  port: 6379,
+});
 
 // When doing OSM queries with lat/lon points search for nodes withing this many meters of them
 // The idea is that differences between Google, OSM, and manually marking of intersections should
@@ -362,7 +364,7 @@ export const osmResultTask = ({tries, name, context}, taskFunc) => {
 
 const secret = 'enwandagon';
 /**
- * memcached needs a string without whitespace up to 250 chars
+ * redis needs a string without whitespace up to 250 chars
  * @param key
  * @returns {*}
  */
@@ -393,12 +395,12 @@ export const queryTask = (options, query) => {
     setTimeout(() => {
         log.debug(`\n\nRequesting OSM query:\n${query}\n\n`);
         const key = createWellFormedKey(query)
-        memcached.get(key, function (err, data) {
+        redisClient.get(key, (err, data) => {
           if (err) {
-            console.error('Error trying to fetch from memcached', err)
+            console.error('Error trying to fetch from redis', err)
           }
           if (data) {
-            console.log(`Found cached query data in memcached for query ${query}`);
+            console.log(`Found cached query data in redis for query ${query}`);
             resolver.resolve(data)
           } else {
             queryOverpass(query, (error, data) => {
@@ -406,9 +408,9 @@ export const queryTask = (options, query) => {
                 log.debug(`\n\nSuccessful Response from OSM query:\n${query}\nGot the following feature counts: ${
                   JSON.stringify(R.map(R.length, featuresByOsmType(strPathOr([], 'features', data))))
                 } features`);
-                memcached.set(key, data, CACHE_LIFETIME, function (err) {
+                redisClient.set(key, data, CACHE_LIFETIME, err => {
                   if (err) {
-                    log.error(`Error: caching to memcached query ${query}`, err);
+                    log.error(`Error: caching to redis query ${query}`, err);
                   }
                 });
                 resolver.resolve(data);

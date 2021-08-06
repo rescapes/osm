@@ -33,7 +33,7 @@ import {
   mergeAllWithKey,
   omitDeep,
   reqStrPathThrowing,
-  resultsToResultObj,
+  resultsToResultObj, sequenceBucketed,
   splitAtInclusive,
   strPathOr,
   taskToResultTask,
@@ -365,7 +365,7 @@ export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) =
                 },
                 // Perform the tasks in parallel
                 ({queries, type}) => {
-                  return waitAllBucketed(
+                  return sequenceBucketed({monadType: of},
                     R.map(
                       query => osmResultTask({
                           name: `parallelWayNodeQueriesResultTask: ${type}`,

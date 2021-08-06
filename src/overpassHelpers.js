@@ -20,7 +20,7 @@ import {loggers} from '@rescapes/log';
 import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers.js';
 import * as R from 'ramda';
 import T from 'folktale/concurrency/task/index.js';
-import { createHmac } from 'crypto'
+import {createHmac} from 'crypto'
 
 
 const {of, task} = T;
@@ -361,7 +361,6 @@ export const osmResultTask = ({tries, name, context}, taskFunc) => {
 };
 
 const secret = 'enwandagon';
-const hmac = createHmac('sha256', secret)
 /**
  * memcached needs a string without whitespace up to 250 chars
  * @param key
@@ -371,7 +370,7 @@ const createWellFormedKey = key => {
   // Get rid of all spaces, control characters, etc using base64
   const encoded = global.Buffer.from(key).toString('base64')
   if (R.lt(256, R.length(encoded))) {
-    return hmac
+    return createHmac('sha256', secret)
       .update(key)
       .digest('hex');
   }
@@ -396,7 +395,7 @@ export const queryTask = (options, query) => {
         const key = createWellFormedKey(query)
         memcached.get(key, function (err, data) {
           if (err) {
-            console.error(`Error trying to fetch from memcached ${JSON.stringify(err)}`)
+            console.error('Error trying to fetch from memcached', err)
           }
           if (data) {
             console.log(`Found cached query data in memcached for query ${query}`);
@@ -409,7 +408,7 @@ export const queryTask = (options, query) => {
                 } features`);
                 memcached.set(key, data, CACHE_LIFETIME, function (err) {
                   if (err) {
-                    log.error(`Error: ${JSON.stringify(err)} caching to memcached query ${query}`);
+                    log.error(`Error: caching to memcached query ${query}`, err);
                   }
                 });
                 resolver.resolve(data);

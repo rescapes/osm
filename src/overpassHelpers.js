@@ -14,7 +14,7 @@ import {
   taskToResultTask,
   toNamedResponseAndInputs,
   traverseReduceWhile,
-  toMergedResponseAndInputs, strPathOr, reqPathThrowing, compact
+  toMergedResponseAndInputs, strPathOr, reqPathThrowing, compact, composeWithChain
 } from '@rescapes/ramda';
 import {loggers} from '@rescapes/log';
 import {findMatchingNodes, hashNodeFeature, hashWayFeature} from './overpassFeatureHelpers.js';
@@ -23,12 +23,13 @@ import T from 'folktale/concurrency/task/index.js';
 import {createHmac} from 'crypto'
 
 
-const {of, task} = T;
+const {of, task, fromPromised} = T;
 import Result from 'folktale/result/index.js';
 
 import queryOverpass from 'query-overpass';
 import os from 'os';
 import redis from 'redis'
+import {timeoutTask} from "@rescapes/ramda/src/monadHelpers";
 
 const log = loggers.get('rescapeDefault');
 
@@ -379,6 +380,14 @@ const createWellFormedKey = key => {
   return encoded
 }
 
+function getCallStackSize() {
+  var count = 0, fn = arguments.callee;
+  while ((fn = fn.caller)) {
+    count++;
+  }
+  return count;
+}
+
 /**
  * From the given query create a Task to run the query
  * @param {Object} options
@@ -389,40 +398,39 @@ const createWellFormedKey = key => {
  */
 export const queryTask = (options, query) => {
   // Wrap overpass helper's execution and callback in a Task
-  return task(resolver => {
-    setTimeout(() => {
-        log.debug(`\n\nRequesting OSM query:\n${query}\n\n`);
-        const key = createWellFormedKey(query)
-        redisClient.get(key, (err, data) => {
-          if (err) {
-            console.error('Error trying to fetch from redis', err)
-          }
-          if (data) {
-            console.log(`Found cached query data in redis for query ${query}`);
-            resolver.resolve(JSON.parse(data))
-          } else {
-            console.log(`No cached data in redis for query ${query}`);
-            queryOverpass(query, (error, data) => {
-              if (!error) {
-                log.debug(`\n\nSuccessful Response from OSM query:\n${query}\nGot the following feature counts: ${
-                  JSON.stringify(R.map(R.length, featuresByOsmType(strPathOr([], 'features', data))))
-                } features`);
-                redisClient.set(key, JSON.stringify(data), err => {
-                  if (err) {
-                    log.error(`Error: caching to redis query ${query}`, err);
-                  }
-                });
-                resolver.resolve(data);
-              } else {
-                log.warn(`\n\nFailure Response from OSM query:\n${query}\n\n`);
-                resolver.reject({error, query});
-              }
-            }, options);
-          }
-        });
-      },
-      options.sleepBetweenCalls || 0);
-  });
+  return fromPromised(() => new Promise((resolve, error) => {
+    log.debug(`\n\nRequesting OSM query:\n${query}\n\n`);
+    const key = createWellFormedKey(query)
+    redisClient.get(key, (err, data) => {
+      if (err) {
+        console.error('Error trying to fetch from redis', err)
+      }
+      if (data) {
+        console.log(`Found cached query data in redis for query ${query}`);
+        resolve(JSON.parse(data))
+      } else {
+        console.log(`No cached data in redis for query ${query}`);
+        setTimeout( function() {
+          queryOverpass(query, (error, data) => {
+            if (!error) {
+              log.debug(`\n\nSuccessful Response from OSM query:\n${query}\nGot the following feature counts: ${
+                JSON.stringify(R.map(R.length, featuresByOsmType(strPathOr([], 'features', data))))
+              } features`);
+              redisClient.set(key, JSON.stringify(data), err => {
+                if (err) {
+                  log.error(`Error: caching to redis query ${query}`, err);
+                }
+              });
+              resolve(data);
+            } else {
+              log.warn(`\n\nFailure Response from OSM query:\n${query}\n\n`);
+              reject({error, query});
+            }
+          }, options);
+        }, 0)
+      }
+    });
+  }))()
 };
 
 /**

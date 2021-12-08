@@ -72,7 +72,7 @@ export {
   fixWordsThatTripUpGoogle
 } from './locationHelpers.js';
 export {searchLocation, nominatimResultTask, mapboxGeocodeTask} from './nominatimLocationSearch.js';
-export {fetchTransitOsm} from './overpassTransit.js';
+export {fetchTransitOsmTask} from './overpassTransit.js';
 export {
   queryLocationForOsmSingleBlockResultTask, queryLocationForOsmSingleBlocksResultsTask
 } from './overpassSingleBlock.js';

@@ -11,6 +11,7 @@
 
 export const PARIS_BOUNDS = [-125, 31, -113, 43];
 export const LA_BOUNDS = [-125, 31, -113, 43];
+export const NORWAY_SOUTH_BOUNDS = [5.32493597345261, 60.39397300800675, 10.826956144077839, 57.8523960622647]
 
 export const PARIS_SAMPLE = {
   type: 'FeatureCollection',

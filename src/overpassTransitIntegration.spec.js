@@ -17,7 +17,7 @@ import {
 import {defaultRunConfig} from '@rescapes/ramda';
 import T from 'folktale/concurrency/task/index.js';
 const {rejected} = T;
-import {fetchTransitOsm} from './overpassTransit.js';
+import {fetchTransitOsmTask} from './overpassTransit.js';
 
 
 const conditions = [
@@ -45,7 +45,7 @@ describe('overpassTransitIntegration', () => {
     expect.assertions(1);
     // Unmocked integration test
     // We expect over 500 results. I'll leave it fuzzy in case the source dataset changes
-    fetchTransitOsm(
+    fetchTransitOsmTask(
       {},
       {bounds: realBounds, filters: conditions},
       types
@@ -67,7 +67,7 @@ describe('overpassTransitIntegration', () => {
   test('unmockedFetchTransitCelled', done => {
     expect.assertions(1);
     // Wrap the Task in a Promise for jest's sake
-    fetchTransitOsm({
+    fetchTransitOsmTask({
         // 1 meter cells!
         cellSize: 1,
         sleepBetweenCalls: 1000

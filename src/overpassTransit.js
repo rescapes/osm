@@ -31,7 +31,7 @@ import {extractSquareGridBboxesFromBounds} from '@rescapes/helpers';
  * @param {[String]} types List of OSM type sto query by e.g. ['way', 'node', relation']
  * @returns {Object} Task to fetchTransitOsm the data
  */
-export const fetchTransitOsm = R.curry((options, conditions, types) => {
+export const fetchTransitOsmTask = R.curry((options, conditions, types) => {
   // Default settings
   const settings = options.settings || [`[out:json]`];
   const defaultOptions = R.merge(options, {settings});
@@ -44,7 +44,6 @@ export const fetchTransitOsm = R.curry((options, conditions, types) => {
   // Create a Task to run the query. Settings are already added to the query, so omit here
   return queryTask(R.omit(['settings'], options), query);
 });
-
 
 
 /**
@@ -75,7 +74,7 @@ const fetchOsmTransitCelled = ({cellSize, ...options}, conditions, types) => {
   // Create a fetchTransitOsm Task for reach square boundary
   // fetchTasks :: Array (Task Object)
   const fetchTasks = R.map(
-    boundary => fetchTransitOsm(
+    boundary => fetchTransitOsmTask(
       options,
       R.merge(conditions, {boundary}),
       types
@@ -99,15 +98,16 @@ const fetchOsmTransitCelled = ({cellSize, ...options}, conditions, types) => {
   // This combines the results of all the fetchTransitOsm calls and removes duplicate results
   // sequenced :: Task (Array Object)
   // const sequenced = R.sequence(Task.of, fetchTasks);
-  return chainedTasks.map(results =>
-    R.compose(
-      // Lastly remove features with the same id
-      R.over(
-        R.lens(R.prop('features'), R.assoc('features')),
-        removeDuplicateObjectsByProp('id')
-      ),
-      // First combine the results into one obj with concatinated features
-      mergeAllWithKey(concatFeatures)
-    )(results)
+  return chainedTasks.map(results => {
+      return R.compose(
+        // Lastly remove features with the same id
+        R.over(
+          R.lens(R.prop('features'), R.assoc('features')),
+          removeDuplicateObjectsByProp('id')
+        ),
+        // First combine the results into one obj with concatinated features
+        mergeAllWithKey(concatFeatures)
+      )(results)
+    }
   );
 };

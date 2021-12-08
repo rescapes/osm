@@ -23,8 +23,7 @@ import {
   _addIntersectionsToBlocksTaskBlocks
 } from "./overpassAllBlocksHelpers.sample.js";
 import T from 'folktale/concurrency/task';
-
-const {of, task, promised} = T
+import {jest} from '@jest/globals';
 
 describe("overpassAllBlockHelpers", () => {
 
@@ -85,11 +84,12 @@ describe("overpassAllBlockHelpers", () => {
   }, 200000);
 
   test('_addIntersectionsToBlocksTask', async () => {
-    const errors = []
     await expect(_addIntersectionsToBlocksTask({
         osmConfig: _addIntersectionsToBlocksTaskOsmConfig,
         nodeIdToWays: _addIntersectionsToBlocksTaskNodeIdsToWays
       },
-      _addIntersectionsToBlocksTaskBlocks).run().promise()).resolves.toBeTruthy()
+      _addIntersectionsToBlocksTaskBlocks).run().promise().then(x => {
+      return R.length(x)
+    })).resolves.toBe(1959)
   })
 });

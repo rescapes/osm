@@ -1,7 +1,7 @@
-import {LA_BOUNDS, LA_SAMPLE} from './samples/queryOverpass.sample.js';
-import {osmAlways, osmNotEqual} from './overpassHelpers.js';
+import {NORWAY_SOUTH_BOUNDS, LA_SAMPLE} from './samples/queryOverpass.sample.js';
+import {osmAlways, osmEquals, osmNotEqual} from './overpassHelpers.js';
 import {defaultRunConfig, removeDuplicateObjectsByProp} from '@rescapes/ramda';
-import {fetchTransitOsm} from './overpassTransit.js';
+import {fetchTransitOsmTask} from './overpassTransit.js';
 import {jest} from '@jest/globals';
 
 /**
@@ -17,9 +17,10 @@ import {jest} from '@jest/globals';
 
 jest.mock('query-overpass');
 const conditions = [
-  osmAlways("railway"),
+  osmEquals("railway", "rail"),
   osmNotEqual("service", "siding"),
-  osmNotEqual("service", "spur")
+  osmNotEqual("service", "spur"),
+  osmNotEqual("service", "yard")
 ];
 
 const types = [
@@ -27,14 +28,12 @@ const types = [
 ];
 
 describe('overpassTransit', () => {
-  test('Out of date', () => {})
-  /*
-  const bounds = LA_BOUNDS;
+  const bounds = NORWAY_SOUTH_BOUNDS;
   test('fetchTransitOsm', done => {
     expect.assertions(1);
     const errors = [];
     // Pass bounds in the options. Our mock query-overpass uses is to avoid parsing the query
-    fetchTransitOsm(
+    fetchTransitOsmTask(
       {
         // Used by the mock
         context: bounds
@@ -49,12 +48,13 @@ describe('overpassTransit', () => {
           }
       }, errors, done)
     );
-  });
+  }, 200000);
 
+  /*
   test('fetchTransitOsm in cells', done => {
     expect.assertions(1);
     const errors = [];
-    fetchTransitOsm(
+    fetchTransitOsmTask(
       {
         cellSize: 200,
         // Used by the mock

@@ -175,7 +175,7 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
       lineGeojsonCollections.push(lineGeojsonCollection);
       R.forEach(
         feature => {
-          if (!booleanDisjoint.default(feature, featureMask)) {
+          if (!booleanDisjoint(feature, featureMask)) {
             lineGeojsonCollection.push(feature);
           }
         },

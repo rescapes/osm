@@ -29,7 +29,6 @@ import Result from 'folktale/result/index.js';
 import queryOverpass from 'query-overpass';
 import os from 'os';
 import redis from 'redis'
-import {timeoutTask} from "@rescapes/ramda/src/monadHelpers";
 
 const log = loggers.get('rescapeDefault');
 

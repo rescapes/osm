@@ -344,7 +344,7 @@ export const geojsonCenterOfBlockAddress = location => {
   return composeWithChain([
     // Find the center of the two points
     featureCollectionResult => of(featureCollectionResult.map(featureCollection => {
-      return center.default(featureCollection);
+      return center(featureCollection);
     })),
     // Create a FeatureCollection from the two Turf Points
     featuresResult => of(featuresResult.map(features => {
@@ -385,7 +385,7 @@ export const findClosest = (firstResultSet, secondResultSet) => {
           },
           [firstResult, secondResult]
         );
-        const distance = rhumbDistance.default(...points);
+        const distance = rhumbDistance(...points);
         return {
           firstResult,
           secondResult,

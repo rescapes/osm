@@ -377,9 +377,9 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
     // Make a feature collection
     feature => featureCollection([feature]),
     // Make a polygon box from the bounds
-    points => bboxPolygon.default(points),
+    points => bboxPolygon(points),
     // Get the bounds
-    features => bbox.default(features),
+    features => bbox(features),
     // Make a feature collection of points
     points => featureCollection(points),
     // Buffer the points by 20 meters so we don't miss the intersection nodes at the corners of the bounding box

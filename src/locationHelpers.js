@@ -1070,7 +1070,7 @@ export const featureWithRadiusToCirclePolygon = (feature, options) => {
       }, options);
       const radius = reqStrPathThrowing('properties.radius', feature);
       // Create a polygon circle feature, converting the radius property to _radius
-      return circle.default(
+      return circle(
         feature,
         radius,
         mergedOptions

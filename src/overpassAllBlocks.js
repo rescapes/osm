@@ -135,9 +135,9 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                     const searchLatLon = R.compose(
                       latLon => R.fromPairs(R.zip(['lat', 'lon'], latLon)),
                       point => turfPointToLocation(point),
-                      geojson => center.default(geojson),
-                      ({line, length}) => along.default(line, length / 2, {units: 'meters'}),
-                      line => ({line, length: length.default(line, {units: 'meters'})}),
+                      geojson => center(geojson),
+                      ({line, length}) => along(line, length / 2, {units: 'meters'}),
+                      line => ({line, length: length(line, {units: 'meters'})}),
                       ways => lineString(R.reduce(
                         (acc, way) => R.uniq(R.concat(acc, reqStrPathThrowing('geometry.coordinates', way))),
                         [],
@@ -307,7 +307,7 @@ export const nominatimOrGoogleJurisdictionGeojsonResultTask = (osmConfig, locati
       // If we get a googleLocation that is more than 100 meters from the nominatim point,
       // use the Google center point for the geojson
       const nominatimLocation = R.head(nominatimLocations || []);
-      const dist = (nominatimLocationGeojson, googleLocationGeojson) => distance.default(
+      const dist = (nominatimLocationGeojson, googleLocationGeojson) => distance(
         nominatimLocationGeojson,
         googleLocationGeojson,
         {units: 'meters'}

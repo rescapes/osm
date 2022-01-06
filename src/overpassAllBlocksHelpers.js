@@ -535,9 +535,9 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
                 const processedBlocks = R.concat(blocks, [block]);
                 if (process.env.NODE_ENV !== 'production') {
                   // Debugging help will eventually be used for visual feedback of the processing on a website
-                  log.debug('Geojson of processed blocks');
+                  //log.debug('Geojson of processed blocks');
                   //blocksToGeojson(processedBlocks);
-                  log.debug('Geojson of remaining partial blocks');
+                  //log.debug('Geojson of remaining partial blocks');
                   //blocksToGeojson(partialBlocks);
                 }
                 return Result.Ok({

@@ -306,7 +306,7 @@ export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) =
             },
             // Merge them into a Result.Ok
             objResults => {
-              return traverseReduce(R.merge, Result.Ok({}), objResults);
+              return traverseReduce(R.mergeRight, Result.Ok({}), objResults);
             },
             // When there is a Result.Error from Overpass it's in the form Result.Error[{value, server}]. So
             // we concat these errors

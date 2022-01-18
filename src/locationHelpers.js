@@ -311,7 +311,7 @@ export const addressPair = location => {
             return addressString(location);
           },
           intersection => {
-            return removeStateFromSomeCountriesForSearch(R.merge(locationProps, {intersections: [intersection]}));
+            return removeStateFromSomeCountriesForSearch(R.mergeRight(locationProps, {intersections: [intersection]}));
           }
         )(intersection);
       }
@@ -1060,7 +1060,7 @@ export const featureWithRadiusToCirclePolygon = (feature, options) => {
     feature => {
       // Then map it to a polygon
       // Merger given options with defaults
-      const mergedOptions = R.merge({
+      const mergedOptions = R.mergeRight({
         steps: 100,
         units: 'meters',
         properties: mapKeys(
@@ -1166,7 +1166,7 @@ export const oldIntersectionUpgrade = ({
   );
   const coordStrings = R.map(R.join(','), coordSets);
 
-  return R.merge(
+  return R.mergeRight(
     {
       blockname,
       intersections: [

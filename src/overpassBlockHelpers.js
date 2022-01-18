@@ -369,7 +369,7 @@ export const parallelWayNodeQueriesResultTask = (osmConfig, location, queries) =
                     R.map(
                       query => osmResultTask({
                           name: `parallelWayNodeQueriesResultTask: ${type}`,
-                          context: R.merge({type}, location)
+                          context: R.mergeRight({type}, location)
                         },
                         options => {
                           return fetchOsmRawTask(options, query);
@@ -669,7 +669,7 @@ export const createSingleBlockFeatures = (osmConfig, location, {wayFeatures, nod
     nodeFeatures,
     wayFeaturesByNodeId
   ).value;
-  return R.merge(
+  return R.mergeRight(
     {
       nodesToIntersections
     },
@@ -1062,7 +1062,7 @@ export const styledBlock = (color, block) => {
           things => R.map(
             thing => R.over(
               R.lensProp('properties'),
-              t => R.merge(
+              t => R.mergeRight(
                 R.ifElse(
                   R.equals('nodes'),
                   () => ({

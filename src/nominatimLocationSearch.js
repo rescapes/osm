@@ -196,7 +196,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
           );
           return nominatimResultTask(locationProps).map(responseResult => responseResult.map(nominatimResponse => {
               // bounding box comes as two lats, then two lon, so fix
-              return R.merge(
+              return R.mergeRight(
                 // Create a geojson center point feature for the locationWithNominatimData if it has
                 // features with properties but no geometry
                 // TODO this is a special case of filling in empty features that might be replaced in the future
@@ -209,7 +209,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
                         return R.compose(R.length, compact, strPathOr([], 'geojson.features'))(location);
                       },
                       location => {
-                        return R.merge(
+                        return R.mergeRight(
                           location, {
                             geojson: R.compose(
                               geojson => R.unless(R.compose(R.length, strPathOr('features')), () => null)(geojson),
@@ -234,7 +234,7 @@ export const nominatimLocationResultTask = ({listSuccessfulResult, allowFallback
                             return R.when(
                               // If there is no feature.geometry
                               f => R.complement(R.propOr)(false, 'geometry', f),
-                              f => R.merge(f, {
+                              f => R.mergeRight(f, {
                                 // Set the geometry to the lat, lon
                                 geometry: locationToTurfPoint(R.props(['lat', 'lon'], nominatimResponse)).geometry
                               })
@@ -376,7 +376,7 @@ export const nominatimReverseGeocodeToLocationResultTask = ({lat, lon}) => {
   return mapMDeep(2,
     location => {
       // Merge the address object with the top-level object
-      return R.merge(
+      return R.mergeRight(
         // Compose changes to the top-level object
         R.compose(
           // Remove point specific data that we don't care about

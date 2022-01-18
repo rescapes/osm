@@ -53,7 +53,7 @@ export const queryOverpassWithLocationForStreetResultTask = (osmConfig, location
           // forceWaysOfNodesQueries  is needed for the street query because we don't get all the ways connected to each
           // node of the street. We need to know how many ways each node has so we know if it's really an intersection node,
           // rather than just a point where the way changes.
-          R.merge({forceWaysOfNodeQueries: true}, osmConfig),
+          R.mergeRight({forceWaysOfNodeQueries: true}, osmConfig),
           {location: locationWithOsm, way, node}
         ).map(results => Result.Ok(results.Ok));
       }

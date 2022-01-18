@@ -389,7 +389,7 @@ const orderedWayFeatureGenerator = (lookup, nodeFeatures) => {
   // Whenever we run out of ways to connect to we are done with this startPoint
   return chainObjToValues(
     (startWayFeature, startPoint) => {
-      resolvedPointToWaysLookups = R.merge(resolvedPointToWaysLookups, {[startPoint]: startWayFeature});
+      resolvedPointToWaysLookups = R.mergeRight(resolvedPointToWaysLookups, {[startPoint]: startWayFeature});
       let wayFeature = startWayFeature;
       const resolvedWayFeatures = [];
       // Make the single item object keyed by next point and valued by feature whose head is the next point
@@ -436,7 +436,7 @@ const orderedWayFeatureGenerator = (lookup, nodeFeatures) => {
         const nextPointToWayFeature = R.map(value => R.head(R.prop('head', value)), nextHeadAndLastPointLookup);
 
         // Add it to our resolvedPointToWaysLookups nextPointToWayFeature
-        resolvedPointToWaysLookups = R.merge(resolvedPointToWaysLookups, nextPointToWayFeature);
+        resolvedPointToWaysLookups = R.mergeRight(resolvedPointToWaysLookups, nextPointToWayFeature);
 
         // Use the way whose head touches the nextPoint
         // We always assume there is only 1 way whose head touches, because we should have sorted all ways go

@@ -183,7 +183,7 @@ export const locationToOsmAllBlocksQueryResultsTask = v((osmConfig, location) =>
                         // the block and the reverse geocode just represents the center point
                         return of(Result.Ok({
                           block: updatedBlock,
-                          location: R.merge(nominatimProperties, updatedLocation)
+                          location: R.mergeRight(nominatimProperties, updatedLocation)
                         }));
                       },
                       // Else, reverse geocode the center of the block to get missing jurisdiction data
@@ -707,7 +707,7 @@ export const bufferedFeaturesToOsmAllBlocksQueryResultsTask = ({osmConfig, buffe
   }), bufferedGeojson.features);
   return composeWithMapMDeep(1, [
     results => {
-      return R.merge({bufferedGeojson}, R.over(
+      return R.mergeRight({bufferedGeojson}, R.over(
         R.lensProp('Ok'),
         ok => {
           // Unique the blocks by the first way id

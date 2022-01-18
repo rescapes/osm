@@ -71,7 +71,7 @@ describe('LocationHeleprs', () => {
   };
   test('addressPair', () => {
     expect(addressPair(
-      R.merge(location, {
+      R.mergeRight(location, {
         street: 'Main St',
         intersections: [
           {
@@ -540,7 +540,7 @@ describe('LocationHeleprs', () => {
     expect(
       aggregateLocation({}, neighborhoodLocation, streetLocations)
     ).toEqual(
-      R.merge(
+      R.mergeRight(
         neighborhoodLocation,
         {
           "geojson": {
@@ -807,7 +807,7 @@ describe('LocationHeleprs', () => {
     // Create locations that all have radius features
     const locations = R.map(
       location => {
-        return R.merge(
+        return R.mergeRight(
           {
             geojson: {
               type: 'FeatureCollection',
@@ -844,7 +844,7 @@ describe('LocationHeleprs', () => {
     // Create locations that all have radius features
     const locations = R.map(
       location => {
-        return R.merge(
+        return R.mergeRight(
           {
             geojson: {
               type: 'FeatureCollection',

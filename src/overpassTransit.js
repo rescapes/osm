@@ -34,7 +34,7 @@ import {extractSquareGridBboxesFromBounds} from '@rescapes/helpers';
 export const fetchTransitOsmTask = R.curry((options, conditions, types) => {
   // Default settings
   const settings = options.settings || [`[out:json]`];
-  const defaultOptions = R.merge(options, {settings});
+  const defaultOptions = R.mergeRight(options, {settings});
 
   if (options.cellSize) {
     return fetchOsmTransitCelled(defaultOptions, conditions, types);
@@ -76,7 +76,7 @@ const fetchOsmTransitCelled = ({cellSize, ...options}, conditions, types) => {
   const fetchTasks = R.map(
     boundary => fetchTransitOsmTask(
       options,
-      R.merge(conditions, {boundary}),
+      R.mergeRight(conditions, {boundary}),
       types
     ),
     squareBoundaries);

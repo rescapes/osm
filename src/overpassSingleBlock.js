@@ -195,7 +195,7 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationW
     ({locationWithOsm, queries: {way: wayQuery, node: nodeQuery}}) => _queryOverpassForSingleBlockResultTask(
       osmConfig,
       // Pass intersections if available to help resolve the right ways
-      R.merge(locationWithOsm, {intersections}),
+      R.mergeRight(locationWithOsm, {intersections}),
       {way: wayQuery, node: nodeQuery}
     ),
     // Build an OSM query for the location. We have to query for ways and then nodes because the API muddles
@@ -212,7 +212,7 @@ const _queryOverpassWithLocationForSingleBlockResultTask = (osmConfig, locationW
               // These are the only properties we might need from the location
               // We pass the intersections if available. We detached them earliser from location
               // So that we can update location with the intersections from Overpass
-              R.merge({intersections}, pickDeepPaths(['osmId', 'data.osmOverrides'], locationWithOsm)),
+              R.mergeRight({intersections}, pickDeepPaths(['osmId', 'data.osmOverrides'], locationWithOsm)),
               geojsonPoints
             )
           ],
@@ -386,7 +386,7 @@ export const _locationToOsmSingleBlockBoundsQueryResultTask = (osmConfig, locati
     points => R.map(point => buffer(point, 20, {units: 'meters'}), points),
     location => reqStrPathThrowing('locationPoints', location)
   )(location);
-  const locationWithGeojsonBounds = R.merge(location, {geojson});
+  const locationWithGeojsonBounds = R.mergeRight(location, {geojson});
   // Try to query by bounds, if we fail accumulate errors
 
   return composeWithChain([
@@ -488,7 +488,7 @@ const _queryOverpassForSingleBlockResultTask = (osmConfig, location, {way: wayQu
     // clean up the geojson of the features to prevent API transmission errors
     // F: way features => Task <int, <responses: <features: [F]>>> -> Task <int, [F]>
     resultToTaskNeedingResult(
-      ({way, node, waysByNodeId}) => of(R.merge(
+      ({way, node, waysByNodeId}) => of(R.mergeRight(
         mapKeysAndValues(
           (queryResults, key) => [
             `${key}Features`,

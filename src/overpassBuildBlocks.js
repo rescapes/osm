@@ -297,7 +297,7 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
     // Now we are either done building the block or need to recurse to continue building
     ({block, remainingPartialBlocks, newNodeIdToWays}) => {
       // Merge the new way/node relationships into the existing
-      const newNodeAndWayRelationships = R.merge(
+      const newNodeAndWayRelationships = R.mergeRight(
         {hashToPartialBlocks},
         _mergeInNewNodeAndWayRelationships({
             // Add any newNodeIdToWays that we found while resolving the block
@@ -307,7 +307,7 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
             // the query area, newNodeIdToWays will not. This makes resolving the street names better because we have all
             // the intersecting ways
             // TODO we don't update nodeIdToNodePoint correspondingly, does it matter?
-            nodeIdToWays: R.merge(nodeIdToWays, newNodeIdToWays),
+            nodeIdToWays: R.mergeRight(nodeIdToWays, newNodeIdToWays),
             wayIdToNodes,
             wayEndPointToDirectionalWays,
             nodeIdToNodePoint
@@ -333,7 +333,7 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
         },
         // Done building the block, return the remaining partial blocks and updated context
         block => of(Result.Ok(
-          R.merge({
+          R.mergeRight({
             block,
             partialBlocks: remainingPartialBlocks
           }, newNodeAndWayRelationships)
@@ -362,7 +362,7 @@ export function _completeBlockOrHandleUnendedWaysAndFakeIntersectionNodesResultT
   // If an error occurs make sure the partial blocks are attatched
   return R.map(
     result => result.mapError(
-      error => R.merge({partialBlocks}, error)
+      error => R.mergeRight({partialBlocks}, error)
     ),
     resultTask
   );
@@ -437,7 +437,7 @@ export function _choicePointProcessPartialBlockResultTask(
         ({partialBlocks, ways, firstFoundNodeOfFinalWay, block, newNodeIdToWays}) => {
           return of(
             Result.Ok(
-              R.merge(
+              R.mergeRight(
                 {newNodeIdToWays},
                 _choicePointProcessPartialBlockCompleteBlock({
                   partialBlocks,
@@ -469,13 +469,13 @@ export function _choicePointProcessPartialBlockResultTask(
           return of(
             R.map(
               // Merge in newNodeIdToWays so we can use them
-              value => R.merge({newNodeIdToWays}, value),
+              value => R.mergeRight({newNodeIdToWays}, value),
               _extendBlockToFakeIntersectionPartialBlockResult(
                 {hashToPartialBlocks},
                 partialBlocks,
                 // Mark the node as a fake intersection so we can remove it from the final block when we are done
                 // constructing the block
-                R.merge({__FAKE_INTERSECTION__: true}, firstFoundNodeOfFinalWay),
+                R.mergeRight({__FAKE_INTERSECTION__: true}, firstFoundNodeOfFinalWay),
                 {nodes, ways}
               )
             )
@@ -496,7 +496,7 @@ export function _choicePointProcessPartialBlockResultTask(
       // The first is required to advance recursion. The second might have useful context data
       return R.map(
         result => result.mapError(
-          error => R.merge(
+          error => R.mergeRight(
             {partialBlocks, nodeIdToWays: newNodeIdToWays},
             error
           )
@@ -905,7 +905,7 @@ export function _completeDeadEndNodeOrQueryForFakeIntersectionNodeResultTask(osm
                   nodeIdToWays,
                   block: {
                     // Merge in __FAKE_INTERSECTION__: true to the fake intersection node so we can remove it later
-                    nodes: R.over(R.lensIndex(-1), R.merge({__FAKE_INTERSECTION__: true}), nodes),
+                    nodes: R.over(R.lensIndex(-1), R.mergeRight({__FAKE_INTERSECTION__: true}), nodes),
                     ways: R.concat(
                       ways,
                       [nextWay]

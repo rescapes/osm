@@ -165,7 +165,7 @@ export const organizeResponseFeaturesResultsTask = (
             R.identity,
             // Combine the existing partial blocks with node and way relationships
             partialBlocks => {
-              return R.merge(_calculateNodeAndWayRelationships({
+              return R.mergeRight(_calculateNodeAndWayRelationships({
                 // Use unique ways and nodes to get relationship data
                 ways: R.uniqBy(hashWayFeature, R.chain(R.prop('ways'), partialBlocks)),
                 nodes: R.uniqBy(hashNodeFeature, R.chain(R.prop('nodes'), partialBlocks))
@@ -335,14 +335,14 @@ export const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks)
             reqStrPathThrowing('ways', block),
             reqStrPathThrowing('nodes', block),
             // Merge in any newNodeIdToWays we found
-            R.merge(nodeIdToWays, newNodeIdToWays)
+            R.mergeRight(nodeIdToWays, newNodeIdToWays)
           );
           log.debug(`_partialBlocksToFeaturesResultsTask: Resolved the following intersection names for the block nodes: ${
             JSON.stringify(nodesToIntersectionsResult.value)
           }`);
           const updatedBlock = nodesToIntersectionsResult.matchWith({
               Ok: ({value: nodesToIntersections}) => {
-                return R.merge(block, {
+                return R.mergeRight(block, {
                     nodesToIntersections
                   }
                 );
@@ -370,7 +370,7 @@ export const _addIntersectionsToBlocksTask = ({osmConfig, nodeIdToWays}, blocks)
           ({osmConfig, nodeIdToWays, block}) => {
             return traverseReduce(
               ({newNodeIdToWays}, {newNodeIdToWays: newNewNodeIdToWays}) => {
-                return {newNodeIdToWays: R.merge(newNodeIdToWays, newNewNodeIdToWays)};
+                return {newNodeIdToWays: R.mergeRight(newNodeIdToWays, newNewNodeIdToWays)};
               },
               of({newNodeIdToWays: {}}),
               R.map(
@@ -533,6 +533,7 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
               Ok: ({value: {partialBlocks, nodeIdToWays, block}}) => {
                 log.debug(`_traversePartialBlocksToBuildBlocksResultTask: finished block. ${R.length(partialBlocks)} remaining`);
                 const processedBlocks = R.concat(blocks, [block]);
+                // TODO create a verbose flag
                 if (process.env.NODE_ENV !== 'production') {
                   // Debugging help will eventually be used for visual feedback of the processing on a website
                   //log.debug('Geojson of processed blocks');
@@ -557,7 +558,7 @@ export const _traversePartialBlocksToBuildBlocksResultTask = (
                     // partialBlocks must be reduced by the those newly processed if though they erred
                     partialBlocks,
                     // nodeIdToWays might have added more ways to nodes that weren't adequately queried initially
-                    nodeIdToWays: R.merge(nodeIdToWays, newNodeIdToWays || {}),
+                    nodeIdToWays: R.mergeRight(nodeIdToWays, newNodeIdToWays || {}),
                     blocks,
                     errorBlocks: R.concat(errorBlocks, [error])
                   }

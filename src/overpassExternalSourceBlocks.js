@@ -62,7 +62,7 @@ export const osmCompatibleWayFeaturesFromGeojson = ({nameProp, jurisdictionFunc}
           properties => R.over(
             R.lensProp('tags'),
             // Default the tags to {}, and then merge name and jurisdiction
-            tags => R.merge(tags || {}, {
+            tags => R.mergeRight(tags || {}, {
               // Create a name tag for the eventual location street/blockname
               name: R.ifElse(
                 () => R.is(Function, nameProp),
@@ -187,7 +187,7 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
 
   return traverseReduce(
     (acc, value) => {
-      log.debug(`Accumulated ${R.length(acc.Ok)} blocks thus far, and ${R.length(acc.Error)} blocks`);
+      log.debug(`Accumulated ${R.length(acc.Ok)} Ok blocks thus far, and ${R.length(acc.Error)} Error blocks`);
       // Hash each ok location's way points to  prevent duplicates
       const locationWayHashes = acc['locationWayHashes'];
       const newLocationsWithWayHashes = compact(R.map(
@@ -205,7 +205,7 @@ export const nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loca
         Ok: R.concat(acc.Ok, R.map(R.prop('location'), newLocationsWithWayHashes)),
         Error: R.concat(acc.Error, R.propOr([], 'Error', value)),
         // Accumulated location way hashes to prevent duplicates
-        locationWayHashes: R.merge(
+        locationWayHashes: R.mergeRight(
           locationWayHashes,
           R.fromPairs(
             R.map(
@@ -283,7 +283,7 @@ export const _nonOsmGeojsonLinesToLocationBlocksResultsTask = ({osmConfig}, {loc
     ({osmConfig, location, partialBlocks}) => {
       log.debug(`nonOsmGeojsonLinesToLocationBlocksResultsTask: Organizing ${R.length(partialBlocks)} partial blocks`);
       return organizeResponseFeaturesResultsTask(
-        R.merge(
+        R.mergeRight(
           osmConfig,
           // Prevent querying OSM for extra data, since our datasources is non-OSM
           {disableNodesOfWayQueries: true}

@@ -61,7 +61,7 @@ describe("overpassAllBlockHelpers", () => {
     _partialBlocksToFeaturesResultsTask(
       {},
       locationWithNominatimData,
-      R.merge(blockData, {partialBlocks})
+      R.mergeRight(blockData, {partialBlocks})
     ).run().listen(defaultRunConfig({
         onResolved: ({Ok, Error}) => {
           expect(R.length(Ok)).toEqual(41);

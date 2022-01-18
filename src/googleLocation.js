@@ -515,7 +515,7 @@ export const initService = (key, service) => {
   const client = googleMapsClient();
   return params => {
     return client[service]({
-      params: R.merge({key}, params)
+      params: R.mergeRight({key}, params)
     });
   };
 };
@@ -550,7 +550,7 @@ export const googleIntersectionTask = location => {
       responsesResult.map(
         // Result has two values, each address
         responses => R.addIndex(R.map)(
-          (response, i) => R.merge({
+          (response, i) => R.mergeRight({
             // Only parse the address_components if we have a real response
             // We'll have a real response unless we had a lat/lon intersection and didn't bother to geocode
             // Otherwise just use each intersection from locationWithNominatimData that we already have
@@ -731,7 +731,7 @@ export const resolveJurisdictionFromGeocodeResult = (location, googleGeocodeResu
       location => Resul.Ok(location),
       location => Result.Error({error: 'Could not extract country and/or city from Google geocode results', location})
     )(location),
-    names => R.merge(location, names),
+    names => R.mergeRight(location, names),
     values => R.mapObjIndexed(
       (value, key) => mapToName[key](value, values),
       values
@@ -780,7 +780,7 @@ export const _googleResolveJurisdictionResultTask = location => mapMDeep(2,
 
     // Add locationPoints to the locationWithNominatimData based on the googleIntersectionObjs if it doesn't have them yet
     const locationWithGoogleAndLocationPoints = locationWithLocationPoints(
-      R.merge(
+      R.mergeRight(
         location,
         {googleIntersectionObjs}
       )

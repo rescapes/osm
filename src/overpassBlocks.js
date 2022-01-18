@@ -163,7 +163,7 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
                 resultToTaskNeedingResult(
                   // Here we always discard locationWithNominatimData's geojson, since the geojson result represents the entire
                   // locationWithNominatimData, not components of it
-                  geojson => of(R.merge(filterLocation, {geojson}))
+                  geojson => of(R.mergeRight(filterLocation, {geojson}))
                 ),
                 osmId => osmResultTask(
                   {name: 'fetchOsmRawTask', context: {osmId}},
@@ -190,7 +190,7 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
                 message: 'No matching componentLocations found for this block locationWithNominatimData'
               })
             )({
-              locationWithOsm: R.merge(filterLocation, {osmId}),
+              locationWithOsm: R.mergeRight(filterLocation, {osmId}),
               blockLocations: _matchingComponentLocations(componentLocations, filterLocation)
             }))
           ],
@@ -225,7 +225,7 @@ export const osmLocationToLocationWithGeojsonResultTask = (osmConfig, componentL
                   }
                 )
               ])({
-                locationWithOsm: R.merge(filterLocation, {osmId}),
+                locationWithOsm: R.mergeRight(filterLocation, {osmId}),
                 blockLocations: _matchingComponentLocations(componentLocations, filterLocation)
               })
             }

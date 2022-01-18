@@ -257,7 +257,7 @@ describe('googleLocation', () => {
       {data: {streets: ['Monroe', 'Holmead']}}
     ];
     // Don't worry which street is listed first
-    const expected = actual => R.filter(R.flip(R.contains)([
+    const expected = actual => R.filter(R.flip(R.includes)([
       "Monroe St NW & 13th St NW, Washington, DC 20010, USA",
       "13th St NW & Monroe St NW, Washington, DC 20010, USA",
       "Holmead Pl NW & Monroe St NW, Washington, DC 20010, USA",

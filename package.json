@@ -57,7 +57,7 @@
     "d3-scale": "^4.0.2",
     "d3-scale-chromatic": "^3.0.0",
     "folktale": "^2.3.2",
-    "follow-redirects": "^1.14.7",
+    "follow-redirects": "^1.14.8",
     "fs": "^0.0.1-security",
     "http-https": "^1.0.0",
     "mapbox-geocoding": "^0.1.5",
